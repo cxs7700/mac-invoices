@@ -1,37 +1,74 @@
-import { useState } from 'react'
+import { useState, type ChangeEvent } from 'react'
 import reactLogo from './assets/react.svg'
 import viteLogo from '/vite.svg'
 import './App.css'
 import { Button } from "@/components/ui/button"
+import { useForm } from "react-hook-form"
+
+type InvoiceFields = {
+  description: string,
+  date: Date,
+  location: string,
+  price: number,
+  status: string,
+  number: number,
+  quantity: number,
+  creatorId: number
+}
 
 function App() {
   const [count, setCount] = useState(0)
+  // const [fields, setFields] = useState({} as InvoiceFields);
+  const {
+    register,
+    setValue,
+    handleSubmit,
+    formState: { errors }
+  } = useForm<InvoiceFields>()
+  // description, date, location, price, status, number, quantity, creatorId, creator
+
+  const onChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const value = e?.target?.value;
+    // setFields({
+    //   ...fields,
+    //   [`${e.target?.name}`]: value
+    // })
+  }
+
+  const onSubmit = handleSubmit(data => console.log(data))
 
   return (
     <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-      <div className="flex min-h-svh flex-col items-center justify-center">
-        <Button>Click me</Button>
-      </div>
+      <form style={{display: 'flex', flexDirection: 'column'}} onSubmit={onSubmit}>
+        <label>Description</label>
+        <input {...register("description")}/>
+
+        <label>Date</label>
+        <input {...register("date")}/>
+
+        <label>Location</label>
+        <input {...register("location")}/>
+
+        <label>Price</label>
+        <input {...register("price")}/>
+
+        <label>Status</label>
+        <input {...register("status")}/>
+
+        <label>Number</label>
+        <input {...register("number")}/>
+
+        <label>Quantity</label>
+        <input {...register("quantity")}/>
+
+        {/* TODO: handle creator name/id */}
+        <label>Creator ID</label>
+        <input {...register("creatorId")}/>
+
+
+        <input type="submit" />
+
+      </form>
     </>
   )
 }
