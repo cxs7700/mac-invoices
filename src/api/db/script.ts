@@ -1,29 +1,33 @@
 import { prisma } from '../../lib/prisma'
 
 async function main() {
-  // Create a new user with a post
+  // Create a new user with an invoice
   const user = await prisma.user.create({
     data: {
-      name: 'Alice',
-      email: 'alice@prisma.io',
-      posts: {
+      name: 'Kim',
+      email: 'kim@prisma.io',
+      invoices: {
         create: {
-          title: 'Hello World',
-          content: 'This is my first post!',
-          published: true,
+          description: 'This is my first invoice!',
+          date: new Date(),
+          location: 'Home',
+          price: 5000.00,
+          status: "Paid",
+          number: 100,
+          quantity: 1
         },
       },
     },
     include: {
-      posts: true,
+      invoices: true,
     },
   })
   console.log('Created user:', user)
 
-  // Fetch all users with their posts
+  // Fetch all users with their invoices
   const allUsers = await prisma.user.findMany({
     include: {
-      posts: true,
+      invoices: true,
     },
   })
   console.log('All users:', JSON.stringify(allUsers, null, 2))

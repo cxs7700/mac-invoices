@@ -8,7 +8,9 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "start": "tsx ./src/api/server.ts"
+    "start": "tsx ./src/api/server.ts",
+    "script": "tsx ./src/api/db/script.ts",
+    "generate": "npx prisma generate"
   },
   "dependencies": {
     "@joggr/fastify-prisma": "^7.0.0",
