@@ -1,7 +1,7 @@
 // ESM
 import Fastify from 'fastify'
-import firstRoute from './our-first-route.ts'
-import dbConnector from './db/connector.ts'
+import dbConnector from './db/connector'
+import invoiceRoutes from './invoices/myRoutes'
 
 /**
  * @type {import('fastify').FastifyInstance} Instance of Fastify
@@ -10,8 +10,9 @@ const fastify = Fastify({
   logger: true
 })
 
-fastify.register(dbConnector)
-fastify.register(firstRoute)
+// Register plugins in order - dbConnector must be registered first
+await fastify.register(dbConnector)
+await fastify.register(invoiceRoutes)
 
 fastify.listen({ port: 3000 }, function (err, address) {
   if (err) {

@@ -13,7 +13,6 @@
     "generate": "npx prisma generate"
   },
   "dependencies": {
-    "@joggr/fastify-prisma": "^7.0.0",
     "@prisma/adapter-pg": "^7.2.0",
     "@prisma/client": "^7.2.0",
     "@radix-ui/react-slot": "^1.2.4",
