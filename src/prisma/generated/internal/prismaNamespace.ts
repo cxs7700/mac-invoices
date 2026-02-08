@@ -610,6 +610,8 @@ export const InvoiceScalarFieldEnum = {
   status: 'status',
   number: 'number',
   quantity: 'quantity',
+  notes: 'notes',
+  parts: 'parts',
   creatorId: 'creatorId'
 } as const
 

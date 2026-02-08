@@ -4,13 +4,15 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
     "build": "tsc -b && vite build",
+    "dev": "vite",
+    "db:generate": "npx prisma generate",
+    "db:seed": "npx prisma db seed",
+    "db:push": "npx prisma db push",
     "lint": "eslint .",
     "preview": "vite preview",
-    "start": "tsx ./src/api/server.ts",
     "script": "tsx ./src/api/db/script.ts",
-    "generate": "npx prisma generate"
+    "start": "tsx ./src/api/server.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.2.0",
@@ -20,6 +22,7 @@
     "@tanstack/react-query": "^5.90.16",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "csv-parse": "^6.1.0",
     "fastify": "^5.6.2",
     "fastify-cli": "^7.4.1",
     "fastify-plugin": "^5.1.0",

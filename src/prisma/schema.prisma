@@ -19,10 +19,12 @@ model Invoice {
   description   String
   date          DateTime
   location      String
-  price         Decimal
+  price         Decimal   @db.Decimal(10, 2)
   status        String
   number        Int       @unique
-  quantity      Int?    
+  quantity      Int?      @default(1)
+  notes         String?
+  parts  String?
   creatorId     Int
   creator       User      @relation(fields: [creatorId], references: [id])
 }

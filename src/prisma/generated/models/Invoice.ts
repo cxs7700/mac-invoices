@@ -51,6 +51,8 @@ export type InvoiceMinAggregateOutputType = {
   status: string | null
   number: number | null
   quantity: number | null
+  notes: string | null
+  parts: string | null
   creatorId: number | null
 }
 
@@ -63,6 +65,8 @@ export type InvoiceMaxAggregateOutputType = {
   status: string | null
   number: number | null
   quantity: number | null
+  notes: string | null
+  parts: string | null
   creatorId: number | null
 }
 
@@ -75,6 +79,8 @@ export type InvoiceCountAggregateOutputType = {
   status: number
   number: number
   quantity: number
+  notes: number
+  parts: number
   creatorId: number
   _all: number
 }
@@ -105,6 +111,8 @@ export type InvoiceMinAggregateInputType = {
   status?: true
   number?: true
   quantity?: true
+  notes?: true
+  parts?: true
   creatorId?: true
 }
 
@@ -117,6 +125,8 @@ export type InvoiceMaxAggregateInputType = {
   status?: true
   number?: true
   quantity?: true
+  notes?: true
+  parts?: true
   creatorId?: true
 }
 
@@ -129,6 +139,8 @@ export type InvoiceCountAggregateInputType = {
   status?: true
   number?: true
   quantity?: true
+  notes?: true
+  parts?: true
   creatorId?: true
   _all?: true
 }
@@ -228,6 +240,8 @@ export type InvoiceGroupByOutputType = {
   status: string
   number: number
   quantity: number | null
+  notes: string | null
+  parts: string | null
   creatorId: number
   _count: InvoiceCountAggregateOutputType | null
   _avg: InvoiceAvgAggregateOutputType | null
@@ -263,6 +277,8 @@ export type InvoiceWhereInput = {
   status?: Prisma.StringFilter<"Invoice"> | string
   number?: Prisma.IntFilter<"Invoice"> | number
   quantity?: Prisma.IntNullableFilter<"Invoice"> | number | null
+  notes?: Prisma.StringNullableFilter<"Invoice"> | string | null
+  parts?: Prisma.StringNullableFilter<"Invoice"> | string | null
   creatorId?: Prisma.IntFilter<"Invoice"> | number
   creator?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
 }
@@ -276,6 +292,8 @@ export type InvoiceOrderByWithRelationInput = {
   status?: Prisma.SortOrder
   number?: Prisma.SortOrder
   quantity?: Prisma.SortOrderInput | Prisma.SortOrder
+  notes?: Prisma.SortOrderInput | Prisma.SortOrder
+  parts?: Prisma.SortOrderInput | Prisma.SortOrder
   creatorId?: Prisma.SortOrder
   creator?: Prisma.UserOrderByWithRelationInput
 }
@@ -292,6 +310,8 @@ export type InvoiceWhereUniqueInput = Prisma.AtLeast<{
   price?: Prisma.DecimalFilter<"Invoice"> | runtime.Decimal | runtime.DecimalJsLike | number | string
   status?: Prisma.StringFilter<"Invoice"> | string
   quantity?: Prisma.IntNullableFilter<"Invoice"> | number | null
+  notes?: Prisma.StringNullableFilter<"Invoice"> | string | null
+  parts?: Prisma.StringNullableFilter<"Invoice"> | string | null
   creatorId?: Prisma.IntFilter<"Invoice"> | number
   creator?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
 }, "id" | "number">
@@ -305,6 +325,8 @@ export type InvoiceOrderByWithAggregationInput = {
   status?: Prisma.SortOrder
   number?: Prisma.SortOrder
   quantity?: Prisma.SortOrderInput | Prisma.SortOrder
+  notes?: Prisma.SortOrderInput | Prisma.SortOrder
+  parts?: Prisma.SortOrderInput | Prisma.SortOrder
   creatorId?: Prisma.SortOrder
   _count?: Prisma.InvoiceCountOrderByAggregateInput
   _avg?: Prisma.InvoiceAvgOrderByAggregateInput
@@ -325,6 +347,8 @@ export type InvoiceScalarWhereWithAggregatesInput = {
   status?: Prisma.StringWithAggregatesFilter<"Invoice"> | string
   number?: Prisma.IntWithAggregatesFilter<"Invoice"> | number
   quantity?: Prisma.IntNullableWithAggregatesFilter<"Invoice"> | number | null
+  notes?: Prisma.StringNullableWithAggregatesFilter<"Invoice"> | string | null
+  parts?: Prisma.StringNullableWithAggregatesFilter<"Invoice"> | string | null
   creatorId?: Prisma.IntWithAggregatesFilter<"Invoice"> | number
 }
 
@@ -336,6 +360,8 @@ export type InvoiceCreateInput = {
   status: string
   number: number
   quantity?: number | null
+  notes?: string | null
+  parts?: string | null
   creator: Prisma.UserCreateNestedOneWithoutInvoicesInput
 }
 
@@ -348,6 +374,8 @@ export type InvoiceUncheckedCreateInput = {
   status: string
   number: number
   quantity?: number | null
+  notes?: string | null
+  parts?: string | null
   creatorId: number
 }
 
@@ -359,6 +387,8 @@ export type InvoiceUpdateInput = {
   status?: Prisma.StringFieldUpdateOperationsInput | string
   number?: Prisma.IntFieldUpdateOperationsInput | number
   quantity?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  parts?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   creator?: Prisma.UserUpdateOneRequiredWithoutInvoicesNestedInput
 }
 
@@ -371,6 +401,8 @@ export type InvoiceUncheckedUpdateInput = {
   status?: Prisma.StringFieldUpdateOperationsInput | string
   number?: Prisma.IntFieldUpdateOperationsInput | number
   quantity?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  parts?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   creatorId?: Prisma.IntFieldUpdateOperationsInput | number
 }
 
@@ -383,6 +415,8 @@ export type InvoiceCreateManyInput = {
   status: string
   number: number
   quantity?: number | null
+  notes?: string | null
+  parts?: string | null
   creatorId: number
 }
 
@@ -394,6 +428,8 @@ export type InvoiceUpdateManyMutationInput = {
   status?: Prisma.StringFieldUpdateOperationsInput | string
   number?: Prisma.IntFieldUpdateOperationsInput | number
   quantity?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  parts?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
 }
 
 export type InvoiceUncheckedUpdateManyInput = {
@@ -405,6 +441,8 @@ export type InvoiceUncheckedUpdateManyInput = {
   status?: Prisma.StringFieldUpdateOperationsInput | string
   number?: Prisma.IntFieldUpdateOperationsInput | number
   quantity?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  parts?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   creatorId?: Prisma.IntFieldUpdateOperationsInput | number
 }
 
@@ -427,6 +465,8 @@ export type InvoiceCountOrderByAggregateInput = {
   status?: Prisma.SortOrder
   number?: Prisma.SortOrder
   quantity?: Prisma.SortOrder
+  notes?: Prisma.SortOrder
+  parts?: Prisma.SortOrder
   creatorId?: Prisma.SortOrder
 }
 
@@ -447,6 +487,8 @@ export type InvoiceMaxOrderByAggregateInput = {
   status?: Prisma.SortOrder
   number?: Prisma.SortOrder
   quantity?: Prisma.SortOrder
+  notes?: Prisma.SortOrder
+  parts?: Prisma.SortOrder
   creatorId?: Prisma.SortOrder
 }
 
@@ -459,6 +501,8 @@ export type InvoiceMinOrderByAggregateInput = {
   status?: Prisma.SortOrder
   number?: Prisma.SortOrder
   quantity?: Prisma.SortOrder
+  notes?: Prisma.SortOrder
+  parts?: Prisma.SortOrder
   creatorId?: Prisma.SortOrder
 }
 
@@ -540,6 +584,8 @@ export type InvoiceCreateWithoutCreatorInput = {
   status: string
   number: number
   quantity?: number | null
+  notes?: string | null
+  parts?: string | null
 }
 
 export type InvoiceUncheckedCreateWithoutCreatorInput = {
@@ -551,6 +597,8 @@ export type InvoiceUncheckedCreateWithoutCreatorInput = {
   status: string
   number: number
   quantity?: number | null
+  notes?: string | null
+  parts?: string | null
 }
 
 export type InvoiceCreateOrConnectWithoutCreatorInput = {
@@ -591,6 +639,8 @@ export type InvoiceScalarWhereInput = {
   status?: Prisma.StringFilter<"Invoice"> | string
   number?: Prisma.IntFilter<"Invoice"> | number
   quantity?: Prisma.IntNullableFilter<"Invoice"> | number | null
+  notes?: Prisma.StringNullableFilter<"Invoice"> | string | null
+  parts?: Prisma.StringNullableFilter<"Invoice"> | string | null
   creatorId?: Prisma.IntFilter<"Invoice"> | number
 }
 
@@ -603,6 +653,8 @@ export type InvoiceCreateManyCreatorInput = {
   status: string
   number: number
   quantity?: number | null
+  notes?: string | null
+  parts?: string | null
 }
 
 export type InvoiceUpdateWithoutCreatorInput = {
@@ -613,6 +665,8 @@ export type InvoiceUpdateWithoutCreatorInput = {
   status?: Prisma.StringFieldUpdateOperationsInput | string
   number?: Prisma.IntFieldUpdateOperationsInput | number
   quantity?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  parts?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
 }
 
 export type InvoiceUncheckedUpdateWithoutCreatorInput = {
@@ -624,6 +678,8 @@ export type InvoiceUncheckedUpdateWithoutCreatorInput = {
   status?: Prisma.StringFieldUpdateOperationsInput | string
   number?: Prisma.IntFieldUpdateOperationsInput | number
   quantity?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  parts?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
 }
 
 export type InvoiceUncheckedUpdateManyWithoutCreatorInput = {
@@ -635,6 +691,8 @@ export type InvoiceUncheckedUpdateManyWithoutCreatorInput = {
   status?: Prisma.StringFieldUpdateOperationsInput | string
   number?: Prisma.IntFieldUpdateOperationsInput | number
   quantity?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  parts?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
 }
 
 
@@ -648,6 +706,8 @@ export type InvoiceSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs 
   status?: boolean
   number?: boolean
   quantity?: boolean
+  notes?: boolean
+  parts?: boolean
   creatorId?: boolean
   creator?: boolean | Prisma.UserDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["invoice"]>
@@ -661,6 +721,8 @@ export type InvoiceSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Exten
   status?: boolean
   number?: boolean
   quantity?: boolean
+  notes?: boolean
+  parts?: boolean
   creatorId?: boolean
   creator?: boolean | Prisma.UserDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["invoice"]>
@@ -674,6 +736,8 @@ export type InvoiceSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Exten
   status?: boolean
   number?: boolean
   quantity?: boolean
+  notes?: boolean
+  parts?: boolean
   creatorId?: boolean
   creator?: boolean | Prisma.UserDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["invoice"]>
@@ -687,10 +751,12 @@ export type InvoiceSelectScalar = {
   status?: boolean
   number?: boolean
   quantity?: boolean
+  notes?: boolean
+  parts?: boolean
   creatorId?: boolean
 }
 
-export type InvoiceOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "description" | "date" | "location" | "price" | "status" | "number" | "quantity" | "creatorId", ExtArgs["result"]["invoice"]>
+export type InvoiceOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "description" | "date" | "location" | "price" | "status" | "number" | "quantity" | "notes" | "parts" | "creatorId", ExtArgs["result"]["invoice"]>
 export type InvoiceInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   creator?: boolean | Prisma.UserDefaultArgs<ExtArgs>
 }
@@ -715,6 +781,8 @@ export type $InvoicePayload<ExtArgs extends runtime.Types.Extensions.InternalArg
     status: string
     number: number
     quantity: number | null
+    notes: string | null
+    parts: string | null
     creatorId: number
   }, ExtArgs["result"]["invoice"]>
   composites: {}
@@ -1148,6 +1216,8 @@ export interface InvoiceFieldRefs {
   readonly status: Prisma.FieldRef<"Invoice", 'String'>
   readonly number: Prisma.FieldRef<"Invoice", 'Int'>
   readonly quantity: Prisma.FieldRef<"Invoice", 'Int'>
+  readonly notes: Prisma.FieldRef<"Invoice", 'String'>
+  readonly parts: Prisma.FieldRef<"Invoice", 'String'>
   readonly creatorId: Prisma.FieldRef<"Invoice", 'Int'>
 }
     
