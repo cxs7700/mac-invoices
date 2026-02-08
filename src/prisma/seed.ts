@@ -48,7 +48,7 @@ const seedUsers = async () => {
 }
 
 const seedInvoices = async () => {
-  const csvFilePath = path.resolve(__dirname, '../invoices.csv')
+  const csvFilePath = path.resolve(__dirname, '../seed-data.csv')
   const csvContent = fs.readFileSync(csvFilePath, 'utf-8')
   const records = parse(csvContent, {
     columns: true,

@@ -24,7 +24,7 @@ model Invoice {
   number        Int       @unique
   quantity      Int?      @default(1)
   notes         String?
-  parts  String?
+  parts         String?
   creatorId     Int
   creator       User      @relation(fields: [creatorId], references: [id])
 }
