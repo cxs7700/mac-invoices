@@ -14,16 +14,16 @@ const seedUsers = async () => {
       name: 'Kim',
       invoices: {
         create: {
-          description: "5b Sewer Pipe Leak & Ceiling Repair",
+          description: '5b Sewer Pipe Leak & Ceiling Repair',
           date: new Date(),
           location: 'Sutton',
           price: 350,
           status: 'Paid',
           number: 115,
-          quantity: 1
-        }
-      }
-    }
+          quantity: 1,
+        },
+      },
+    },
   })
 
   await prisma.user.upsert({
@@ -34,16 +34,16 @@ const seedUsers = async () => {
       name: 'Vivien',
       invoices: {
         create: {
-          description: "Apt 203 Water Heater Replacement",
+          description: 'Apt 203 Water Heater Replacement',
           date: new Date(),
           location: 'Sutton',
           price: 350,
           status: 'Paid',
           number: 116,
-          quantity: 1
-        }
-      }
-    }
+          quantity: 1,
+        },
+      },
+    },
   })
 }
 
@@ -53,7 +53,7 @@ const seedInvoices = async () => {
   const records = parse(csvContent, {
     columns: true,
     skip_empty_lines: true,
-    trim: true
+    trim: true,
   }) as Record<string, string>[]
   for (const row of records) {
     const invoiceNumber = parseInt(row.number)
@@ -62,13 +62,13 @@ const seedInvoices = async () => {
     await prisma.invoice.upsert({
       where: { number: invoiceNumber },
       update: {},
-      create: { 
+      create: {
         ...row,
         number: invoiceNumber,
         price: price,
         date: date,
-        creatorId: 1
-      } as Invoice
+        creatorId: 1,
+      } as Invoice,
     })
   }
 }

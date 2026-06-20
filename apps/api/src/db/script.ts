@@ -11,10 +11,10 @@ async function main() {
           description: 'This is my first invoice!',
           date: new Date(),
           location: 'Home',
-          price: 5000.00,
-          status: "Paid",
+          price: 5000.0,
+          status: 'Paid',
           number: 100,
-          quantity: 1
+          quantity: 1,
         },
       },
     },

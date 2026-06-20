@@ -3,34 +3,34 @@
  */
 
 export interface GetInvoiceParams {
-  id: string;
+  id: string
 }
 
 export interface ListInvoicesQuery {
-  status?: string;
-  creatorId?: string;
-  limit?: string;
-  offset?: string;
+  status?: string
+  creatorId?: string
+  limit?: string
+  offset?: string
 }
 
 export interface CreateInvoiceBody {
-  description: string;
-  date: string | Date;
-  location: string;
-  price: number | string;
-  status: string;
-  number: number;
-  quantity?: number;
-  creatorId: number;
+  description: string
+  date: string | Date
+  location: string
+  price: number | string
+  status: string
+  number: number
+  quantity?: number
+  creatorId: number
 }
 
 export interface UpdateInvoiceBody {
-  description?: string;
-  date?: string | Date;
-  location?: string;
-  price?: number | string;
-  status?: string;
-  number?: number;
-  quantity?: number;
-  creatorId?: number;
+  description?: string
+  date?: string | Date
+  location?: string
+  price?: number | string
+  status?: string
+  number?: number
+  quantity?: number
+  creatorId?: number
 }

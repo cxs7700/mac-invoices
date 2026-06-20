@@ -7,7 +7,7 @@ import invoiceRoutes from './invoices/myRoutes'
  * @type {import('fastify').FastifyInstance} Instance of Fastify
  */
 const fastify = Fastify({
-  logger: true
+  logger: true,
 })
 
 // Register plugins in order - dbConnector must be registered first
