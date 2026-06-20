@@ -6,18 +6,47 @@ import tseslint from 'typescript-eslint'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  globalIgnores(['**/dist', '**/node_modules', '**/generated', '**/*.config.js', '**/*.config.ts']),
+
+  // Base TypeScript rules for every workspace
   {
     files: ['**/*.{ts,tsx}'],
-    extends: [
-      js.configs.recommended,
-      tseslint.configs.recommended,
-      reactHooks.configs.flat.recommended,
-      reactRefresh.configs.vite,
-    ],
+    extends: [js.configs.recommended, tseslint.configs.recommended],
     languageOptions: {
-      ecmaVersion: 2020,
+      ecmaVersion: 2022,
+    },
+    rules: {
+      // Allow intentionally-unused identifiers when prefixed with `_`.
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' },
+      ],
+    },
+  },
+
+  // Web app: browser globals + React rules
+  {
+    files: ['apps/web/**/*.{ts,tsx}'],
+    extends: [reactHooks.configs.flat.recommended, reactRefresh.configs.vite],
+    languageOptions: {
       globals: globals.browser,
+    },
+  },
+
+  // API + shared package: Node globals
+  {
+    files: ['apps/api/**/*.ts', 'packages/shared/**/*.ts'],
+    languageOptions: {
+      globals: globals.node,
+    },
+  },
+
+  // shadcn/ui components export variant helpers alongside the component by design.
+  // Placed last so it overrides the web block's react-refresh rule for these files.
+  {
+    files: ['apps/web/src/components/ui/**/*.{ts,tsx}'],
+    rules: {
+      'react-refresh/only-export-components': 'off',
     },
   },
 ])
