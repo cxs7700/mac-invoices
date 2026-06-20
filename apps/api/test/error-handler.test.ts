@@ -49,7 +49,9 @@ describe('errorHandler (§7 shape)', () => {
   it('maps unknown errors → 500 with no stack leak', async () => {
     const res = await app.inject({ method: 'GET', url: '/boom' })
     expect(res.statusCode).toBe(500)
-    expect(res.json()).toEqual({ error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } })
+    expect(res.json()).toEqual({
+      error: { code: 'INTERNAL_ERROR', message: 'Internal server error' },
+    })
     expect(res.body).not.toContain('secret stack detail')
   })
 })

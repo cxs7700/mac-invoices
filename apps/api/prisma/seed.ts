@@ -3,7 +3,7 @@ import fs from 'fs'
 import path from 'path'
 
 import { prisma } from '../src/lib/prisma'
-import type { Invoice } from '../src/invoices/myTypes'
+import type { Prisma } from './generated/client.ts'
 
 const seedUsers = async () => {
   await prisma.user.upsert({
@@ -68,7 +68,7 @@ const seedInvoices = async () => {
         price: price,
         date: date,
         creatorId: 1,
-      } as Invoice,
+      } as Prisma.InvoiceUncheckedCreateInput,
     })
   }
 }

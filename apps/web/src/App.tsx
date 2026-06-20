@@ -4,11 +4,7 @@ import { useHealth } from '@/hooks/useHealth'
 function HealthIndicator() {
   const { data, isPending, isError } = useHealth()
   const label = isPending ? 'checking…' : isError ? 'unreachable' : (data?.status ?? 'unknown')
-  const color = isPending
-    ? 'bg-muted-foreground'
-    : isError
-      ? 'bg-destructive'
-      : 'bg-green-500'
+  const color = isPending ? 'bg-muted-foreground' : isError ? 'bg-destructive' : 'bg-green-500'
 
   return (
     <span className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -27,7 +23,10 @@ function App() {
             <Link to="/" className="font-semibold text-foreground">
               Mac Invoices
             </Link>
-            <Link to="/invoices/new" className="text-sm text-muted-foreground hover:text-foreground">
+            <Link
+              to="/invoices/new"
+              className="text-sm text-muted-foreground hover:text-foreground"
+            >
               New
             </Link>
           </nav>

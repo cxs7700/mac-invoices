@@ -38,7 +38,8 @@ export async function apiClient<T = unknown>(path: string, init?: RequestInit): 
   const payload = isJson ? await res.json() : await res.text()
 
   if (!res.ok) {
-    const err = (payload as { error?: { code?: string; message?: string; details?: unknown } })?.error
+    const err = (payload as { error?: { code?: string; message?: string; details?: unknown } })
+      ?.error
     throw new ApiError(
       err?.code ?? 'ERROR',
       err?.message ?? `Request failed with ${res.status}`,

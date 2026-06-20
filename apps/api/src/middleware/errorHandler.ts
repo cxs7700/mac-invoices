@@ -30,7 +30,9 @@ function prismaCode(error: unknown): string | undefined {
 type ErrorBody = { error: { code: string; message: string; details?: unknown } }
 
 function body(code: string, message: string, details?: unknown): ErrorBody {
-  return details === undefined ? { error: { code, message } } : { error: { code, message, details } }
+  return details === undefined
+    ? { error: { code, message } }
+    : { error: { code, message, details } }
 }
 
 /**
@@ -71,7 +73,5 @@ export function errorHandler(error: unknown, request: FastifyRequest, reply: Fas
 
 /** Not-found handler so unmatched routes also return the standard shape. */
 export function notFoundHandler(request: FastifyRequest, reply: FastifyReply) {
-  reply
-    .code(404)
-    .send(body('NOT_FOUND', `Route ${request.method} ${request.url} not found`))
+  reply.code(404).send(body('NOT_FOUND', `Route ${request.method} ${request.url} not found`))
 }

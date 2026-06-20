@@ -3,7 +3,11 @@ import { apiClient, ApiError } from '@/lib/apiClient'
 
 type Headers = Record<string, string>
 
-function fakeResponse(status: number, body: unknown, headers: Headers = { 'content-type': 'application/json' }) {
+function fakeResponse(
+  status: number,
+  body: unknown,
+  headers: Headers = { 'content-type': 'application/json' },
+) {
   return {
     ok: status >= 200 && status < 300,
     status,
@@ -41,7 +45,11 @@ describe('apiClient', () => {
   it('throws ApiError exposing code + message on non-2xx', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue(fakeResponse(404, { error: { code: 'NOT_FOUND', message: 'Invoice not found' } })),
+      vi
+        .fn()
+        .mockResolvedValue(
+          fakeResponse(404, { error: { code: 'NOT_FOUND', message: 'Invoice not found' } }),
+        ),
     )
     await expect(apiClient('/api/invoices/999')).rejects.toMatchObject({
       code: 'NOT_FOUND',
