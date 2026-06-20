@@ -25,4 +25,9 @@ dist-ssr
 
 # Environment
 *.env
-/generated/prisma
+
+# Prisma generated client (regenerated via `npm run db:generate`)
+**/generated/
+
+# Build info
+**/*.tsbuildinfo
