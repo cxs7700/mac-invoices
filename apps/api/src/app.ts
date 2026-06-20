@@ -2,6 +2,7 @@ import Fastify from 'fastify'
 import cookie from '@fastify/cookie'
 import cors from '@fastify/cors'
 import dbConnector from './db/connector'
+import { errorHandler, notFoundHandler } from './middleware/errorHandler'
 import healthRoutes from './routes/health'
 import invoiceRoutes from './invoices/routes'
 
@@ -12,6 +13,10 @@ import invoiceRoutes from './invoices/routes'
  */
 export function buildApp() {
   const app = Fastify({ logger: true })
+
+  // Error handling (registered before routes so thrown errors are caught)
+  app.setErrorHandler(errorHandler)
+  app.setNotFoundHandler(notFoundHandler)
 
   // Plugins
   app.register(cookie)
