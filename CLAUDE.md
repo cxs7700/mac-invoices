@@ -4,30 +4,38 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Mac Invoices is a full-stack invoice management app with a React frontend (Vite) and a Fastify backend API backed by PostgreSQL via Prisma ORM.
+Mac Invoices is a full-stack invoice management app with a React frontend (Vite) and a Fastify backend API backed by PostgreSQL via Prisma ORM. It is an **npm-workspaces monorepo**: `apps/web` (frontend), `apps/api` (backend), and `packages/shared` (Zod schemas + types shared by both).
+
+`PROJECT_PLAN.md` is the build plan; `docs/plans/` holds the per-phase execution plans. The work is sequenced in phases (see PROJECT_PLAN §10) — Phase 0 (this foundation) is complete.
 
 ## Common Commands
 
-- `npm run dev` — Start Vite dev server (frontend)
-- `npm run start` — Start Fastify backend server (port 3000)
-- `npm run build` — Type-check and build frontend (`tsc -b && vite build`)
-- `npm run lint` — Run ESLint
-- `npm run generate` — Generate Prisma client (`npx prisma generate`)
-- `npm run script` — Run database seed/migration script (`tsx ./src/api/db/script.ts`)
+Run from the repo root (scripts delegate to the right workspace):
 
-No test runner is currently configured.
+- `npm run dev` — Start the Vite dev server (web). `npm run dev:api` starts the API.
+- `npm run start` — Start the Fastify backend (port 3000)
+- `npm run build` — Type-check and build the web app
+- `npm run lint` — ESLint across all workspaces
+- `npm run typecheck` — `tsc --noEmit` across shared, api, web
+- `npm run test` — Vitest across workspaces
+- `npm run format` / `npm run format:check` — Prettier
+- `npm run db:generate` / `npm run db:push` / `npm run db:seed` — Prisma (target `apps/api`)
+- Local Postgres: `docker compose up -d` (see `.env.example` for env)
+
+**Definition of Done for any change:** `npm run lint && npm run typecheck && npm run test` all green (also enforced in CI: `.github/workflows/ci.yml`).
 
 ## Architecture
 
-### Backend (`src/api/`)
+### Backend (`apps/api/`)
 
 Fastify server with plugin-based architecture:
 
-- **`server.ts`** — Entry point. Registers the Prisma DB connector plugin and invoice routes. Listens on port 3000.
-- **`db/connector.ts`** — Fastify plugin that decorates the instance with a Prisma client. Handles disconnect on server close.
-- **`invoices/`** — Invoice CRUD module with separate `routes.ts`, `handlers.ts`, and `types.ts` files.
+- **`src/server.ts`** — Entry point. Registers the Prisma DB connector plugin and invoice routes. Listens on port 3000.
+- **`src/db/connector.ts`** — Fastify plugin that decorates the instance with a Prisma client. Handles disconnect on server close.
+- **`src/lib/prisma.ts`** — Prisma client (pg adapter). Imports `./loadEnv.ts` to load the single root `.env` regardless of cwd.
+- **`src/invoices/`** — Invoice CRUD module.
 
-**Note:** There are two route implementations — `myRoutes.ts`/`myHandlers.ts` (currently imported by `server.ts`) and `routes.ts`/`handlers.ts` (newer, more complete). The server currently uses the `myRoutes` variant.
+**Note:** There are two route implementations — `myRoutes.ts`/`myTypes.ts` (currently imported by `server.ts`) and `routes.ts`/`handlers.ts`/`types.ts` (newer, more complete). The server currently uses the `myRoutes` variant. Consolidating to one is deferred to Phase 1 (the empty `myHandlers.ts` stub was removed in Phase 0). See the plan's Open Questions OQ-1.
 
 API endpoints (all prefixed `/api/invoices`):
 - `POST /` — Create invoice
@@ -38,23 +46,29 @@ API endpoints (all prefixed `/api/invoices`):
 
 Prisma error codes handled: P2002 (unique constraint violation → 409), P2025 (not found → 404).
 
-### Frontend (`src/`)
+### Frontend (`apps/web/`)
 
-- **`App.tsx`** — React form for creating invoices using React Hook Form
-- **`components/ui/`** — shadcn/ui components (new-york style, Tailwind CSS v4)
-- **`main.tsx`** — React app entry point
+- **`src/App.tsx`** — React form for creating invoices using React Hook Form
+- **`src/components/ui/`** — shadcn/ui components (new-york style, Tailwind CSS v4)
+- **`src/main.tsx`** — React app entry point
 
-Key frontend libraries: React 19, React Hook Form, TanStack Query, React Router, Zod.
+Key frontend libraries: React 19, React Router 7, React Hook Form, TanStack Query, Zod.
 
-### Database (`src/prisma/`)
+### Shared (`packages/shared/`)
 
-- **`schema.prisma`** — Defines `User` and `Invoice` models. Invoice belongs to User via `creatorId`.
-- **`seed.ts`** — Database seeding script.
-- **`generated/`** — Prisma client output (gitignored). Regenerate with `npm run generate`.
+Zod schemas + TS types imported by both apps as `@mac-invoices/shared`. Real invoice schemas (PROJECT_PLAN §6) land in Phase 2.
+
+### Database (`apps/api/prisma/`)
+
+- **`schema.prisma`** — Defines `User` and `Invoice` models. Invoice belongs to User via `creatorId`. (The richer §5 model + auth tables land in Phase 2/3.)
+- **`seed.ts`** + `seed-data.csv` — Database seeding.
+- **`generated/`** — Prisma client output (gitignored). Regenerate with `npm run db:generate`.
 - **`migrations/`** — Prisma migration history.
 
-Prisma config is in `prisma.config.ts` at the project root. The schema path is `src/prisma/schema.prisma`.
+Prisma config is `apps/api/prisma.config.ts`; schema path is `prisma/schema.prisma` (relative to the api workspace).
 
-### Path Aliases
+### Path Aliases & Env
 
-TypeScript path alias `@/*` maps to `./src/*` (configured in `tsconfig.json` and `vite.config.ts`).
+- `@/*` maps to each app's own `./src/*` (configured per-workspace in `tsconfig.json`; web also in `vite.config.ts`).
+- Cross-package imports use the workspace name `@mac-invoices/shared`.
+- A single root `.env` is the source of truth for env (loaded by the api via `apps/api/src/lib/loadEnv.ts`). See `.env.example`.
