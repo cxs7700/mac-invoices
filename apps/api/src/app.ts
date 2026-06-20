@@ -1,4 +1,6 @@
 import Fastify from 'fastify'
+import cookie from '@fastify/cookie'
+import cors from '@fastify/cors'
 import dbConnector from './db/connector'
 import healthRoutes from './routes/health'
 import invoiceRoutes from './invoices/routes'
@@ -12,6 +14,11 @@ export function buildApp() {
   const app = Fastify({ logger: true })
 
   // Plugins
+  app.register(cookie)
+  app.register(cors, {
+    origin: process.env.WEB_ORIGIN ?? 'http://localhost:5173',
+    credentials: true,
+  })
   app.register(dbConnector)
 
   // Routes
