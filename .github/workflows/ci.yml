@@ -26,6 +26,8 @@ jobs:
 
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/invoices
+      LANDLORD_USER_ID: landlord_seed_user
+      LANDLORD_EMAIL: landlord@example.com
 
     steps:
       - uses: actions/checkout@v4
@@ -40,6 +42,12 @@ jobs:
 
       - name: Generate Prisma client
         run: npm run db:generate
+
+      - name: Apply migrations
+        run: npm run db:deploy
+
+      - name: Seed database
+        run: npm run db:seed
 
       - name: Lint
         run: npm run lint
