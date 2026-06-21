@@ -17,6 +17,9 @@ function makeApp() {
   app.get('/p2025', async () => {
     throw Object.assign(new Error('missing'), { code: 'P2025' })
   })
+  app.get('/p2003', async () => {
+    throw Object.assign(new Error('fk'), { code: 'P2003' })
+  })
   app.get('/boom', async () => {
     throw new Error('kaboom: secret stack detail')
   })
@@ -52,6 +55,12 @@ describe('errorHandler (§7 shape)', () => {
     const res = await app.inject({ method: 'GET', url: '/p2025' })
     expect(res.statusCode).toBe(404)
     expect(res.json().error.code).toBe('NOT_FOUND')
+  })
+
+  it('maps Prisma P2003 (FK violation) → 400 BAD_REFERENCE', async () => {
+    const res = await app.inject({ method: 'GET', url: '/p2003' })
+    expect(res.statusCode).toBe(400)
+    expect(res.json().error.code).toBe('BAD_REFERENCE')
   })
 
   it('maps validation failures → 400 with details', async () => {
