@@ -9,9 +9,13 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
   },
   "dependencies": {
     "zod": "^4.3.5"
+  },
+  "devDependencies": {
+    "vitest": "^3.2.4"
   }
 }
