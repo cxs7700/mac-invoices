@@ -8,23 +8,98 @@ datasource db {
 }
 
 model User {
-  id            Int       @id @default(autoincrement())
-  email         String    @unique
-  name          String?
-  invoices      Invoice[]
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  name         String?
+  role         Role      @default(LANDLORD)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  invoices     Invoice[]
+  sessions     Session[]
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id
+  userId    String
+  expiresAt DateTime
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
 }
 
 model Invoice {
-  id            Int       @id @default(autoincrement())
-  description   String
-  date          DateTime
-  location      String
-  price         Decimal   @db.Decimal(10, 2)
-  status        String
-  number        Int       @unique
-  quantity      Int?      @default(1)
-  notes         String?
-  parts         String?
-  creatorId     Int
-  creator       User      @relation(fields: [creatorId], references: [id])
+  id             String          @id @default(cuid())
+  invoiceNumber  String          @unique
+  vendorName     String
+  vendorEmail    String?
+  description    String
+  amount         Decimal         @db.Decimal(10, 2)
+  currency       String          @default("USD")
+  category       InvoiceCategory
+  propertyId     String?
+  status         InvoiceStatus   @default(PENDING)
+  invoiceDate    DateTime
+  dueDate        DateTime?
+  paidDate       DateTime?
+  notes          String?
+  attachmentUrl  String?
+  sheetsSyncedAt DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  userId         String
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  images         InvoiceImage[]
+
+  @@index([userId, status])
+  @@index([userId, invoiceDate])
+  @@map("invoices")
+}
+
+// Photos associated with an invoice (e.g. cash, parts, or check). The actual
+// upload pipeline (presigned S3/R2) and viewing UI are a later phase; this models
+// the relation so the schema is ready and `url` references stored objects.
+model InvoiceImage {
+  id        String    @id @default(cuid())
+  invoiceId String
+  invoice   Invoice   @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  url       String
+  type      ImageType @default(OTHER)
+  caption   String?
+  createdAt DateTime  @default(now())
+
+  @@index([invoiceId])
+  @@map("invoice_images")
+}
+
+enum Role {
+  LANDLORD
+  CONTRACTOR
+  ADMIN
+}
+
+enum ImageType {
+  CASH
+  PARTS
+  CHECK
+  OTHER
+}
+
+enum InvoiceStatus {
+  PENDING
+  APPROVED
+  PAID
+  REJECTED
+  CANCELLED
+}
+
+enum InvoiceCategory {
+  MAINTENANCE
+  REPAIRS
+  UTILITIES
+  SUPPLIES
+  LABOR
+  OTHER
 }
