@@ -35,6 +35,11 @@ describe('CreateInvoiceSchema', () => {
     expect(CreateInvoiceSchema.safeParse({ ...valid, amount: 1.234 }).success).toBe(false)
   })
 
+  it('rejects an amount that overflows Decimal(10,2)', () => {
+    expect(CreateInvoiceSchema.safeParse({ ...valid, amount: 100_000_000 }).success).toBe(false)
+    expect(CreateInvoiceSchema.safeParse({ ...valid, amount: 99_999_999.99 }).success).toBe(true)
+  })
+
   it('rejects an invalid category enum', () => {
     expect(CreateInvoiceSchema.safeParse({ ...valid, category: 'NOPE' }).success).toBe(false)
   })

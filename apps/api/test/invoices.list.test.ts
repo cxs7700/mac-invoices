@@ -21,4 +21,20 @@ describe('GET /api/invoices pagination clamping', () => {
     const res = await app.inject({ method: 'GET', url: '/api/invoices?offset=-5' })
     expect(res.json().pagination.offset).toBe(0)
   })
+
+  it('floors limit=0 to 1', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/invoices?limit=0' })
+    expect(res.json().pagination.limit).toBe(1)
+  })
+
+  it('rejects an out-of-enum status filter with 400', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/invoices?status=BOGUS' })
+    expect(res.statusCode).toBe(400)
+    expect(res.json().error.code).toBe('VALIDATION_ERROR')
+  })
+
+  it('accepts a valid status filter', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/invoices?status=PAID' })
+    expect(res.statusCode).toBe(200)
+  })
 })

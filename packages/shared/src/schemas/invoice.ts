@@ -15,13 +15,17 @@ export const CreateInvoiceSchema = z.object({
   vendorName: z.string().min(1).max(100),
   vendorEmail: z.string().email().optional(),
   description: z.string().min(1).max(500),
-  amount: z.number().positive().multipleOf(0.01),
+  // Bounded to the DB column (Decimal(10,2) max 99,999,999.99) so an over-range
+  // value returns 400, not a DB overflow -> 500.
+  amount: z.number().positive().multipleOf(0.01).lte(99_999_999.99),
   currency: z.string().length(3).default('USD'),
   category: InvoiceCategory,
   propertyId: z.string().optional(),
   invoiceDate: z.coerce.date(),
   dueDate: z.coerce.date().optional(),
   notes: z.string().max(1000).optional(),
+  // Legacy single-attachment URL. The per-invoice photo feature uses the
+  // InvoiceImage relation instead; its upload/view UI is a later phase.
   attachmentUrl: z.string().url().optional(),
 })
 

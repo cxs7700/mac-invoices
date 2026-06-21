@@ -19,6 +19,9 @@ const STATUS_MAP: Record<string, Prisma.InvoiceCreateInput['status']> = {
   rejected: 'REJECTED',
   cancelled: 'CANCELLED',
   canceled: 'CANCELLED',
+  // The 2025 CSV uses 'Invoiced' for sent-but-unpaid; no enum member exists, so
+  // map it explicitly to PENDING rather than relying on the silent fallback.
+  invoiced: 'PENDING',
 }
 
 const seedLandlord = async () => {
@@ -62,6 +65,17 @@ const seedInvoices = async () => {
     const amount = parseFloat(row.price.replace(/[$,]/g, ''))
     if (Number.isNaN(amount)) continue
 
+    const invoiceDate = new Date(row.date)
+    if (Number.isNaN(invoiceDate.getTime())) {
+      console.warn(`Skipping row ${row.number}: unparseable date "${row.date}"`)
+      continue
+    }
+
+    const status = STATUS_MAP[row.status?.toLowerCase()]
+    if (!status && row.status) {
+      console.warn(`Row ${row.number}: unmapped status "${row.status}" -> PENDING`)
+    }
+
     const notes = [
       row.location ? `Location: ${row.location}` : '',
       row.parts ? `Parts: ${row.parts}` : '',
@@ -77,8 +91,8 @@ const seedInvoices = async () => {
       amount,
       currency: 'USD',
       category: 'OTHER',
-      status: STATUS_MAP[row.status?.toLowerCase()] ?? 'PENDING',
-      invoiceDate: new Date(row.date),
+      status: status ?? 'PENDING',
+      invoiceDate,
       notes: notes || null,
       user: { connect: { id: LANDLORD_ID } },
     }

@@ -35,6 +35,11 @@ describe('POST /api/invoices', () => {
     const body = res.json()
     expect(typeof body.id).toBe('string')
     expect(body.invoiceNumber).toBe(validBody.invoiceNumber)
+    expect(body.vendorName).toBe('Acme Plumbing')
+    expect(body.category).toBe('REPAIRS')
+    expect(body.status).toBe('PENDING')
+    // Prisma serializes Decimal as a string on responses (CONV-013).
+    expect(body.amount).toBe('149.99')
     expect(body.userId).toBe(process.env.LANDLORD_USER_ID)
   })
 
@@ -65,5 +70,40 @@ describe('POST /api/invoices', () => {
     expect(first.statusCode).toBe(201)
     const second = await app.inject({ method: 'POST', url: '/api/invoices', payload: dup })
     expect(second.statusCode).toBe(409)
+  })
+
+  it('returns 500 CONFIG_ERROR when LANDLORD_USER_ID is unset', async () => {
+    const saved = process.env.LANDLORD_USER_ID
+    delete process.env.LANDLORD_USER_ID
+    try {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/invoices',
+        payload: { ...validBody, invoiceNumber: `${PREFIX}cfg` },
+      })
+      expect(res.statusCode).toBe(500)
+      expect(res.json().error.code).toBe('CONFIG_ERROR')
+    } finally {
+      process.env.LANDLORD_USER_ID = saved
+    }
+  })
+})
+
+describe('GET /api/invoices/:id', () => {
+  it('returns 200 for an existing invoice and 404 for an unknown id', async () => {
+    const created = await app.inject({
+      method: 'POST',
+      url: '/api/invoices',
+      payload: { ...validBody, invoiceNumber: `${PREFIX}get` },
+    })
+    const { id } = created.json()
+
+    const found = await app.inject({ method: 'GET', url: `/api/invoices/${id}` })
+    expect(found.statusCode).toBe(200)
+    expect(found.json().invoiceNumber).toBe(`${PREFIX}get`)
+
+    const missing = await app.inject({ method: 'GET', url: '/api/invoices/does-not-exist' })
+    expect(missing.statusCode).toBe(404)
+    expect(missing.json().error.code).toBe('NOT_FOUND')
   })
 })

@@ -1,13 +1,14 @@
 import type { FastifyRequest, FastifyReply } from 'fastify'
 import type { Prisma } from '../../prisma/generated/client.ts'
-import { CreateInvoiceSchema, UpdateInvoiceSchema } from '@mac-invoices/shared'
+import { CreateInvoiceSchema, UpdateInvoiceSchema, InvoiceStatus } from '@mac-invoices/shared'
 import { AppError } from '../middleware/errorHandler'
 import { parseBody } from '../lib/validate'
 import type { GetInvoiceParams, ListInvoicesQuery } from './types.ts'
 
 // The creating user. Until auth (Phase 3) this is the seeded landlord; the value
 // is set server-side and never read from the request body (§7).
-function ownerId(): string {
+// TODO Phase 3: replace with resolveUserId(request) backed by the session.
+function getLandlordId(): string {
   const id = process.env.LANDLORD_USER_ID
   if (!id) throw new AppError('CONFIG_ERROR', 'LANDLORD_USER_ID is not configured', 500)
   return id
@@ -43,7 +44,7 @@ export async function createInvoice(request: FastifyRequest, reply: FastifyReply
       dueDate: input.dueDate ?? null,
       notes: input.notes ?? null,
       attachmentUrl: input.attachmentUrl ?? null,
-      user: { connect: { id: ownerId() } },
+      user: { connect: { id: getLandlordId() } },
     },
     include: { user: userSelect },
   })
@@ -62,7 +63,13 @@ export async function listInvoices(
   const { status, limit, offset } = request.query
 
   const where: Prisma.InvoiceWhereInput = {}
-  if (status) where.status = status as Prisma.InvoiceWhereInput['status']
+  if (status) {
+    const parsed = InvoiceStatus.safeParse(status)
+    if (!parsed.success) {
+      throw new AppError('VALIDATION_ERROR', `Invalid status filter: ${status}`, 400)
+    }
+    where.status = parsed.data
+  }
 
   const take = clampInt(limit, 50, 1, 100)
   const skip = clampInt(offset, 0, 0, Number.MAX_SAFE_INTEGER)
@@ -105,9 +112,28 @@ export async function updateInvoice(
 ) {
   const input = parseBody(UpdateInvoiceSchema, request.body)
 
+  // Build the update data explicitly (mirroring createInvoice) rather than
+  // spreading the whole body, so ownership/identity columns can never be set
+  // even if the shared schema later grows a userId/id field.
+  const data: Prisma.InvoiceUncheckedUpdateInput = {}
+  if (input.invoiceNumber !== undefined) data.invoiceNumber = input.invoiceNumber
+  if (input.vendorName !== undefined) data.vendorName = input.vendorName
+  if (input.vendorEmail !== undefined) data.vendorEmail = input.vendorEmail
+  if (input.description !== undefined) data.description = input.description
+  if (input.amount !== undefined) data.amount = input.amount
+  if (input.currency !== undefined) data.currency = input.currency
+  if (input.category !== undefined) data.category = input.category
+  if (input.propertyId !== undefined) data.propertyId = input.propertyId
+  if (input.invoiceDate !== undefined) data.invoiceDate = input.invoiceDate
+  if (input.dueDate !== undefined) data.dueDate = input.dueDate
+  if (input.paidDate !== undefined) data.paidDate = input.paidDate
+  if (input.notes !== undefined) data.notes = input.notes
+  if (input.attachmentUrl !== undefined) data.attachmentUrl = input.attachmentUrl
+  if (input.status !== undefined) data.status = input.status
+
   const invoice = await request.server.prisma.invoice.update({
     where: { id: request.params.id },
-    data: input as Prisma.InvoiceUncheckedUpdateInput,
+    data,
     include: { user: userSelect },
   })
 

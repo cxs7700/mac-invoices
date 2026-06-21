@@ -35,7 +35,7 @@ Fastify server with plugin-based architecture:
 - **`src/lib/prisma.ts`** — Prisma client (pg adapter). Imports `./loadEnv.ts` to load the single root `.env` regardless of cwd.
 - **`src/invoices/`** — Invoice CRUD module.
 
-**Note:** There are two route implementations — `myRoutes.ts`/`myTypes.ts` (currently imported by `server.ts`) and `routes.ts`/`handlers.ts`/`types.ts` (newer, more complete). The server currently uses the `myRoutes` variant. Consolidating to one is deferred to Phase 1 (the empty `myHandlers.ts` stub was removed in Phase 0). See the plan's Open Questions OQ-1.
+Invoice routes live in `routes.ts` (plugin) → `handlers.ts` (validated handlers) → `types.ts`. The old `myRoutes`/`myTypes` variant was removed when the implementations were consolidated in Phase 1 (OQ-1 resolved).
 
 API endpoints (all prefixed `/api/invoices`):
 - `POST /` — Create invoice

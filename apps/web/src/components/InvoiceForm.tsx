@@ -1,10 +1,11 @@
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { CreateInvoiceSchema, type CreateInvoiceInput } from '@mac-invoices/shared'
+import { CreateInvoiceSchema, InvoiceCategory, type CreateInvoiceInput } from '@mac-invoices/shared'
 import { Button } from '@/components/ui/button'
 
-const CATEGORIES = ['MAINTENANCE', 'REPAIRS', 'UTILITIES', 'SUPPLIES', 'LABOR', 'OTHER'] as const
+// Derived from the shared enum so the options stay in sync with the schema.
+const CATEGORIES = InvoiceCategory.options
 
 type FormInput = z.input<typeof CreateInvoiceSchema>
 
