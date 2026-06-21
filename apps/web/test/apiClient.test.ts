@@ -63,4 +63,37 @@ describe('apiClient', () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network down')))
     await expect(apiClient('/api/health')).rejects.toThrow('network down')
   })
+
+  it('keeps Content-Type + credentials when the caller passes custom headers', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(fakeResponse(200, { ok: true }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await apiClient('/api/invoices', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer t' },
+      body: '{}',
+    })
+
+    const [, init] = fetchMock.mock.calls[0]
+    expect(init.credentials).toBe('include')
+    expect(init.headers['Content-Type']).toBe('application/json')
+    expect(init.headers.Authorization).toBe('Bearer t')
+  })
+
+  it('throws a clean ApiError when a JSON response has a malformed body', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 502,
+        headers: { get: () => 'application/json' },
+        json: async () => {
+          throw new SyntaxError('Unexpected end of JSON input')
+        },
+        text: async () => '',
+      }),
+    )
+    await expect(apiClient('/api/health')).rejects.toMatchObject({ code: 'ERROR', status: 502 })
+    await expect(apiClient('/api/health')).rejects.toBeInstanceOf(ApiError)
+  })
 })

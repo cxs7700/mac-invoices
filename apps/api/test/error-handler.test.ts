@@ -20,6 +20,14 @@ function makeApp() {
   app.get('/boom', async () => {
     throw new Error('kaboom: secret stack detail')
   })
+  app.get('/validation', async () => {
+    throw Object.assign(new Error('body must have required property number'), {
+      validation: [{ message: 'must have required property number' }],
+    })
+  })
+  app.get('/client-4xx', async () => {
+    throw Object.assign(new Error('unprocessable'), { statusCode: 422, code: 'CUSTOM' })
+  })
   return app
 }
 
@@ -44,6 +52,19 @@ describe('errorHandler (§7 shape)', () => {
     const res = await app.inject({ method: 'GET', url: '/p2025' })
     expect(res.statusCode).toBe(404)
     expect(res.json().error.code).toBe('NOT_FOUND')
+  })
+
+  it('maps validation failures → 400 with details', async () => {
+    const res = await app.inject({ method: 'GET', url: '/validation' })
+    expect(res.statusCode).toBe(400)
+    expect(res.json().error.code).toBe('VALIDATION_ERROR')
+    expect(res.json().error.details).toBeDefined()
+  })
+
+  it('passes through a client 4xx with its status and code', async () => {
+    const res = await app.inject({ method: 'GET', url: '/client-4xx' })
+    expect(res.statusCode).toBe(422)
+    expect(res.json().error.code).toBe('CUSTOM')
   })
 
   it('maps unknown errors → 500 with no stack leak', async () => {

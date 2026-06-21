@@ -22,20 +22,29 @@ export class ApiError extends Error {
  */
 export async function apiClient<T = unknown>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
+    ...init,
     credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
       ...(init?.headers ?? {}),
     },
-    ...init,
   })
 
   if (res.status === 204) {
     return undefined as T
   }
 
+  // A response can declare JSON but send an empty/malformed body (e.g. a proxy
+  // 502 that still sets the header). Don't let res.json() throw a raw SyntaxError
+  // past the error shaping below — fall back to undefined and let the !ok branch
+  // surface a clean ApiError.
   const isJson = res.headers.get('content-type')?.includes('application/json')
-  const payload = isJson ? await res.json() : await res.text()
+  let payload: unknown
+  try {
+    payload = isJson ? await res.json() : await res.text()
+  } catch {
+    payload = undefined
+  }
 
   if (!res.ok) {
     const err = (payload as { error?: { code?: string; message?: string; details?: unknown } })

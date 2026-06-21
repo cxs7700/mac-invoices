@@ -22,4 +22,13 @@ describe('CORS', () => {
     const res = await app.inject({ method: 'GET', url: '/api/health' })
     expect(res.statusCode).toBe(200)
   })
+
+  it('does not reflect a disallowed origin', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/health',
+      headers: { origin: 'http://evil.example' },
+    })
+    expect(res.headers['access-control-allow-origin']).not.toBe('http://evil.example')
+  })
 })

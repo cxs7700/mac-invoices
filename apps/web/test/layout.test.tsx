@@ -39,4 +39,10 @@ describe('App layout health indicator', () => {
     renderApp()
     await waitFor(() => expect(screen.getByText(/API:\s*unreachable/)).toBeDefined())
   })
+
+  it('shows "API: checking…" while the request is pending', () => {
+    vi.stubGlobal('fetch', vi.fn().mockReturnValue(new Promise(() => {})))
+    renderApp()
+    expect(screen.getByText(/API:\s*checking/)).toBeDefined()
+  })
 })
