@@ -14,6 +14,8 @@
     "db:seed": "prisma db seed"
   },
   "dependencies": {
+    "@fastify/cookie": "^11.0.2",
+    "@fastify/cors": "^10.1.0",
     "@mac-invoices/shared": "*",
     "@prisma/adapter-pg": "^7.2.0",
     "@prisma/client": "^7.2.0",
