@@ -17,3 +17,10 @@ Mirror of `PROJECT_PLAN.md` §11, plus patterns established during execution. Ev
 - **CONV-008 — Tests:** Vitest per workspace. Place tests in `<workspace>/test/`; api uses the `node` env, web uses `jsdom` + Testing Library. The Phase 0 smoke tests (`apps/api/test/smoke.test.ts`, `apps/web/test/smoke.test.tsx`) are the templates to copy.
 - **CONV-009 — Intentionally-unused identifiers** are prefixed with `_` (ESLint is configured to ignore that prefix).
 - **CONV-010 — Env:** add new env vars to `.env.example`; the api reads the single root `.env` via `loadEnv.ts`.
+
+## Phase 2 (2026-06-21)
+
+- **CONV-011 — Feature vertical slice (the pattern to copy):** define a shared Zod schema in `packages/shared` → a route handler that validates the body with `parseBody(schema, …)` and scopes writes server-side (never trust client-supplied owner) → a web `use*` mutation/query hook calling `apiClient` → a form using `zodResolver(schema)`. The CREATE invoice slice (`CreateInvoiceSchema` → `createInvoice` → `useCreateInvoice` → `InvoiceForm`) is the reference.
+- **CONV-012 — DB integration tests:** handlers that touch the database are tested against the real dev DB via `buildApp().inject(...)` (needs Postgres in CI). Use a unique row prefix and clean up in `beforeAll`/`afterAll`. Reference: `apps/api/test/invoices.create.test.ts`.
+- **CONV-013 — Money:** `amount` is `Decimal(10,2)` in the DB and serializes to a JSON **string** on responses; validate as `z.number().positive().multipleOf(0.01)`; format with `Intl.NumberFormat` in the UI. No float math (CONV-004).
+- **CONV-014 — Web form validation:** React Hook Form with `zodResolver` over the shared schema; requires `@hookform/resolvers@5` for Zod 4. Register numeric inputs with `valueAsNumber`.
