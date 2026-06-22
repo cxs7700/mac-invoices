@@ -4,12 +4,14 @@ import path from 'path'
 import { fileURLToPath } from 'node:url'
 
 import { prisma } from '../src/lib/prisma'
+import { hashPassword } from '../src/auth/password'
 import type { Prisma } from './generated/client.ts'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 
 const LANDLORD_ID = process.env.LANDLORD_USER_ID ?? 'landlord_seed_user'
 const LANDLORD_EMAIL = process.env.LANDLORD_EMAIL ?? 'landlord@example.com'
+const DEV_DEFAULT_PASSWORD = 'changeme-dev'
 
 // Map the legacy CSV status string onto the §5 InvoiceStatus enum; unknown → PENDING.
 const STATUS_MAP: Record<string, Prisma.InvoiceCreateInput['status']> = {
@@ -25,16 +27,24 @@ const STATUS_MAP: Record<string, Prisma.InvoiceCreateInput['status']> = {
 }
 
 const seedLandlord = async () => {
+  const password = process.env.LANDLORD_PASSWORD
+  if (!password) {
+    throw new Error('LANDLORD_PASSWORD is required to seed the landlord login.')
+  }
+  if (process.env.NODE_ENV === 'production' && password === DEV_DEFAULT_PASSWORD) {
+    throw new Error('Refusing to seed the default dev password in production.')
+  }
+  const passwordHash = await hashPassword(password)
+
   await prisma.user.upsert({
     where: { id: LANDLORD_ID },
-    update: {},
+    update: { passwordHash },
     create: {
       id: LANDLORD_ID,
       email: LANDLORD_EMAIL,
       name: 'Landlord',
       role: 'LANDLORD',
-      // Auth lands in Phase 3, which replaces this with a real argon2 hash.
-      passwordHash: 'PLACEHOLDER_SET_IN_PHASE_3',
+      passwordHash,
     },
   })
 }
