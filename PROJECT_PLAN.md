@@ -300,13 +300,13 @@ export const sheets = google.sheets({ version: 'v4', auth });
 - [ ] `apiClient.ts` (Axios, credentials: include) + TanStack Query provider.
 - **DoD:** Both apps run with `npm run dev`; web can hit `/api/health`.
 
-### Phase 2 — Data Layer + First Vertical Slice (CREATE invoice)
-- [ ] Prisma schema (§5), migration, seed (1 user + 3 invoices).
-- [ ] `packages/shared` Zod schemas (§6) consumed by both apps.
-- [ ] `POST /api/invoices` with Zod validation + ownership scoping + tests.
-- [ ] Web: `InvoiceForm` + `InvoiceNew` page wired with RHF + Zod resolver + mutation.
-- **DoD:** Can create an invoice end-to-end; API test for create passes; this slice becomes
-  the **pattern** recorded in §11.
+### Phase 2 — Data Layer + First Vertical Slice (CREATE invoice)  ✅ *complete (2026-06-21)*
+- [x] Prisma schema (§5), migration, seed (landlord + 158 remapped 2025 invoices). Also added `InvoiceImage` + `CONTRACTOR` (see DEC-016).
+- [x] `packages/shared` Zod schemas (§6) consumed by both apps.
+- [x] `POST /api/invoices` with Zod validation + server-set owner (DEC-012) + integration tests.
+- [x] Web: `InvoiceForm` + `InvoiceNew` page wired with RHF + Zod resolver + mutation.
+- **DoD:** ✅ Create works end-to-end; API create test passes; pattern recorded in §11 / `docs/CONVENTIONS.md` (CONV-011/012). Execution plan: `docs/plans/2026-06-21-001-feat-data-layer-create-slice-plan.md`.
+- **New (deferred):** per-invoice image upload pipeline + viewing UI — a future phase (model landed this phase; see DEC-016, §7 backlog).
 
 ### Phase 3 — Auth + Remaining CRUD (replicate the pattern)
 - [ ] Lucia + argon2 + `requireAuth`; login/logout/me; seed login works.
@@ -333,8 +333,10 @@ export const sheets = google.sheets({ version: 'v4', auth });
 - **DoD:** Public URL works end-to-end; CI green; fresh clone runs with documented steps only.
 
 ### Phase 7 — Post-MVP (backlog, not required)
-File attachments (R2/S3 presigned), continuous Sheets sync via job queue, email reminders
-(Resend), analytics charts, multi-property model, contractor submission portal, Sentry.
+File attachments (R2/S3 presigned) — including the **per-invoice image** upload + viewing feature
+whose data model (`InvoiceImage`, `ImageType`) landed in Phase 2 (DEC-016); continuous Sheets sync
+via job queue, email reminders (Resend), analytics charts, multi-property model, contractor
+submission portal, Sentry.
 
 ---
 
@@ -366,6 +368,7 @@ File attachments (R2/S3 presigned), continuous Sheets sync via job queue, email 
   app; single-user MVP doesn't need stateless tokens.
 - **DEC-004 Fastify over Express.** Schema-first + performance; acceptable smaller ecosystem.
 - **DEC-005..011 (2026-06-20, Phase 0).** Keep installed versions (React 19 / RR7 / Prisma 7) over §3; migrate to the npm-workspaces monorepo as Phase 0 (behavior/schema preserving); adopt the §5 data model in Phase 2 not Phase 0; import shared code as `@mac-invoices/shared`; defer the auth library (Lucia is being sunset) to Phase 3; use Vitest 3 (rolldown-vite@7 needs it); single root `.env` loaded via `loadEnv.ts`; gitignore the generated Prisma client. Full text in `docs/DECISIONS.md`.
+- **DEC-012..016 (2026-06-21, Phase 2).** Seeded-landlord + server-default `userId` until auth; §5 migration by dev reset + reseed (invoiceNumber user-supplied); CREATE-only validation this phase (Update schema defined); Zod-in-handler via `parseBody` (+ `@hookform/resolvers@5` on web); per-invoice images modeled now (`InvoiceImage`/`ImageType`, `CONTRACTOR` role) with the upload/view feature deferred. Full text in `docs/DECISIONS.md`.
 - *(append new decisions here with date + reasoning)*
 
 ---

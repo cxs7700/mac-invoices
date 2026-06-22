@@ -19,7 +19,7 @@ Run from the repo root (scripts delegate to the right workspace):
 - `npm run typecheck` — `tsc --noEmit` across shared, api, web
 - `npm run test` — Vitest across workspaces
 - `npm run format` / `npm run format:check` — Prettier
-- `npm run db:generate` / `npm run db:push` / `npm run db:seed` — Prisma (target `apps/api`)
+- `npm run db:generate` / `npm run db:push` / `npm run db:migrate` / `npm run db:reset` / `npm run db:seed` — Prisma (target `apps/api`)
 - Local Postgres: `docker compose up -d` (see `.env.example` for env)
 
 **Definition of Done for any change:** `npm run lint && npm run typecheck && npm run test` all green (also enforced in CI: `.github/workflows/ci.yml`).
@@ -35,7 +35,7 @@ Fastify server with plugin-based architecture:
 - **`src/lib/prisma.ts`** — Prisma client (pg adapter). Imports `./loadEnv.ts` to load the single root `.env` regardless of cwd.
 - **`src/invoices/`** — Invoice CRUD module.
 
-**Note:** There are two route implementations — `myRoutes.ts`/`myTypes.ts` (currently imported by `server.ts`) and `routes.ts`/`handlers.ts`/`types.ts` (newer, more complete). The server currently uses the `myRoutes` variant. Consolidating to one is deferred to Phase 1 (the empty `myHandlers.ts` stub was removed in Phase 0). See the plan's Open Questions OQ-1.
+Invoice routes live in `routes.ts` (plugin) → `handlers.ts` (validated handlers) → `types.ts`. The old `myRoutes`/`myTypes` variant was removed when the implementations were consolidated in Phase 1 (OQ-1 resolved).
 
 API endpoints (all prefixed `/api/invoices`):
 - `POST /` — Create invoice
@@ -60,8 +60,8 @@ Zod schemas + TS types imported by both apps as `@mac-invoices/shared`. Real inv
 
 ### Database (`apps/api/prisma/`)
 
-- **`schema.prisma`** — Defines `User` and `Invoice` models. Invoice belongs to User via `creatorId`. (The richer §5 model + auth tables land in Phase 2/3.)
-- **`seed.ts`** + `seed-data.csv` — Database seeding.
+- **`schema.prisma`** — The §5 model (Phase 2): `User` (cuid, `passwordHash`, `role`) + `Session` (auth tables, unused until Phase 3), `Invoice` (cuid, `invoiceNumber`, `vendorName`, `amount Decimal(10,2)`, `category`/`status` enums, `userId`), and `InvoiceImage` (per-invoice photos: `url`, `ImageType` enum, `caption` — upload/view UI deferred to a later phase). `Role` includes `CONTRACTOR`.
+- **`seed.ts`** + `seed-data.csv` — Seeds the single landlord (`LANDLORD_USER_ID`) and the 2025 invoices. Until auth, the API sets `invoice.userId` to the landlord server-side on create.
 - **`generated/`** — Prisma client output (gitignored). Regenerate with `npm run db:generate`.
 - **`migrations/`** — Prisma migration history.
 

@@ -61,6 +61,10 @@ export function errorHandler(error: unknown, request: FastifyRequest, reply: Fas
   if (pc === 'P2025') {
     return reply.code(404).send(body('NOT_FOUND', 'Resource not found'))
   }
+  if (pc === 'P2003') {
+    // Foreign-key violation — a referenced record does not exist (client error).
+    return reply.code(400).send(body('BAD_REFERENCE', 'A referenced record does not exist'))
+  }
 
   // Other client errors that arrive with a 4xx status
   if (typeof fe?.statusCode === 'number' && fe.statusCode >= 400 && fe.statusCode < 500) {

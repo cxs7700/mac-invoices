@@ -20,6 +20,9 @@
     "test": "npm run test --workspaces --if-present",
     "db:generate": "npm run db:generate -w @mac-invoices/api",
     "db:push": "npm run db:push -w @mac-invoices/api",
+    "db:migrate": "npm run db:migrate -w @mac-invoices/api",
+    "db:deploy": "npm run db:deploy -w @mac-invoices/api",
+    "db:reset": "npm run db:reset -w @mac-invoices/api",
     "db:seed": "npm run db:seed -w @mac-invoices/api"
   },
   "devDependencies": {

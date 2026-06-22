@@ -1,80 +1,112 @@
 import { parse } from 'csv-parse/sync'
 import fs from 'fs'
 import path from 'path'
+import { fileURLToPath } from 'node:url'
 
 import { prisma } from '../src/lib/prisma'
 import type { Prisma } from './generated/client.ts'
 
-const seedUsers = async () => {
-  await prisma.user.upsert({
-    where: { id: 2 },
-    update: {},
-    create: {
-      email: 'kim@prisma.io',
-      name: 'Kim',
-      invoices: {
-        create: {
-          description: '5b Sewer Pipe Leak & Ceiling Repair',
-          date: new Date(),
-          location: 'Sutton',
-          price: 350,
-          status: 'Paid',
-          number: 115,
-          quantity: 1,
-        },
-      },
-    },
-  })
+const here = path.dirname(fileURLToPath(import.meta.url))
 
+const LANDLORD_ID = process.env.LANDLORD_USER_ID ?? 'landlord_seed_user'
+const LANDLORD_EMAIL = process.env.LANDLORD_EMAIL ?? 'landlord@example.com'
+
+// Map the legacy CSV status string onto the §5 InvoiceStatus enum; unknown → PENDING.
+const STATUS_MAP: Record<string, Prisma.InvoiceCreateInput['status']> = {
+  paid: 'PAID',
+  pending: 'PENDING',
+  approved: 'APPROVED',
+  rejected: 'REJECTED',
+  cancelled: 'CANCELLED',
+  canceled: 'CANCELLED',
+  // The 2025 CSV uses 'Invoiced' for sent-but-unpaid; no enum member exists, so
+  // map it explicitly to PENDING rather than relying on the silent fallback.
+  invoiced: 'PENDING',
+}
+
+const seedLandlord = async () => {
   await prisma.user.upsert({
-    where: { id: 3 },
+    where: { id: LANDLORD_ID },
     update: {},
     create: {
-      email: 'vivien@prisma.io',
-      name: 'Vivien',
-      invoices: {
-        create: {
-          description: 'Apt 203 Water Heater Replacement',
-          date: new Date(),
-          location: 'Sutton',
-          price: 350,
-          status: 'Paid',
-          number: 116,
-          quantity: 1,
-        },
-      },
+      id: LANDLORD_ID,
+      email: LANDLORD_EMAIL,
+      name: 'Landlord',
+      role: 'LANDLORD',
+      // Auth lands in Phase 3, which replaces this with a real argon2 hash.
+      passwordHash: 'PLACEHOLDER_SET_IN_PHASE_3',
     },
   })
 }
 
+type CsvRow = {
+  number: string
+  date: string
+  description: string
+  location: string
+  price: string
+  status: string
+  notes: string
+  parts: string
+}
+
+// Lossy remap of the 2025 CSV into the §5 model (DEC-007): vendorName/category are
+// synthesized (no source column); location/parts/notes fold into `notes`.
 const seedInvoices = async () => {
-  const csvFilePath = path.resolve(__dirname, '../seed-data.csv')
+  const csvFilePath = path.resolve(here, 'seed-data.csv')
   const csvContent = fs.readFileSync(csvFilePath, 'utf-8')
-  const records = parse(csvContent, {
+  const rows = parse(csvContent, {
     columns: true,
     skip_empty_lines: true,
     trim: true,
-  }) as Record<string, string>[]
-  for (const row of records) {
-    const invoiceNumber = parseInt(row.number)
-    const price = parseFloat(row.price.replace(/[$,]/g, ''))
-    const date = new Date(row.date)
+  }) as CsvRow[]
+
+  for (const row of rows) {
+    const amount = parseFloat(row.price.replace(/[$,]/g, ''))
+    if (Number.isNaN(amount)) continue
+
+    const invoiceDate = new Date(row.date)
+    if (Number.isNaN(invoiceDate.getTime())) {
+      console.warn(`Skipping row ${row.number}: unparseable date "${row.date}"`)
+      continue
+    }
+
+    const status = STATUS_MAP[row.status?.toLowerCase()]
+    if (!status && row.status) {
+      console.warn(`Row ${row.number}: unmapped status "${row.status}" -> PENDING`)
+    }
+
+    const notes = [
+      row.location ? `Location: ${row.location}` : '',
+      row.parts ? `Parts: ${row.parts}` : '',
+      row.notes ?? '',
+    ]
+      .filter(Boolean)
+      .join('; ')
+
+    const data: Prisma.InvoiceCreateInput = {
+      invoiceNumber: String(row.number),
+      vendorName: 'Unknown vendor',
+      description: row.description,
+      amount,
+      currency: 'USD',
+      category: 'OTHER',
+      status: status ?? 'PENDING',
+      invoiceDate,
+      notes: notes || null,
+      user: { connect: { id: LANDLORD_ID } },
+    }
+
     await prisma.invoice.upsert({
-      where: { number: invoiceNumber },
+      where: { invoiceNumber: data.invoiceNumber },
       update: {},
-      create: {
-        ...row,
-        number: invoiceNumber,
-        price: price,
-        date: date,
-        creatorId: 1,
-      } as Prisma.InvoiceUncheckedCreateInput,
+      create: data,
     })
   }
 }
 
 async function main() {
-  await seedUsers()
+  await seedLandlord()
   await seedInvoices()
 }
 
