@@ -1,4 +1,7 @@
-const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
+// Empty default = same-origin relative requests (the production Vercel deploy
+// serves the API at /api/* on the SPA's own origin, which the sameSite=strict
+// session cookie requires). Local dev sets VITE_API_URL=http://localhost:3000.
+const BASE_URL = import.meta.env.VITE_API_URL ?? ''
 
 /** Error thrown for non-2xx responses, carrying the API's §7 error code. */
 export class ApiError extends Error {

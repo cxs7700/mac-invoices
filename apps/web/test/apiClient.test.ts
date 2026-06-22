@@ -20,7 +20,9 @@ function fakeResponse(
 afterEach(() => vi.unstubAllGlobals())
 
 describe('apiClient', () => {
-  it('builds the URL from VITE_API_URL and sends credentials', async () => {
+  it('requests same-origin (relative) when VITE_API_URL is unset, and sends credentials', async () => {
+    // No VITE_API_URL in the test env → empty base → relative same-origin path,
+    // matching the production Vercel deploy.
     const fetchMock = vi.fn().mockResolvedValue(fakeResponse(200, { status: 'ok' }))
     vi.stubGlobal('fetch', fetchMock)
 
@@ -28,7 +30,7 @@ describe('apiClient', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1)
     const [url, init] = fetchMock.mock.calls[0]
-    expect(url).toBe('http://localhost:3000/api/health')
+    expect(url).toBe('/api/health')
     expect(init.credentials).toBe('include')
   })
 
