@@ -5,15 +5,6 @@ import { AppError } from '../middleware/errorHandler'
 import { parseBody } from '../lib/validate'
 import type { GetInvoiceParams, ListInvoicesQuery } from './types.ts'
 
-// The creating user. Until auth (Phase 3) this is the seeded landlord; the value
-// is set server-side and never read from the request body (§7).
-// TODO Phase 3: replace with resolveUserId(request) backed by the session.
-function getLandlordId(): string {
-  const id = process.env.LANDLORD_USER_ID
-  if (!id) throw new AppError('CONFIG_ERROR', 'LANDLORD_USER_ID is not configured', 500)
-  return id
-}
-
 const userSelect = { select: { id: true, name: true, email: true } }
 
 /** Clamp a string query int into [min, max], falling back to `def` on NaN. */
@@ -24,8 +15,7 @@ function clampInt(value: string | undefined, def: number, min: number, max: numb
 }
 
 /**
- * POST /api/invoices — create an invoice. Body is validated against the shared
- * CreateInvoiceSchema; userId is set server-side to the landlord.
+ * POST /api/invoices — create an invoice owned by the session user.
  */
 export async function createInvoice(request: FastifyRequest, reply: FastifyReply) {
   const input = parseBody(CreateInvoiceSchema, request.body)
@@ -44,7 +34,7 @@ export async function createInvoice(request: FastifyRequest, reply: FastifyReply
       dueDate: input.dueDate ?? null,
       notes: input.notes ?? null,
       attachmentUrl: input.attachmentUrl ?? null,
-      user: { connect: { id: getLandlordId() } },
+      user: { connect: { id: request.user.id } },
     },
     include: { user: userSelect },
   })
@@ -53,8 +43,8 @@ export async function createInvoice(request: FastifyRequest, reply: FastifyReply
 }
 
 /**
- * GET /api/invoices — list invoices with optional status filter and clamped
- * pagination.
+ * GET /api/invoices — list the session user's invoices (status filter + clamped
+ * pagination). Date/vendor filtering and sort are Phase 4.
  */
 export async function listInvoices(
   request: FastifyRequest<{ Querystring: ListInvoicesQuery }>,
@@ -62,7 +52,7 @@ export async function listInvoices(
 ) {
   const { status, limit, offset } = request.query
 
-  const where: Prisma.InvoiceWhereInput = {}
+  const where: Prisma.InvoiceWhereInput = { userId: request.user.id }
   if (status) {
     const parsed = InvoiceStatus.safeParse(status)
     if (!parsed.success) {
@@ -88,13 +78,13 @@ export async function listInvoices(
   return reply.send({ data: invoices, pagination: { total, limit: take, offset: skip } })
 }
 
-/** GET /api/invoices/:id — get a single invoice by its cuid id. */
+/** GET /api/invoices/:id — own invoice, or 404 (no existence leak for others'). */
 export async function getInvoice(
   request: FastifyRequest<{ Params: GetInvoiceParams }>,
   reply: FastifyReply,
 ) {
-  const invoice = await request.server.prisma.invoice.findUnique({
-    where: { id: request.params.id },
+  const invoice = await request.server.prisma.invoice.findFirst({
+    where: { id: request.params.id, userId: request.user.id },
     include: { user: userSelect },
   })
 
@@ -105,16 +95,17 @@ export async function getInvoice(
   return reply.send(invoice)
 }
 
-/** PATCH /api/invoices/:id — update an invoice (body validated against UpdateInvoiceSchema). */
+/**
+ * PATCH /api/invoices/:id — update an own invoice. Ownership is enforced via
+ * updateMany({ id, userId }) (a non-unique where Prisma's `update` can't take);
+ * count === 0 means not found / not owned → 404.
+ */
 export async function updateInvoice(
   request: FastifyRequest<{ Params: GetInvoiceParams }>,
   reply: FastifyReply,
 ) {
   const input = parseBody(UpdateInvoiceSchema, request.body)
 
-  // Build the update data explicitly (mirroring createInvoice) rather than
-  // spreading the whole body, so ownership/identity columns can never be set
-  // even if the shared schema later grows a userId/id field.
   const data: Prisma.InvoiceUncheckedUpdateInput = {}
   if (input.invoiceNumber !== undefined) data.invoiceNumber = input.invoiceNumber
   if (input.vendorName !== undefined) data.vendorName = input.vendorName
@@ -126,25 +117,40 @@ export async function updateInvoice(
   if (input.propertyId !== undefined) data.propertyId = input.propertyId
   if (input.invoiceDate !== undefined) data.invoiceDate = input.invoiceDate
   if (input.dueDate !== undefined) data.dueDate = input.dueDate
-  if (input.paidDate !== undefined) data.paidDate = input.paidDate
   if (input.notes !== undefined) data.notes = input.notes
   if (input.attachmentUrl !== undefined) data.attachmentUrl = input.attachmentUrl
-  if (input.status !== undefined) data.status = input.status
+  // paidDate is only consistent relative to status: set it on the PAID transition
+  // (default now), clear it when leaving PAID; never trust a standalone paidDate.
+  if (input.status !== undefined) {
+    data.status = input.status
+    data.paidDate = input.status === 'PAID' ? (input.paidDate ?? new Date()) : null
+  }
 
-  const invoice = await request.server.prisma.invoice.update({
-    where: { id: request.params.id },
+  const result = await request.server.prisma.invoice.updateMany({
+    where: { id: request.params.id, userId: request.user.id },
     data,
+  })
+  if (result.count === 0) {
+    throw new AppError('NOT_FOUND', 'Invoice not found', 404)
+  }
+
+  const invoice = await request.server.prisma.invoice.findFirst({
+    where: { id: request.params.id, userId: request.user.id },
     include: { user: userSelect },
   })
-
   return reply.send(invoice)
 }
 
-/** DELETE /api/invoices/:id — delete an invoice. */
+/** DELETE /api/invoices/:id — delete an own invoice (count === 0 → 404). */
 export async function deleteInvoice(
   request: FastifyRequest<{ Params: GetInvoiceParams }>,
   reply: FastifyReply,
 ) {
-  await request.server.prisma.invoice.delete({ where: { id: request.params.id } })
+  const result = await request.server.prisma.invoice.deleteMany({
+    where: { id: request.params.id, userId: request.user.id },
+  })
+  if (result.count === 0) {
+    throw new AppError('NOT_FOUND', 'Invoice not found', 404)
+  }
   return reply.code(204).send()
 }
