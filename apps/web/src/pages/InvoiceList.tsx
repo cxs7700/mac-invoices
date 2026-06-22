@@ -15,6 +15,19 @@ import {
   type ListFilters,
 } from '@/lib/listParams'
 
+/** Human-readable message for an export failure (null when there's no error). */
+function exportErrorMessage(error: unknown): string | null {
+  if (!error) return null
+  if (!(error instanceof ApiError)) return 'Export failed.'
+  if (error.code === 'EXPORT_NOT_CONFIGURED') return 'Sheets export isn’t configured on the server.'
+  // A 502 partial export carries how many rows made it durably.
+  const exported = (error.details as { exported?: number } | undefined)?.exported
+  if (error.status === 502 && typeof exported === 'number') {
+    return `Partial export: ${exported} written, then it failed. Try again to continue.`
+  }
+  return error.message
+}
+
 export default function InvoiceList() {
   const [searchParams, setSearchParams] = useSearchParams()
   const filters = parseListParams(searchParams)
@@ -32,14 +45,7 @@ export default function InvoiceList() {
   const filtersActive = hasActiveFilters(filters)
 
   const exportM = useExportInvoices()
-  const exportError =
-    exportM.error instanceof ApiError
-      ? exportM.error.code === 'EXPORT_NOT_CONFIGURED'
-        ? 'Sheets export isn’t configured on the server.'
-        : exportM.error.message
-      : exportM.error
-        ? 'Export failed.'
-        : null
+  const exportError = exportErrorMessage(exportM.error)
 
   return (
     <div>

@@ -179,4 +179,32 @@ describe('InvoiceList — export to Sheets', () => {
     fireEvent.click(screen.getByRole('button', { name: /export to sheets/i }))
     await waitFor(() => expect(screen.getByText(/isn.t configured/i)).toBeDefined())
   })
+
+  it('surfaces the durable count on a 502 partial export', async () => {
+    const exportImpl = () =>
+      Promise.resolve(
+        jsonRes(502, { error: { code: 'EXPORT_INTERRUPTED', message: 'boom', details: { exported: 2 } } }),
+      )
+    renderList(vi.fn().mockResolvedValue(listResponse([row])), '/', exportImpl)
+    await waitFor(() => expect(screen.getByText('INV-1')).toBeDefined())
+    fireEvent.click(screen.getByRole('button', { name: /export to sheets/i }))
+    await waitFor(() => expect(screen.getByText(/partial export: 2 written/i)).toBeDefined())
+  })
+
+  it('shows the raw message for a generic ApiError, and a fallback for a non-ApiError', async () => {
+    const exportImpl = () =>
+      Promise.resolve(jsonRes(502, { error: { code: 'SHEET_ERROR', message: 'sheet exploded' } }))
+    renderList(vi.fn().mockResolvedValue(listResponse([row])), '/', exportImpl)
+    await waitFor(() => expect(screen.getByText('INV-1')).toBeDefined())
+    fireEvent.click(screen.getByRole('button', { name: /export to sheets/i }))
+    await waitFor(() => expect(screen.getByText('sheet exploded')).toBeDefined())
+  })
+
+  it('renders a singular success message for exactly one invoice', async () => {
+    const exportImpl = () => Promise.resolve(jsonRes(200, { exported: 1 }))
+    renderList(vi.fn().mockResolvedValue(listResponse([row])), '/', exportImpl)
+    await waitFor(() => expect(screen.getByText('INV-1')).toBeDefined())
+    fireEvent.click(screen.getByRole('button', { name: /export to sheets/i }))
+    await waitFor(() => expect(screen.getByText('Exported 1 invoice to Sheets.')).toBeDefined())
+  })
 })

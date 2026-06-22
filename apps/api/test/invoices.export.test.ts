@@ -46,6 +46,7 @@ afterAll(async () => {
   await user.cleanup()
   await app.close()
   delete process.env.GOOGLE_SHEET_ID
+  delete process.env.EXPORT_RATE_LIMIT_MAX
 })
 beforeEach(() => {
   appendRows.mockReset().mockResolvedValue(undefined)
@@ -133,11 +134,34 @@ describe('POST /api/invoices/export', () => {
     expect(appendRows.mock.calls[0][0]).toBe('BODY-SHEET')
   })
 
-  it('propagates the 503 when export is unconfigured', async () => {
+  it('propagates the 503 when export is unconfigured (first-chunk failure, no count)', async () => {
     await create('x', user.cookie)
     appendRows.mockRejectedValue(new AppError('EXPORT_NOT_CONFIGURED', 'not configured', 503))
     const res = await exportAs(user.cookie)
     expect(res.statusCode).toBe(503)
+    // First-chunk failure (exported === 0): the original error propagates, no { exported } detail.
+    expect(res.json().error.details).toBeUndefined()
+  })
+
+  it('502s with the durable count when the per-chunk stamp (updateMany) fails after a successful append', async () => {
+    process.env.EXPORT_CHUNK_SIZE = '2'
+    await create('a', user.cookie)
+    await create('b', user.cookie)
+    await create('c', user.cookie)
+    appendRows.mockResolvedValue(undefined)
+    // First chunk's stamp runs for real; the second chunk's stamp throws a DB error.
+    const orig = app.prisma.invoice.updateMany.bind(app.prisma.invoice)
+    let calls = 0
+    const spy = vi
+      .spyOn(app.prisma.invoice, 'updateMany')
+      .mockImplementation((args) => (calls++ === 0 ? orig(args) : Promise.reject(new Error('db blip'))) as never)
+    try {
+      const res = await exportAs(user.cookie)
+      expect(res.statusCode).toBe(502)
+      expect(res.json().error.details).toEqual({ exported: 2 })
+    } finally {
+      spy.mockRestore()
+    }
   })
 
   it('maps cells: amount as a number, null dueDate as an empty cell', async () => {
@@ -148,5 +172,38 @@ describe('POST /api/invoices/export', () => {
     expect(row[3]).toBe(149.99)
     expect(typeof row[3]).toBe('number')
     expect(row[6]).toBe('') // dueDate null
+  })
+})
+
+describe('POST /api/invoices/export — rate limit', () => {
+  // A separate app whose export cap is low; the main app uses 100000.
+  const rlApp = buildApp()
+  let rlCookie: string
+  let rlCleanup: () => Promise<void>
+
+  beforeAll(async () => {
+    process.env.EXPORT_RATE_LIMIT_MAX = '2'
+    await rlApp.ready()
+    const u = await createSecondUser(rlApp)
+    rlCookie = u.cookie
+    rlCleanup = u.cleanup
+    process.env.GOOGLE_SHEET_ID = 'SHEET-RL'
+  })
+  afterAll(async () => {
+    await rlCleanup()
+    await rlApp.close()
+    process.env.EXPORT_RATE_LIMIT_MAX = '100000'
+  })
+
+  it('429s with TOO_MANY_REQUESTS after the cap', async () => {
+    appendRows.mockResolvedValue(undefined)
+    const ex = () =>
+      rlApp.inject({ method: 'POST', url: '/api/invoices/export', headers: { cookie: rlCookie }, payload: {} })
+    // The rlUser owns no invoices → each export is 200 { exported: 0 } until the cap trips.
+    expect((await ex()).statusCode).toBe(200)
+    expect((await ex()).statusCode).toBe(200)
+    const limited = await ex()
+    expect(limited.statusCode).toBe(429)
+    expect(limited.json().error.code).toBe('TOO_MANY_REQUESTS')
   })
 })

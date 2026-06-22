@@ -50,9 +50,25 @@ function statusOf(err: unknown): number | undefined {
   return typeof code === 'number' ? code : undefined
 }
 
+// gaxios surfaces transport failures with a STRING code and no HTTP status.
+const TRANSPORT_CODES = new Set(['ECONNRESET', 'ETIMEDOUT', 'ENOTFOUND', 'EAI_AGAIN', 'ERR_NETWORK'])
+function isTransportError(err: unknown): boolean {
+  const code = (err as { code?: unknown })?.code
+  return typeof code === 'string' && TRANSPORT_CODES.has(code)
+}
+
 function isRetryable(err: unknown): boolean {
   const s = statusOf(err)
-  return s === 429 || (s !== undefined && s >= 500 && s < 600)
+  if (s === 429 || (s !== undefined && s >= 500 && s < 600)) return true
+  // Retry transient network failures (no numeric status).
+  return s === undefined && isTransportError(err)
+}
+
+/** Neutralize spreadsheet formula injection: a text cell starting with =,+,-,@
+ * (or a control char) is forced to literal text with a leading apostrophe. */
+function safeCell(value: string | number): string | number {
+  if (typeof value === 'string' && /^[=+\-@\t\r]/.test(value)) return `'${value}`
+  return value
 }
 
 /** Map a Google error to a safe AppError — never leak the raw error/credentials. */
@@ -76,14 +92,19 @@ function sanitize(err: unknown): AppError {
 /** Append `rows` to the pinned tab, retrying transient 429/5xx with backoff. */
 export async function appendRows(spreadsheetId: string, rows: (string | number)[][]): Promise<void> {
   const sheets = getSheetsClient()
+  const safeRows = rows.map((row) => row.map(safeCell))
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
-      await sheets.spreadsheets.values.append({
-        spreadsheetId,
-        range: tabRange(),
-        valueInputOption: 'USER_ENTERED',
-        requestBody: { values: rows },
-      })
+      await sheets.spreadsheets.values.append(
+        {
+          spreadsheetId,
+          range: tabRange(),
+          valueInputOption: 'USER_ENTERED',
+          requestBody: { values: safeRows },
+        },
+        // Bound a slow (non-failing) Google call so it can't hang the handler.
+        { timeout: 30_000 },
+      )
       return
     } catch (err) {
       if (isRetryable(err) && attempt < MAX_ATTEMPTS) {

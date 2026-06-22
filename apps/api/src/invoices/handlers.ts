@@ -201,9 +201,27 @@ export async function deleteInvoice(
   return reply.code(204).send()
 }
 
-// Read per-call so tests can shrink it via EXPORT_CHUNK_SIZE.
-const exportChunk = () => Number(process.env.EXPORT_CHUNK_SIZE ?? 500)
+// Read per-call so tests can shrink it via EXPORT_CHUNK_SIZE; clamp to [1, 500]
+// (0 or negative would make the loop never advance — an infinite loop).
+const exportChunk = () => {
+  const n = Math.floor(Number(process.env.EXPORT_CHUNK_SIZE ?? 500))
+  return Number.isFinite(n) ? Math.min(500, Math.max(1, n)) : 500
+}
 const ymd = (d: Date) => d.toISOString().slice(0, 10)
+
+// The §8 column order — single source of truth (the operator header row in
+// docs/SHEETS_EXPORT.md must match this).
+const EXPORT_COLUMNS = [
+  'id',
+  'invoiceNumber',
+  'vendorName',
+  'amount',
+  'status',
+  'invoiceDate',
+  'dueDate',
+  'category',
+  'description',
+] as const
 
 /**
  * POST /api/invoices/export — append the session user's un-synced invoices to a
@@ -232,32 +250,40 @@ export async function exportInvoices(request: FastifyRequest, reply: FastifyRepl
   let exported = 0
   for (let i = 0; i < invoices.length; i += chunkSize) {
     const chunk = invoices.slice(i, i + chunkSize)
-    const rows = chunk.map((inv) => [
-      inv.id,
-      inv.invoiceNumber,
-      inv.vendorName,
-      inv.amount.toNumber(),
-      inv.status,
-      ymd(inv.invoiceDate),
-      inv.dueDate ? ymd(inv.dueDate) : '',
-      inv.category,
-      inv.description,
-    ])
+    const rows = chunk.map((inv) => {
+      const cell: Record<(typeof EXPORT_COLUMNS)[number], string | number> = {
+        id: inv.id,
+        invoiceNumber: inv.invoiceNumber,
+        vendorName: inv.vendorName,
+        amount: inv.amount.toNumber(),
+        status: inv.status,
+        invoiceDate: ymd(inv.invoiceDate),
+        dueDate: inv.dueDate ? ymd(inv.dueDate) : '',
+        category: inv.category,
+        description: inv.description,
+      }
+      return EXPORT_COLUMNS.map((c) => cell[c])
+    })
 
     try {
+      // Append THEN stamp in one guarded step: a stamp-side (DB) failure after a
+      // successful append must also surface the durable count, not 500.
       await appendRows(spreadsheetId, rows)
+      await request.server.prisma.invoice.updateMany({
+        where: { id: { in: chunk.map((c) => c.id) }, userId: request.user.id },
+        data: { sheetsSyncedAt: new Date() },
+      })
     } catch (err) {
-      // Surface how many rows are durably exported so a retry resumes the rest.
-      if (exported > 0 && err instanceof AppError) {
-        throw new AppError(err.code, err.message, err.statusCode, { exported })
+      // Surface how many rows are durably exported so a retry resumes the rest;
+      // attach the count for any error type, not just AppError.
+      if (exported > 0) {
+        const code = err instanceof AppError ? err.code : 'EXPORT_INTERRUPTED'
+        const message = err instanceof Error ? err.message : 'Export interrupted'
+        const status = err instanceof AppError ? err.statusCode : 502
+        throw new AppError(code, message, status, { exported })
       }
       throw err
     }
-
-    await request.server.prisma.invoice.updateMany({
-      where: { id: { in: chunk.map((c) => c.id) }, userId: request.user.id },
-      data: { sheetsSyncedAt: new Date() },
-    })
     exported += chunk.length
   }
 
