@@ -12,6 +12,7 @@ async function invoiceRoutes(fastify: FastifyInstance) {
 
   fastify.post('/api/invoices', auth, handlers.createInvoice)
   fastify.get<{ Querystring: ListInvoicesQuery }>('/api/invoices', auth, handlers.listInvoices)
+  fastify.get('/api/invoices/stats', auth, handlers.invoiceStats)
   fastify.get<{ Params: GetInvoiceParams }>('/api/invoices/:id', auth, handlers.getInvoice)
   fastify.patch<{ Params: GetInvoiceParams }>('/api/invoices/:id', auth, handlers.updateInvoice)
   fastify.delete<{ Params: GetInvoiceParams }>('/api/invoices/:id', auth, handlers.deleteInvoice)

@@ -4,6 +4,7 @@ import {
   CreateInvoiceSchema,
   UpdateInvoiceSchema,
   ListInvoicesQuerySchema,
+  InvoiceStatus,
 } from '@mac-invoices/shared'
 import { AppError } from '../middleware/errorHandler'
 import { parseBody } from '../lib/validate'
@@ -82,6 +83,28 @@ export async function listInvoices(
   ])
 
   return reply.send({ data: invoices, pagination: { total, limit: q.limit, offset: q.offset } })
+}
+
+/**
+ * GET /api/invoices/stats — totals by status for the session user (all-time,
+ * independent of any list filter). Zero-fills every status for a stable shape.
+ */
+export async function invoiceStats(request: FastifyRequest, reply: FastifyReply) {
+  const grouped = await request.server.prisma.invoice.groupBy({
+    by: ['status'],
+    where: { userId: request.user.id },
+    _count: { _all: true },
+  })
+
+  const counts: Record<string, number> = {}
+  for (const s of InvoiceStatus.options) counts[s] = 0
+  let total = 0
+  for (const row of grouped) {
+    counts[row.status] = row._count._all
+    total += row._count._all
+  }
+
+  return reply.send({ counts, total })
 }
 
 /** GET /api/invoices/:id — own invoice, or 404 (no existence leak for others'). */
