@@ -32,6 +32,8 @@ export function useUpdateInvoice(id: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['invoice', id] })
       queryClient.invalidateQueries({ queryKey: ['invoices'] })
+      // A status change shifts the all-time counts strip.
+      queryClient.invalidateQueries({ queryKey: ['invoice-stats'] })
     },
   })
 }
@@ -40,6 +42,9 @@ export function useDeleteInvoice() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => apiClient(`/api/invoices/${id}`, { method: 'DELETE' }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['invoices'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['invoices'] })
+      queryClient.invalidateQueries({ queryKey: ['invoice-stats'] })
+    },
   })
 }
