@@ -4,6 +4,7 @@ import cookie from '@fastify/cookie'
 import cors from '@fastify/cors'
 import dbConnector from './db/connector'
 import { errorHandler, notFoundHandler } from './middleware/errorHandler'
+import authRoutes from './auth/routes'
 import healthRoutes from './routes/health'
 import invoiceRoutes from './invoices/routes'
 
@@ -29,6 +30,7 @@ export function buildApp() {
 
   // Routes
   app.register(healthRoutes)
+  app.register(authRoutes)
   app.register(invoiceRoutes)
 
   return app

@@ -1,10 +1,12 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { buildApp } from '../src/app'
+import { loginCookie } from './helpers/auth'
 
-// Integration test against the real dev database (KTD-5). Rows use a TEST- prefix
-// and are cleaned up before and after the run so reruns stay isolated.
+// Integration test against the real dev database (KTD-5/9). Authenticates as the
+// seeded landlord; rows use a TEST- prefix and are cleaned up around the run.
 const app = buildApp()
 const PREFIX = 'TEST-CREATE-'
+let cookie: string
 
 const validBody = {
   invoiceNumber: `${PREFIX}1`,
@@ -21,6 +23,7 @@ async function cleanup() {
 
 beforeAll(async () => {
   await app.ready()
+  cookie = await loginCookie(app)
   await cleanup()
 })
 afterAll(async () => {
@@ -29,8 +32,18 @@ afterAll(async () => {
 })
 
 describe('POST /api/invoices', () => {
-  it('creates an invoice and returns 201 with a cuid id and the landlord owner', async () => {
+  it('401s without a session cookie', async () => {
     const res = await app.inject({ method: 'POST', url: '/api/invoices', payload: validBody })
+    expect(res.statusCode).toBe(401)
+  })
+
+  it('creates an invoice owned by the session user', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/invoices',
+      payload: validBody,
+      headers: { cookie },
+    })
     expect(res.statusCode).toBe(201)
     const body = res.json()
     expect(typeof body.id).toBe('string')
@@ -38,16 +51,16 @@ describe('POST /api/invoices', () => {
     expect(body.vendorName).toBe('Acme Plumbing')
     expect(body.category).toBe('REPAIRS')
     expect(body.status).toBe('PENDING')
-    // Prisma serializes Decimal as a string on responses (CONV-013).
     expect(body.amount).toBe('149.99')
     expect(body.userId).toBe(process.env.LANDLORD_USER_ID)
   })
 
-  it('ignores a client-supplied userId and uses the landlord', async () => {
+  it('ignores a client-supplied userId and uses the session user', async () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/invoices',
       payload: { ...validBody, invoiceNumber: `${PREFIX}2`, userId: 'attacker-controlled' },
+      headers: { cookie },
     })
     expect(res.statusCode).toBe(201)
     expect(res.json().userId).toBe(process.env.LANDLORD_USER_ID)
@@ -58,6 +71,7 @@ describe('POST /api/invoices', () => {
       method: 'POST',
       url: '/api/invoices',
       payload: { ...validBody, invoiceNumber: `${PREFIX}3`, amount: -5, category: 'NOPE' },
+      headers: { cookie },
     })
     expect(res.statusCode).toBe(400)
     expect(res.json().error.code).toBe('VALIDATION_ERROR')
@@ -66,43 +80,46 @@ describe('POST /api/invoices', () => {
 
   it('rejects a duplicate invoiceNumber with 409', async () => {
     const dup = { ...validBody, invoiceNumber: `${PREFIX}dup` }
-    const first = await app.inject({ method: 'POST', url: '/api/invoices', payload: dup })
+    const first = await app.inject({
+      method: 'POST',
+      url: '/api/invoices',
+      payload: dup,
+      headers: { cookie },
+    })
     expect(first.statusCode).toBe(201)
-    const second = await app.inject({ method: 'POST', url: '/api/invoices', payload: dup })
+    const second = await app.inject({
+      method: 'POST',
+      url: '/api/invoices',
+      payload: dup,
+      headers: { cookie },
+    })
     expect(second.statusCode).toBe(409)
-  })
-
-  it('returns 500 CONFIG_ERROR when LANDLORD_USER_ID is unset', async () => {
-    const saved = process.env.LANDLORD_USER_ID
-    delete process.env.LANDLORD_USER_ID
-    try {
-      const res = await app.inject({
-        method: 'POST',
-        url: '/api/invoices',
-        payload: { ...validBody, invoiceNumber: `${PREFIX}cfg` },
-      })
-      expect(res.statusCode).toBe(500)
-      expect(res.json().error.code).toBe('CONFIG_ERROR')
-    } finally {
-      process.env.LANDLORD_USER_ID = saved
-    }
   })
 })
 
 describe('GET /api/invoices/:id', () => {
-  it('returns 200 for an existing invoice and 404 for an unknown id', async () => {
+  it('returns 200 for an own invoice and 404 for an unknown id', async () => {
     const created = await app.inject({
       method: 'POST',
       url: '/api/invoices',
       payload: { ...validBody, invoiceNumber: `${PREFIX}get` },
+      headers: { cookie },
     })
     const { id } = created.json()
 
-    const found = await app.inject({ method: 'GET', url: `/api/invoices/${id}` })
+    const found = await app.inject({
+      method: 'GET',
+      url: `/api/invoices/${id}`,
+      headers: { cookie },
+    })
     expect(found.statusCode).toBe(200)
     expect(found.json().invoiceNumber).toBe(`${PREFIX}get`)
 
-    const missing = await app.inject({ method: 'GET', url: '/api/invoices/does-not-exist' })
+    const missing = await app.inject({
+      method: 'GET',
+      url: '/api/invoices/does-not-exist',
+      headers: { cookie },
+    })
     expect(missing.statusCode).toBe(404)
     expect(missing.json().error.code).toBe('NOT_FOUND')
   })

@@ -1,26 +1,20 @@
 import type { FastifyInstance } from 'fastify'
+import { requireAuth } from '../auth/requireAuth'
 import * as handlers from './handlers'
+import type { GetInvoiceParams, ListInvoicesQuery } from './types.ts'
 
 /**
- * Invoice routes plugin
- * @param {FastifyInstance} fastify  Encapsulated Fastify Instance
- * @param {Object} options plugin options, refer to https://fastify.dev/docs/latest/Reference/Plugins/#plugin-options
+ * Invoice routes plugin. Every route requires auth and is scoped to the session
+ * user (request.user.id) in the handler.
  */
 async function invoiceRoutes(fastify: FastifyInstance) {
-  // POST /api/invoices - Create a new invoice
-  fastify.post('/api/invoices', handlers.createInvoice)
+  const auth = { preHandler: requireAuth }
 
-  // GET /api/invoices - List invoices with optional filters
-  fastify.get('/api/invoices', handlers.listInvoices)
-
-  // GET /api/invoices/:id - Get a single invoice by ID
-  fastify.get('/api/invoices/:id', handlers.getInvoice)
-
-  // PATCH /api/invoices/:id - Update an invoice
-  fastify.patch('/api/invoices/:id', handlers.updateInvoice)
-
-  // DELETE /api/invoices/:id - Delete an invoice
-  fastify.delete('/api/invoices/:id', handlers.deleteInvoice)
+  fastify.post('/api/invoices', auth, handlers.createInvoice)
+  fastify.get<{ Querystring: ListInvoicesQuery }>('/api/invoices', auth, handlers.listInvoices)
+  fastify.get<{ Params: GetInvoiceParams }>('/api/invoices/:id', auth, handlers.getInvoice)
+  fastify.patch<{ Params: GetInvoiceParams }>('/api/invoices/:id', auth, handlers.updateInvoice)
+  fastify.delete<{ Params: GetInvoiceParams }>('/api/invoices/:id', auth, handlers.deleteInvoice)
 }
 
 //ESM

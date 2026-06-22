@@ -11,15 +11,27 @@ type FormInput = z.input<typeof CreateInvoiceSchema>
 
 type Props = {
   onSubmit: (values: CreateInvoiceInput) => void
+  defaultValues?: Partial<FormInput>
   isSubmitting?: boolean
   serverError?: string | null
+  submitLabel?: string
 }
 
 const fieldClass =
   'w-full px-3 py-2 rounded-md border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring'
 
-/** Create-invoice form validated against the shared CreateInvoiceSchema. */
-export function InvoiceForm({ onSubmit, isSubmitting, serverError }: Props) {
+/**
+ * Invoice form validated against the shared CreateInvoiceSchema. Used for both
+ * create (empty defaults) and edit (prefilled defaults) — a full payload is a
+ * valid superset of the PATCH UpdateInvoiceSchema, so one schema covers both.
+ */
+export function InvoiceForm({
+  onSubmit,
+  defaultValues,
+  isSubmitting,
+  serverError,
+  submitLabel = 'Create invoice',
+}: Props) {
   const {
     register,
     handleSubmit,
@@ -28,11 +40,15 @@ export function InvoiceForm({ onSubmit, isSubmitting, serverError }: Props) {
     // zod v4 + @hookform/resolvers types don't line up with the 3-generic useForm;
     // the resolver behaves correctly at runtime, so assert the matching shape.
     resolver: zodResolver(CreateInvoiceSchema) as Resolver<FormInput, unknown, CreateInvoiceInput>,
-    defaultValues: { currency: 'USD', category: 'OTHER' },
+    defaultValues: { currency: 'USD', category: 'OTHER', ...defaultValues },
   })
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
+    <form
+      onSubmit={handleSubmit(onSubmit)}
+      className="space-y-4 rounded-lg border border-border bg-card p-6"
+      noValidate
+    >
       <div>
         <label htmlFor="invoiceNumber" className="block text-sm font-medium mb-1">
           Invoice number
@@ -114,7 +130,7 @@ export function InvoiceForm({ onSubmit, isSubmitting, serverError }: Props) {
       {serverError && <p className="text-sm text-destructive">{serverError}</p>}
 
       <Button type="submit" disabled={isSubmitting}>
-        {isSubmitting ? 'Creating…' : 'Create invoice'}
+        {isSubmitting ? 'Saving…' : submitLabel}
       </Button>
     </form>
   )
