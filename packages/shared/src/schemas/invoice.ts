@@ -60,3 +60,12 @@ export type UpdateInvoiceInput = z.infer<typeof UpdateInvoiceSchema>
 export type InvoiceSortField = z.infer<typeof InvoiceSortField>
 export type SortOrder = z.infer<typeof SortOrder>
 export type ListInvoicesQueryInput = z.infer<typeof ListInvoicesQuerySchema>
+
+// Phase 5 — Google Sheets export. The target sheet defaults to GOOGLE_SHEET_ID
+// server-side; an optional spreadsheetId override is accepted (not surfaced in the UI).
+export const ExportInvoicesSchema = z.object({
+  spreadsheetId: z.string().trim().min(1).optional(),
+})
+export type ExportInvoicesInput = z.infer<typeof ExportInvoicesSchema>
+// Success shape; a partial export is a non-2xx error carrying the durable count.
+export type ExportInvoicesResult = { exported: number }

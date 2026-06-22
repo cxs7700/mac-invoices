@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { ListInvoicesQuerySchema } from '../src/schemas/invoice'
+import { ListInvoicesQuerySchema, ExportInvoicesSchema } from '../src/schemas/invoice'
 
 describe('ListInvoicesQuerySchema', () => {
   it('parses a full valid query', () => {
@@ -49,5 +49,18 @@ describe('ListInvoicesQuerySchema', () => {
 
   it('rejects a whitespace-only vendor (trim then min(1))', () => {
     expect(ListInvoicesQuerySchema.safeParse({ vendor: '   ' }).success).toBe(false)
+  })
+})
+
+describe('ExportInvoicesSchema', () => {
+  it('accepts an empty body (spreadsheetId optional)', () => {
+    expect(ExportInvoicesSchema.safeParse({}).success).toBe(true)
+  })
+  it('accepts a non-empty spreadsheetId', () => {
+    const r = ExportInvoicesSchema.safeParse({ spreadsheetId: 'abc123' })
+    expect(r.success && r.data.spreadsheetId).toBe('abc123')
+  })
+  it('rejects a whitespace-only spreadsheetId', () => {
+    expect(ExportInvoicesSchema.safeParse({ spreadsheetId: '  ' }).success).toBe(false)
   })
 })

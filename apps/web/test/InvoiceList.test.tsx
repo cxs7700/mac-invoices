@@ -38,10 +38,25 @@ function statsResponse() {
   }
 }
 
-// The list mock only ever sees list calls; the status-counts strip's /stats
-// fetch is served separately so assertions on call[0] stay deterministic.
-function renderList(listMock: ReturnType<typeof vi.fn>, entry = '/') {
+function jsonRes(status: number, body: unknown) {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    headers: { get: () => 'application/json' },
+    json: async () => body,
+    text: async () => JSON.stringify(body),
+  }
+}
+
+// The list mock only ever sees list calls; the status-counts strip's /stats and
+// the export POST are served separately so assertions on call[0] stay deterministic.
+function renderList(
+  listMock: ReturnType<typeof vi.fn>,
+  entry = '/',
+  exportImpl: () => Promise<unknown> = () => Promise.resolve(jsonRes(200, { exported: 0 })),
+) {
   const fetchMock = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
+    if (String(url).includes('/api/invoices/export')) return exportImpl()
     if (String(url).includes('/api/invoices/stats')) return Promise.resolve(statsResponse())
     return listMock(url, init)
   })
@@ -133,5 +148,63 @@ describe('InvoiceList', () => {
     renderList(vi.fn().mockRejectedValue(new Error('boom')))
     await waitFor(() => expect(screen.getByText(/failed to load invoices/i)).toBeDefined())
     expect(screen.getByRole('button', { name: /retry/i })).toBeDefined()
+  })
+})
+
+describe('InvoiceList — export to Sheets', () => {
+  it('exports on click and shows the count', async () => {
+    let resolveExport: (v: unknown) => void = () => {}
+    const exportImpl = () =>
+      new Promise((r) => {
+        resolveExport = r
+      })
+    renderList(vi.fn().mockResolvedValue(listResponse([row])), '/', exportImpl)
+    await waitFor(() => expect(screen.getByText('INV-1')).toBeDefined())
+
+    const btn = screen.getByRole('button', { name: /export to sheets/i })
+    fireEvent.click(btn)
+    // Pending: button disabled + label change.
+    await waitFor(() => expect(screen.getByRole('button', { name: /exporting/i })).toHaveProperty('disabled', true))
+
+    resolveExport(jsonRes(200, { exported: 3 }))
+    await waitFor(() => expect(screen.getByText(/exported 3 invoices to sheets/i)).toBeDefined())
+  })
+
+  it('shows a readable message when export is not configured (503)', async () => {
+    const exportImpl = () =>
+      Promise.resolve(jsonRes(503, { error: { code: 'EXPORT_NOT_CONFIGURED', message: 'x' } }))
+    renderList(vi.fn().mockResolvedValue(listResponse([row])), '/', exportImpl)
+    await waitFor(() => expect(screen.getByText('INV-1')).toBeDefined())
+
+    fireEvent.click(screen.getByRole('button', { name: /export to sheets/i }))
+    await waitFor(() => expect(screen.getByText(/isn.t configured/i)).toBeDefined())
+  })
+
+  it('surfaces the durable count on a 502 partial export', async () => {
+    const exportImpl = () =>
+      Promise.resolve(
+        jsonRes(502, { error: { code: 'EXPORT_INTERRUPTED', message: 'boom', details: { exported: 2 } } }),
+      )
+    renderList(vi.fn().mockResolvedValue(listResponse([row])), '/', exportImpl)
+    await waitFor(() => expect(screen.getByText('INV-1')).toBeDefined())
+    fireEvent.click(screen.getByRole('button', { name: /export to sheets/i }))
+    await waitFor(() => expect(screen.getByText(/partial export: 2 written/i)).toBeDefined())
+  })
+
+  it('shows the raw message for a generic ApiError, and a fallback for a non-ApiError', async () => {
+    const exportImpl = () =>
+      Promise.resolve(jsonRes(502, { error: { code: 'SHEET_ERROR', message: 'sheet exploded' } }))
+    renderList(vi.fn().mockResolvedValue(listResponse([row])), '/', exportImpl)
+    await waitFor(() => expect(screen.getByText('INV-1')).toBeDefined())
+    fireEvent.click(screen.getByRole('button', { name: /export to sheets/i }))
+    await waitFor(() => expect(screen.getByText('sheet exploded')).toBeDefined())
+  })
+
+  it('renders a singular success message for exactly one invoice', async () => {
+    const exportImpl = () => Promise.resolve(jsonRes(200, { exported: 1 }))
+    renderList(vi.fn().mockResolvedValue(listResponse([row])), '/', exportImpl)
+    await waitFor(() => expect(screen.getByText('INV-1')).toBeDefined())
+    fireEvent.click(screen.getByRole('button', { name: /export to sheets/i }))
+    await waitFor(() => expect(screen.getByText('Exported 1 invoice to Sheets.')).toBeDefined())
   })
 })

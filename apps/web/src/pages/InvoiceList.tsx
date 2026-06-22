@@ -1,9 +1,11 @@
 import { Link, useSearchParams } from 'react-router'
 import { useInvoices } from '@/hooks/useInvoices'
+import { useExportInvoices } from '@/hooks/useExportInvoices'
 import { InvoiceTable } from '@/components/InvoiceTable'
 import { FilterBar } from '@/components/FilterBar'
 import { StatusCounts } from '@/components/StatusCounts'
 import { Button } from '@/components/ui/button'
+import { ApiError } from '@/lib/apiClient'
 import {
   PAGE_SIZE,
   parseListParams,
@@ -12,6 +14,19 @@ import {
   hasActiveFilters,
   type ListFilters,
 } from '@/lib/listParams'
+
+/** Human-readable message for an export failure (null when there's no error). */
+function exportErrorMessage(error: unknown): string | null {
+  if (!error) return null
+  if (!(error instanceof ApiError)) return 'Export failed.'
+  if (error.code === 'EXPORT_NOT_CONFIGURED') return 'Sheets export isn’t configured on the server.'
+  // A 502 partial export carries how many rows made it durably.
+  const exported = (error.details as { exported?: number } | undefined)?.exported
+  if (error.status === 502 && typeof exported === 'number') {
+    return `Partial export: ${exported} written, then it failed. Try again to continue.`
+  }
+  return error.message
+}
 
 export default function InvoiceList() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -29,13 +44,38 @@ export default function InvoiceList() {
   const pageCount = Math.ceil(total / PAGE_SIZE)
   const filtersActive = hasActiveFilters(filters)
 
+  const exportM = useExportInvoices()
+  const exportError = exportErrorMessage(exportM.error)
+
   return (
     <div>
-      <div className="mb-5 flex items-center justify-between">
+      <div className="mb-2 flex items-center justify-between">
         <h1 className="text-2xl font-bold text-foreground">Invoices</h1>
-        <Button asChild>
-          <Link to="/invoices/new">New invoice</Link>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            disabled={exportM.isPending}
+            onClick={() => exportM.mutate()}
+          >
+            {exportM.isPending ? 'Exporting…' : 'Export to Sheets'}
+          </Button>
+          <Button asChild>
+            <Link to="/invoices/new">New invoice</Link>
+          </Button>
+        </div>
+      </div>
+
+      <div className="mb-4 min-h-5 text-sm" aria-live="polite">
+        {exportM.isSuccess && (
+          <span role="status" className="text-status-paid-foreground">
+            Exported {exportM.data.exported} invoice{exportM.data.exported === 1 ? '' : 's'} to Sheets.
+          </span>
+        )}
+        {exportError && (
+          <span role="alert" className="text-destructive">
+            {exportError}
+          </span>
+        )}
       </div>
 
       <StatusCounts
