@@ -43,4 +43,11 @@ describe('AuthGuard', () => {
     setup(jsonResponse(200, { id: 'u', email: 'a@b.com', name: null, role: 'LANDLORD' }))
     await waitFor(() => expect(screen.getByText('APP HOME')).toBeDefined())
   })
+
+  it('shows a retry state (not /login) on a transient 5xx error', async () => {
+    setup(jsonResponse(500, { error: { code: 'INTERNAL', message: 'boom' } }))
+    await waitFor(() => expect(screen.getByText(/couldn't reach the server/i)).toBeDefined())
+    expect(screen.queryByText('LOGIN PAGE')).toBeNull()
+    expect(screen.getByRole('button', { name: /retry/i })).toBeDefined()
+  })
 })

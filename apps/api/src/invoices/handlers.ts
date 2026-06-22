@@ -138,6 +138,11 @@ export async function updateInvoice(
     where: { id: request.params.id, userId: request.user.id },
     include: { user: userSelect },
   })
+  // The row can be concurrently deleted between updateMany and this re-fetch;
+  // guard so we never reply 200 with a null body.
+  if (!invoice) {
+    throw new AppError('NOT_FOUND', 'Invoice not found', 404)
+  }
   return reply.send(invoice)
 }
 

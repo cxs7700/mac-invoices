@@ -31,5 +31,8 @@ export function useInvoices(params: InvoiceListParams) {
     queryKey: ['invoices', params],
     queryFn: () => apiClient<InvoiceListResponse>(`/api/invoices?${search.toString()}`),
     placeholderData: keepPreviousData,
+    // A 401/4xx shouldn't be retried (matches useInvoice/useMe); the global
+    // default is retry:1, which would double a doomed request.
+    retry: false,
   })
 }

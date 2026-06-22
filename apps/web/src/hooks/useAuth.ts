@@ -27,7 +27,9 @@ export function useLogout() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: () => apiClient('/api/auth/logout', { method: 'POST' }),
-    onSuccess: () => {
+    // onSettled (not onSuccess): even if the logout request fails, drop the
+    // cached session + invoice data so it can't leak to the next user.
+    onSettled: () => {
       queryClient.setQueryData(['me'], null)
       queryClient.clear()
     },

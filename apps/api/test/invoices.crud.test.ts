@@ -38,10 +38,31 @@ afterAll(async () => {
   await app.close()
 })
 
+describe('GET /api/invoices/:id', () => {
+  it('401s without auth', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/invoices/x' })
+    expect(res.statusCode).toBe(401)
+  })
+})
+
 describe('PATCH /api/invoices/:id', () => {
   it('401s without auth', async () => {
     const res = await app.inject({ method: 'PATCH', url: '/api/invoices/x', payload: {} })
     expect(res.statusCode).toBe(401)
+  })
+
+  it('accepts the unchanged invoiceNumber without a self-collision 409', async () => {
+    // The edit form resubmits the full record incl. the original invoiceNumber;
+    // updating a row to its own unique value must not trip the unique constraint.
+    const id = await createOwn('selfedit')
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/api/invoices/${id}`,
+      payload: { invoiceNumber: `${PREFIX}selfedit`, amount: 250 },
+      headers: { cookie },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(res.json().invoiceNumber).toBe(`${PREFIX}selfedit`)
   })
 
   it('marks paid (sets paidDate) and clears paidDate when leaving PAID', async () => {

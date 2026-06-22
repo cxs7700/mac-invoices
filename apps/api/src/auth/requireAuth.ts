@@ -15,7 +15,10 @@ export function sessionCookieOptions(expiresAt: Date) {
   return {
     httpOnly: true,
     sameSite: 'strict' as const,
-    secure: process.env.COOKIE_SECURE === 'true',
+    // COOKIE_SECURE is the explicit control (lets staging opt in/out of HTTPS);
+    // production additionally fails closed so a forgotten flag never ships the
+    // session cookie over plaintext HTTP.
+    secure: process.env.COOKIE_SECURE === 'true' || process.env.NODE_ENV === 'production',
     path: '/',
     expires: expiresAt,
   }

@@ -43,7 +43,14 @@ async function authRoutes(app: FastifyInstance) {
     if (token) {
       await invalidateSession(sessionIdFromToken(token))
     }
-    reply.clearCookie(SESSION_COOKIE, { path: '/' })
+    // Match the attributes the cookie was set with so strict browsers honor the
+    // deletion (RFC 6265 matches on name + path; mismatches can be ignored).
+    reply.clearCookie(SESSION_COOKIE, {
+      path: '/',
+      httpOnly: true,
+      sameSite: 'strict',
+      secure: process.env.COOKIE_SECURE === 'true' || process.env.NODE_ENV === 'production',
+    })
     return reply.code(204).send()
   })
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import InvoiceDetail from '@/pages/InvoiceDetail'
@@ -105,5 +105,36 @@ describe('InvoiceDetail', () => {
   it('shows a not-found state on 404', async () => {
     setup(404)
     await waitFor(() => expect(screen.getByText(/invoice not found/i)).toBeDefined())
+  })
+
+  it('deletes via the confirm modal, then navigates to the list', async () => {
+    const fetchMock = setup()
+    await waitFor(() => expect(screen.getByText('Invoice INV-1')).toBeDefined())
+
+    fireEvent.click(screen.getByRole('button', { name: /^delete$/i }))
+    // Confirm modal appears, scoped to this invoice.
+    const dialog = await screen.findByRole('dialog')
+    expect(dialog.textContent).toContain('INV-1')
+
+    // The modal's Delete button issues the DELETE and routes to the list.
+    const confirmBtn = within(dialog).getByRole('button', { name: /^delete$/i })
+    fireEvent.click(confirmBtn)
+
+    await waitFor(() =>
+      expect(fetchMock.mock.calls.some((c) => c[1]?.method === 'DELETE')).toBe(true),
+    )
+    await waitFor(() => expect(screen.getByText('LIST')).toBeDefined())
+  })
+
+  it('dismisses the delete modal on cancel without calling DELETE', async () => {
+    const fetchMock = setup()
+    await waitFor(() => expect(screen.getByText('Invoice INV-1')).toBeDefined())
+
+    fireEvent.click(screen.getByRole('button', { name: /^delete$/i }))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: /cancel/i }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(fetchMock.mock.calls.some((c) => c[1]?.method === 'DELETE')).toBe(false)
   })
 })

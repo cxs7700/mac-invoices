@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import type { UpdateInvoiceInput } from '@mac-invoices/shared'
 import { apiClient } from '@/lib/apiClient'
 import type { InvoiceListItem } from './useInvoices'
 
@@ -26,7 +27,7 @@ export function useInvoice(id: string | undefined) {
 export function useUpdateInvoice(id: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (body: Record<string, unknown>) =>
+    mutationFn: (body: UpdateInvoiceInput) =>
       apiClient<Invoice>(`/api/invoices/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['invoice', id] })
