@@ -61,27 +61,29 @@ describe('GET /api/invoices/stats', () => {
     expect(sum).toBe(body.total)
   })
 
-  it('counts only the session user, excluding a second user', async () => {
-    const before = (
-      await app.inject({ method: 'GET', url: '/api/invoices/stats', headers: { cookie } })
-    ).json()
-
-    await create('p1', 'PENDING')
-    await create('p2', 'PENDING')
-    await create('paid1', 'PAID')
-
+  it('counts only the session user, excluding others', async () => {
+    // The landlord's global counts are mutated by other suites running in
+    // parallel against the shared dev DB, so assert on a freshly-created second
+    // user whose invoice set is fully owned by this test (deterministic).
     const second = await createSecondUser(app)
     try {
+      // Landlord rows that must NOT leak into the second user's counts.
+      await create('p1', 'PENDING')
+      await create('paid1', 'PAID')
+      // The second user's only invoice.
       await create('other', 'PAID', second.cookie)
 
-      const after = (
-        await app.inject({ method: 'GET', url: '/api/invoices/stats', headers: { cookie } })
+      const stats = (
+        await app.inject({
+          method: 'GET',
+          url: '/api/invoices/stats',
+          headers: { cookie: second.cookie },
+        })
       ).json()
 
-      // Landlord gained exactly the 3 it created — the second user's PAID row is excluded.
-      expect(after.counts.PENDING).toBe(before.counts.PENDING + 2)
-      expect(after.counts.PAID).toBe(before.counts.PAID + 1)
-      expect(after.total).toBe(before.total + 3)
+      expect(stats.total).toBe(1)
+      expect(stats.counts.PAID).toBe(1)
+      expect(stats.counts.PENDING).toBe(0)
     } finally {
       await second.cleanup()
     }

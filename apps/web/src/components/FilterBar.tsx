@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useRef, useState } from 'react'
 import {
   STATUS_OPTIONS,
   SORT_OPTIONS,
@@ -30,12 +30,21 @@ type Props = {
 export function FilterBar({ filters, onChange, onClear }: Props) {
   // Local mirror of the vendor text so we can debounce before lifting it up.
   const [vendor, setVendor] = useState(filters.vendor)
-  useEffect(() => setVendor(filters.vendor), [filters.vendor])
-  useEffect(() => {
-    if (vendor === filters.vendor) return
-    const t = setTimeout(() => onChange({ vendor }), 300)
-    return () => clearTimeout(t)
-  }, [vendor, filters.vendor, onChange])
+  const [syncedVendor, setSyncedVendor] = useState(filters.vendor)
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+
+  // Re-sync the input when the URL vendor changes externally (e.g. clear-all),
+  // adjusting state during render rather than in an effect.
+  if (filters.vendor !== syncedVendor) {
+    setSyncedVendor(filters.vendor)
+    setVendor(filters.vendor)
+  }
+
+  const handleVendor = (value: string) => {
+    setVendor(value)
+    clearTimeout(timer.current)
+    timer.current = setTimeout(() => onChange({ vendor: value }), 300)
+  }
 
   const dateError = filters.from && filters.to && filters.from > filters.to
 
@@ -90,7 +99,7 @@ export function FilterBar({ filters, onChange, onClear }: Props) {
           placeholder="Search vendor…"
           className={field}
           value={vendor}
-          onChange={(e) => setVendor(e.target.value)}
+          onChange={(e) => handleVendor(e.target.value)}
         />
       </label>
 

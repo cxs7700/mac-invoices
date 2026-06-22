@@ -2,6 +2,7 @@ import { Link, useSearchParams } from 'react-router'
 import { useInvoices } from '@/hooks/useInvoices'
 import { InvoiceTable } from '@/components/InvoiceTable'
 import { FilterBar } from '@/components/FilterBar'
+import { StatusCounts } from '@/components/StatusCounts'
 import { Button } from '@/components/ui/button'
 import {
   PAGE_SIZE,
@@ -36,6 +37,11 @@ export default function InvoiceList() {
           <Link to="/invoices/new">New invoice</Link>
         </Button>
       </div>
+
+      <StatusCounts
+        activeStatus={filters.status}
+        onSelect={(status) => applyFilter({ status })}
+      />
 
       <FilterBar filters={filters} onChange={applyFilter} onClear={clearAll} />
 

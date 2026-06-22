@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import InvoiceList from '@/pages/InvoiceList'
@@ -27,7 +27,24 @@ const row = {
   dueDate: null,
 }
 
-function renderList(fetchMock: ReturnType<typeof vi.fn>, entry = '/') {
+function statsResponse() {
+  const body = { counts: { PENDING: 0, APPROVED: 0, PAID: 0, REJECTED: 0, CANCELLED: 0 }, total: 0 }
+  return {
+    ok: true,
+    status: 200,
+    headers: { get: () => 'application/json' },
+    json: async () => body,
+    text: async () => JSON.stringify(body),
+  }
+}
+
+// The list mock only ever sees list calls; the status-counts strip's /stats
+// fetch is served separately so assertions on call[0] stay deterministic.
+function renderList(listMock: ReturnType<typeof vi.fn>, entry = '/') {
+  const fetchMock = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
+    if (String(url).includes('/api/invoices/stats')) return Promise.resolve(statsResponse())
+    return listMock(url, init)
+  })
   vi.stubGlobal('fetch', fetchMock)
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
@@ -46,7 +63,9 @@ describe('InvoiceList', () => {
     renderList(vi.fn().mockResolvedValue(listResponse([row])))
     await waitFor(() => expect(screen.getByText('INV-1')).toBeDefined())
     expect(screen.getByText('$149.99')).toBeDefined()
-    expect(screen.getByText('Pending')).toBeDefined()
+    // Scope to the row — "Pending" also appears as a status-counts chip label.
+    const tr = screen.getByText('INV-1').closest('tr')!
+    expect(within(tr).getByText('Pending')).toBeDefined()
   })
 
   it('issues a status-filtered query when the filter changes', async () => {
