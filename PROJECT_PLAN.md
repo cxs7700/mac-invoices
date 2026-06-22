@@ -238,7 +238,8 @@ user (`WHERE userId = session.user.id` — never trust client-supplied userId).
 | POST | `/auth/login` | `{email,password}` | session cookie + user | rate-limited |
 | POST | `/auth/logout` | — | 204 | clears session |
 | GET  | `/auth/me` | — | user or 401 | |
-| GET  | `/invoices` | query: `status,from,to,vendor,sort,page` | paginated list | filter+sort |
+| GET  | `/invoices` | query: `status,from,to,vendor,sort,order,limit,offset` | paginated list | filter+sort (Phase 4) |
+| GET  | `/invoices/stats` | — | `{ counts: by-status, total }` | all-time, ownership-scoped (Phase 4) |
 | POST | `/invoices` | `CreateInvoiceSchema` | created invoice | |
 | GET  | `/invoices/:id` | — | invoice or 404 | ownership-checked |
 | PATCH| `/invoices/:id` | `UpdateInvoiceSchema` | updated invoice | |
@@ -316,9 +317,9 @@ export const sheets = google.sheets({ version: 'v4', auth });
 - **DoD:** All CRUD works through the UI behind auth; integration tests cover each route;
   unauthorized access returns 401.
 
-### Phase 4 — History, Status & Metadata UX
-- [ ] Sortable/filterable list; empty/loading/error states; status transitions; due-date display.
-- [ ] Basic dashboard counts (totals by status) — read-only.
+### Phase 4 — History, Status & Metadata UX  ✅ *complete (2026-06-22)*
+- [x] Sortable/filterable list; empty/loading/error states; status transitions; due-date display.
+- [x] Basic dashboard counts (totals by status) — read-only.
 - **DoD:** Landlord can find any invoice by status/date/vendor in ≤2 interactions.
 
 ### Phase 5 — Google Sheets Export

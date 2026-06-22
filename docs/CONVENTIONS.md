@@ -24,3 +24,7 @@ Mirror of `PROJECT_PLAN.md` §11, plus patterns established during execution. Ev
 - **CONV-012 — DB integration tests:** handlers that touch the database are tested against the real dev DB via `buildApp().inject(...)` (needs Postgres in CI). Use a unique row prefix and clean up in `beforeAll`/`afterAll`. Reference: `apps/api/test/invoices.create.test.ts`.
 - **CONV-013 — Money:** `amount` is `Decimal(10,2)` in the DB and serializes to a JSON **string** on responses; validate as `z.number().positive().multipleOf(0.01)`; format with `Intl.NumberFormat` in the UI. No float math (CONV-004).
 - **CONV-014 — Web form validation:** React Hook Form with `zodResolver` over the shared schema; requires `@hookform/resolvers@5` for Zod 4. Register numeric inputs with `valueAsNumber`.
+
+## Phase 4 (2026-06-22)
+
+- **CONV-015 — List-query validation + whitelisted sort:** validate `GET` query params with a shared Zod schema (`ListInvoicesQuerySchema`) via `parseBody(schema, request.query, '…')` — `parseBody` is generic over `unknown`, not body-only. Sort/order are `z.enum` whitelists so the `orderBy` is never built from a raw string; numbers/dates use `z.coerce`. Pagination is **strict** (out-of-bounds → 400), and the web side **sanitizes** URL params to defaults before querying (`apps/web/src/lib/listParams.ts`) so a hand-edited URL renders rather than 400ing.

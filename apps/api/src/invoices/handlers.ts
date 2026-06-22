@@ -1,18 +1,17 @@
 import type { FastifyRequest, FastifyReply } from 'fastify'
 import type { Prisma } from '../../prisma/generated/client.ts'
-import { CreateInvoiceSchema, UpdateInvoiceSchema, InvoiceStatus } from '@mac-invoices/shared'
+import {
+  CreateInvoiceSchema,
+  UpdateInvoiceSchema,
+  ListInvoicesQuerySchema,
+  InvoiceStatus,
+  InvoiceSortField,
+} from '@mac-invoices/shared'
 import { AppError } from '../middleware/errorHandler'
 import { parseBody } from '../lib/validate'
 import type { GetInvoiceParams, ListInvoicesQuery } from './types.ts'
 
 const userSelect = { select: { id: true, name: true, email: true } }
-
-/** Clamp a string query int into [min, max], falling back to `def` on NaN. */
-function clampInt(value: string | undefined, def: number, min: number, max: number): number {
-  const n = parseInt(value ?? '', 10)
-  if (Number.isNaN(n)) return def
-  return Math.min(Math.max(n, min), max)
-}
 
 /**
  * POST /api/invoices — create an invoice owned by the session user.
@@ -43,39 +42,79 @@ export async function createInvoice(request: FastifyRequest, reply: FastifyReply
 }
 
 /**
- * GET /api/invoices — list the session user's invoices (status filter + clamped
- * pagination). Date/vendor filtering and sort are Phase 4.
+ * GET /api/invoices — list the session user's invoices: status / date-range
+ * (invoiceDate) / vendor (contains) filtering, whitelisted sort, and strict
+ * offset pagination. Ownership-scoped to request.user.id.
  */
 export async function listInvoices(
   request: FastifyRequest<{ Querystring: ListInvoicesQuery }>,
   reply: FastifyReply,
 ) {
-  const { status, limit, offset } = request.query
+  const q = parseBody(ListInvoicesQuerySchema, request.query, 'Invalid query parameters')
 
   const where: Prisma.InvoiceWhereInput = { userId: request.user.id }
-  if (status) {
-    const parsed = InvoiceStatus.safeParse(status)
-    if (!parsed.success) {
-      throw new AppError('VALIDATION_ERROR', `Invalid status filter: ${status}`, 400)
+  if (q.status) where.status = q.status
+  if (q.from || q.to) {
+    const invoiceDate: Prisma.DateTimeFilter = {}
+    if (q.from) invoiceDate.gte = q.from
+    if (q.to) {
+      // `to` is a date-only value coerced to UTC midnight; include the whole day.
+      const end = new Date(q.to)
+      end.setUTCHours(23, 59, 59, 999)
+      invoiceDate.lte = end
     }
-    where.status = parsed.data
+    where.invoiceDate = invoiceDate
   }
+  if (q.vendor) where.vendorName = { contains: q.vendor, mode: 'insensitive' }
 
-  const take = clampInt(limit, 50, 1, 100)
-  const skip = clampInt(offset, 0, 0, Number.MAX_SAFE_INTEGER)
+  // Exhaustive map (not a computed-key cast) so a new sort field is a compile
+  // error here. invoiceDate desc is the tiebreaker for the nullable dueDate sort.
+  const sortClause: Record<InvoiceSortField, Prisma.InvoiceOrderByWithRelationInput> = {
+    invoiceDate: { invoiceDate: q.order },
+    amount: { amount: q.order },
+    dueDate: { dueDate: q.order },
+    status: { status: q.order },
+  }
+  const orderBy: Prisma.InvoiceOrderByWithRelationInput[] = [
+    sortClause[q.sort],
+    { invoiceDate: 'desc' },
+  ]
 
   const [invoices, total] = await Promise.all([
     request.server.prisma.invoice.findMany({
       where,
       include: { user: userSelect },
-      take,
-      skip,
-      orderBy: { invoiceDate: 'desc' },
+      take: q.limit,
+      skip: q.offset,
+      orderBy,
     }),
     request.server.prisma.invoice.count({ where }),
   ])
 
-  return reply.send({ data: invoices, pagination: { total, limit: take, offset: skip } })
+  return reply.send({ data: invoices, pagination: { total, limit: q.limit, offset: q.offset } })
+}
+
+/**
+ * GET /api/invoices/stats — totals by status for the session user (all-time,
+ * independent of any list filter). Zero-fills every status for a stable shape.
+ */
+export async function invoiceStats(request: FastifyRequest, reply: FastifyReply) {
+  const grouped = await request.server.prisma.invoice.groupBy({
+    by: ['status'],
+    where: { userId: request.user.id },
+    _count: { _all: true },
+  })
+
+  // Typed by the shared enum so adding a status is a compile error if missed.
+  const counts = {} as Record<InvoiceStatus, number>
+  for (const s of InvoiceStatus.options) counts[s] = 0
+  let total = 0
+  for (const row of grouped) {
+    counts[row.status as InvoiceStatus] = row._count._all
+    total += row._count._all
+  }
+
+  return reply.send({ counts, total })
 }
 
 /** GET /api/invoices/:id — own invoice, or 404 (no existence leak for others'). */

@@ -18,12 +18,26 @@ export type InvoiceListResponse = {
   pagination: { total: number; limit: number; offset: number }
 }
 
-export type InvoiceListParams = { status?: string; limit?: number; offset?: number }
+export type InvoiceListParams = {
+  status?: string
+  from?: string
+  to?: string
+  vendor?: string
+  sort?: string
+  order?: string
+  limit?: number
+  offset?: number
+}
 
-/** The session user's invoices (status filter + offset pagination). */
+/** The session user's invoices (status/date/vendor filter, sort, pagination). */
 export function useInvoices(params: InvoiceListParams) {
   const search = new URLSearchParams()
   if (params.status) search.set('status', params.status)
+  if (params.from) search.set('from', params.from)
+  if (params.to) search.set('to', params.to)
+  if (params.vendor) search.set('vendor', params.vendor)
+  if (params.sort) search.set('sort', params.sort)
+  if (params.order) search.set('order', params.order)
   search.set('limit', String(params.limit ?? 20))
   search.set('offset', String(params.offset ?? 0))
 

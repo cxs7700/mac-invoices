@@ -7,8 +7,6 @@ export interface GetInvoiceParams {
   id: string
 }
 
-export interface ListInvoicesQuery {
-  status?: string
-  limit?: string
-  offset?: string
-}
+// The raw query is just strings; the shape is validated by ListInvoicesQuerySchema
+// (shared) in the handler via parseBody — no need to mirror every param here.
+export type ListInvoicesQuery = Record<string, string | undefined>

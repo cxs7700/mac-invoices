@@ -1,23 +1,33 @@
-import { useState } from 'react'
-import { Link } from 'react-router'
+import { Link, useSearchParams } from 'react-router'
 import { useInvoices } from '@/hooks/useInvoices'
 import { InvoiceTable } from '@/components/InvoiceTable'
+import { FilterBar } from '@/components/FilterBar'
+import { StatusCounts } from '@/components/StatusCounts'
 import { Button } from '@/components/ui/button'
-
-const STATUSES = ['PENDING', 'APPROVED', 'PAID', 'REJECTED', 'CANCELLED']
-const PAGE_SIZE = 20
+import {
+  PAGE_SIZE,
+  parseListParams,
+  toQueryParams,
+  toSearchParams,
+  hasActiveFilters,
+  type ListFilters,
+} from '@/lib/listParams'
 
 export default function InvoiceList() {
-  const [status, setStatus] = useState('')
-  const [page, setPage] = useState(0)
-  const { data, isPending, isError, refetch } = useInvoices({
-    status: status || undefined,
-    limit: PAGE_SIZE,
-    offset: page * PAGE_SIZE,
-  })
+  const [searchParams, setSearchParams] = useSearchParams()
+  const filters = parseListParams(searchParams)
+  const { data, isPending, isError, refetch } = useInvoices(toQueryParams(filters))
+
+  // Filter changes reset to page 1; pagination keeps the current filters.
+  const applyFilter = (patch: Partial<ListFilters>) =>
+    setSearchParams(toSearchParams({ ...filters, ...patch, page: 1 }))
+  const goToPage = (page: number) =>
+    setSearchParams(toSearchParams({ ...filters, page }))
+  const clearAll = () => setSearchParams(new URLSearchParams())
 
   const total = data?.pagination.total ?? 0
   const pageCount = Math.ceil(total / PAGE_SIZE)
+  const filtersActive = hasActiveFilters(filters)
 
   return (
     <div>
@@ -28,24 +38,12 @@ export default function InvoiceList() {
         </Button>
       </div>
 
-      <div className="mb-4">
-        <select
-          aria-label="Filter by status"
-          value={status}
-          onChange={(e) => {
-            setStatus(e.target.value)
-            setPage(0)
-          }}
-          className="rounded-md border border-input bg-card px-3 py-1.5 text-sm"
-        >
-          <option value="">All statuses</option>
-          {STATUSES.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
-      </div>
+      <StatusCounts
+        activeStatus={filters.status}
+        onSelect={(status) => applyFilter({ status })}
+      />
+
+      <FilterBar filters={filters} onChange={applyFilter} onClear={clearAll} />
 
       {isPending ? (
         <div className="space-y-2" aria-busy="true">
@@ -61,45 +59,42 @@ export default function InvoiceList() {
           </Button>
         </div>
       ) : data.data.length === 0 ? (
-        <div className="rounded-lg border border-border bg-card p-10 text-center">
-          <p className="font-medium text-foreground">
-            {status ? 'No invoices match this filter' : 'No invoices yet'}
-          </p>
-          {status ? (
-            <button
-              type="button"
-              onClick={() => setStatus('')}
-              className="mt-2 text-sm text-primary"
-            >
-              Clear filter
+        filtersActive ? (
+          <div className="rounded-lg border border-border bg-card p-10 text-center">
+            <p className="font-medium text-foreground">No invoices match your filters</p>
+            <button type="button" onClick={clearAll} className="mt-2 text-sm text-primary">
+              Clear filters
             </button>
-          ) : (
+          </div>
+        ) : (
+          <div className="rounded-lg border border-border bg-card p-10 text-center">
+            <p className="font-medium text-foreground">No invoices yet</p>
             <Button asChild className="mt-3">
-              <Link to="/invoices/new">New invoice</Link>
+              <Link to="/invoices/new">Create invoice</Link>
             </Button>
-          )}
-        </div>
+          </div>
+        )
       ) : (
         <>
           <InvoiceTable invoices={data.data} />
           {pageCount > 1 && (
             <div className="mt-4 flex items-center justify-end gap-3 text-sm">
               <span className="text-muted-foreground">
-                Page {page + 1} of {pageCount}
+                Page {filters.page} of {pageCount}
               </span>
               <Button
                 variant="outline"
                 size="sm"
-                disabled={page === 0}
-                onClick={() => setPage((p) => Math.max(0, p - 1))}
+                disabled={filters.page <= 1}
+                onClick={() => goToPage(filters.page - 1)}
               >
                 Prev
               </Button>
               <Button
                 variant="outline"
                 size="sm"
-                disabled={page + 1 >= pageCount}
-                onClick={() => setPage((p) => p + 1)}
+                disabled={filters.page >= pageCount}
+                onClick={() => goToPage(filters.page + 1)}
               >
                 Next
               </Button>

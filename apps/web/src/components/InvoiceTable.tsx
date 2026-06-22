@@ -16,6 +16,7 @@ export function InvoiceTable({ invoices }: { invoices: InvoiceListItem[] }) {
             <th className={th}>Job</th>
             <th className={th}>Vendor</th>
             <th className={th}>Date</th>
+            <th className={th}>Due</th>
             <th className={`${th} text-right`}>Price</th>
             <th className={th}>Status</th>
           </tr>
@@ -31,6 +32,7 @@ export function InvoiceTable({ invoices }: { invoices: InvoiceListItem[] }) {
               <td className={`${td} max-w-xs truncate`}>{inv.description}</td>
               <td className={td}>{inv.vendorName}</td>
               <td className={td}>{formatDate(inv.invoiceDate)}</td>
+              <td className={td}>{inv.dueDate ? formatDate(inv.dueDate) : '—'}</td>
               <td className={`${td} text-right tabular-nums`}>{formatMoney(inv.amount)}</td>
               <td className={td}>
                 <StatusBadge status={inv.status} dueDate={inv.dueDate} />
