@@ -4,11 +4,13 @@ import {
   CreateInvoiceSchema,
   UpdateInvoiceSchema,
   ListInvoicesQuerySchema,
+  ExportInvoicesSchema,
   InvoiceStatus,
   InvoiceSortField,
 } from '@mac-invoices/shared'
 import { AppError } from '../middleware/errorHandler'
 import { parseBody } from '../lib/validate'
+import { appendRows } from '../integrations/sheets'
 import type { GetInvoiceParams, ListInvoicesQuery } from './types.ts'
 
 const userSelect = { select: { id: true, name: true, email: true } }
@@ -197,4 +199,67 @@ export async function deleteInvoice(
     throw new AppError('NOT_FOUND', 'Invoice not found', 404)
   }
   return reply.code(204).send()
+}
+
+// Read per-call so tests can shrink it via EXPORT_CHUNK_SIZE.
+const exportChunk = () => Number(process.env.EXPORT_CHUNK_SIZE ?? 500)
+const ymd = (d: Date) => d.toISOString().slice(0, 10)
+
+/**
+ * POST /api/invoices/export — append the session user's un-synced invoices to a
+ * Google Sheet, then stamp sheetsSyncedAt. Writes in chunks of <=500 and stamps
+ * per chunk, so a retry resumes the remainder. Delivery is at-least-once: if the
+ * append lands at Google but the function dies before the stamp, the next export
+ * re-appends (rows are identifiable by the `id` first column).
+ */
+export async function exportInvoices(request: FastifyRequest, reply: FastifyReply) {
+  const { spreadsheetId: bodyId } = parseBody(ExportInvoicesSchema, request.body)
+  const spreadsheetId = bodyId ?? process.env.GOOGLE_SHEET_ID
+  if (!spreadsheetId) {
+    throw new AppError(
+      'VALIDATION_ERROR',
+      'No target spreadsheet — set GOOGLE_SHEET_ID or pass spreadsheetId',
+      400,
+    )
+  }
+
+  const invoices = await request.server.prisma.invoice.findMany({
+    where: { userId: request.user.id, sheetsSyncedAt: null },
+    orderBy: { invoiceDate: 'asc' },
+  })
+
+  const chunkSize = exportChunk()
+  let exported = 0
+  for (let i = 0; i < invoices.length; i += chunkSize) {
+    const chunk = invoices.slice(i, i + chunkSize)
+    const rows = chunk.map((inv) => [
+      inv.id,
+      inv.invoiceNumber,
+      inv.vendorName,
+      inv.amount.toNumber(),
+      inv.status,
+      ymd(inv.invoiceDate),
+      inv.dueDate ? ymd(inv.dueDate) : '',
+      inv.category,
+      inv.description,
+    ])
+
+    try {
+      await appendRows(spreadsheetId, rows)
+    } catch (err) {
+      // Surface how many rows are durably exported so a retry resumes the rest.
+      if (exported > 0 && err instanceof AppError) {
+        throw new AppError(err.code, err.message, err.statusCode, { exported })
+      }
+      throw err
+    }
+
+    await request.server.prisma.invoice.updateMany({
+      where: { id: { in: chunk.map((c) => c.id) }, userId: request.user.id },
+      data: { sheetsSyncedAt: new Date() },
+    })
+    exported += chunk.length
+  }
+
+  return reply.send({ exported })
 }
