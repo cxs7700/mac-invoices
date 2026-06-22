@@ -11,4 +11,12 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  // The app calls the API with same-origin relative paths (apiClient base is '').
+  // In dev, proxy /api to the local Fastify server (npm run dev:api on :3000) so
+  // that mirrors the production Vercel deploy, where /api is same-origin.
+  server: {
+    proxy: {
+      '/api': 'http://localhost:3000',
+    },
+  },
 })
