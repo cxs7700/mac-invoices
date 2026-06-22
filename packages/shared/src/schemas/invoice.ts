@@ -34,7 +34,29 @@ export const UpdateInvoiceSchema = CreateInvoiceSchema.partial().extend({
   paidDate: z.coerce.date().optional(),
 })
 
+// Sort is a whitelist so the API never builds an `orderBy` from a raw string.
+export const InvoiceSortField = z.enum(['invoiceDate', 'amount', 'dueDate', 'status'])
+export const SortOrder = z.enum(['asc', 'desc'])
+
+/**
+ * Validates every `GET /api/invoices` query param. Values arrive as strings, so
+ * dates/numbers are coerced. `offset` is capped to bound deep-pagination scans.
+ */
+export const ListInvoicesQuerySchema = z.object({
+  status: InvoiceStatus.optional(),
+  from: z.coerce.date().optional(),
+  to: z.coerce.date().optional(),
+  vendor: z.string().trim().min(1).optional(),
+  sort: InvoiceSortField.default('invoiceDate'),
+  order: SortOrder.default('desc'),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+  offset: z.coerce.number().int().min(0).max(100_000).default(0),
+})
+
 export type InvoiceStatus = z.infer<typeof InvoiceStatus>
 export type InvoiceCategory = z.infer<typeof InvoiceCategory>
 export type CreateInvoiceInput = z.infer<typeof CreateInvoiceSchema>
 export type UpdateInvoiceInput = z.infer<typeof UpdateInvoiceSchema>
+export type InvoiceSortField = z.infer<typeof InvoiceSortField>
+export type SortOrder = z.infer<typeof SortOrder>
+export type ListInvoicesQueryInput = z.infer<typeof ListInvoicesQuerySchema>
