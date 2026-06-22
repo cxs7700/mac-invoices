@@ -9,6 +9,11 @@ export interface GetInvoiceParams {
 
 export interface ListInvoicesQuery {
   status?: string
+  from?: string
+  to?: string
+  vendor?: string
+  sort?: string
+  order?: string
   limit?: string
   offset?: string
 }

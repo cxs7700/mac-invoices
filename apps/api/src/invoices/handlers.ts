@@ -1,18 +1,15 @@
 import type { FastifyRequest, FastifyReply } from 'fastify'
 import type { Prisma } from '../../prisma/generated/client.ts'
-import { CreateInvoiceSchema, UpdateInvoiceSchema, InvoiceStatus } from '@mac-invoices/shared'
+import {
+  CreateInvoiceSchema,
+  UpdateInvoiceSchema,
+  ListInvoicesQuerySchema,
+} from '@mac-invoices/shared'
 import { AppError } from '../middleware/errorHandler'
 import { parseBody } from '../lib/validate'
 import type { GetInvoiceParams, ListInvoicesQuery } from './types.ts'
 
 const userSelect = { select: { id: true, name: true, email: true } }
-
-/** Clamp a string query int into [min, max], falling back to `def` on NaN. */
-function clampInt(value: string | undefined, def: number, min: number, max: number): number {
-  const n = parseInt(value ?? '', 10)
-  if (Number.isNaN(n)) return def
-  return Math.min(Math.max(n, min), max)
-}
 
 /**
  * POST /api/invoices — create an invoice owned by the session user.
@@ -50,32 +47,41 @@ export async function listInvoices(
   request: FastifyRequest<{ Querystring: ListInvoicesQuery }>,
   reply: FastifyReply,
 ) {
-  const { status, limit, offset } = request.query
+  const q = parseBody(ListInvoicesQuerySchema, request.query, 'Invalid query parameters')
 
   const where: Prisma.InvoiceWhereInput = { userId: request.user.id }
-  if (status) {
-    const parsed = InvoiceStatus.safeParse(status)
-    if (!parsed.success) {
-      throw new AppError('VALIDATION_ERROR', `Invalid status filter: ${status}`, 400)
+  if (q.status) where.status = q.status
+  if (q.from || q.to) {
+    const invoiceDate: Prisma.DateTimeFilter = {}
+    if (q.from) invoiceDate.gte = q.from
+    if (q.to) {
+      // `to` is a date-only value coerced to UTC midnight; include the whole day.
+      const end = new Date(q.to)
+      end.setUTCHours(23, 59, 59, 999)
+      invoiceDate.lte = end
     }
-    where.status = parsed.data
+    where.invoiceDate = invoiceDate
   }
+  if (q.vendor) where.vendorName = { contains: q.vendor, mode: 'insensitive' }
 
-  const take = clampInt(limit, 50, 1, 100)
-  const skip = clampInt(offset, 0, 0, Number.MAX_SAFE_INTEGER)
+  // invoiceDate desc is the tiebreaker so the nullable dueDate sort is stable.
+  const orderBy: Prisma.InvoiceOrderByWithRelationInput[] = [
+    { [q.sort]: q.order } as Prisma.InvoiceOrderByWithRelationInput,
+    { invoiceDate: 'desc' },
+  ]
 
   const [invoices, total] = await Promise.all([
     request.server.prisma.invoice.findMany({
       where,
       include: { user: userSelect },
-      take,
-      skip,
-      orderBy: { invoiceDate: 'desc' },
+      take: q.limit,
+      skip: q.offset,
+      orderBy,
     }),
     request.server.prisma.invoice.count({ where }),
   ])
 
-  return reply.send({ data: invoices, pagination: { total, limit: take, offset: skip } })
+  return reply.send({ data: invoices, pagination: { total, limit: q.limit, offset: q.offset } })
 }
 
 /** GET /api/invoices/:id — own invoice, or 404 (no existence leak for others'). */

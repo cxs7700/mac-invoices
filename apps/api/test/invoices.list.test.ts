@@ -1,70 +1,135 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { buildApp } from '../src/app'
-import { loginCookie } from './helpers/auth'
+import { loginCookie, createSecondUser } from './helpers/auth'
 
+// A unique vendor nonce isolates this suite's rows from the landlord's seed data,
+// so filter/sort assertions are deterministic regardless of what else exists.
 const app = buildApp()
+const NONCE = 'ZZTEST-FILTER-'
 let cookie: string
+
+type Seed = { n: string; vendor: string; date: string; amount: number }
+const SEEDS: Seed[] = [
+  { n: '1', vendor: `${NONCE}Acme`, date: '2026-01-10', amount: 100 },
+  { n: '2', vendor: `${NONCE}Best`, date: '2026-02-15', amount: 300 },
+  { n: '3', vendor: `${NONCE}acme2`, date: '2026-03-20', amount: 200 },
+]
+
+async function create(s: Seed, c = cookie) {
+  const res = await app.inject({
+    method: 'POST',
+    url: '/api/invoices',
+    headers: { cookie: c },
+    payload: {
+      invoiceNumber: `${NONCE}${s.n}`,
+      vendorName: s.vendor,
+      description: 'Work',
+      amount: s.amount,
+      category: 'OTHER',
+      invoiceDate: s.date,
+    },
+  })
+  expect(res.statusCode).toBe(201)
+  return res.json().id as string
+}
+
+async function listMine(query = '') {
+  const sep = query ? '&' : ''
+  const res = await app.inject({
+    method: 'GET',
+    url: `/api/invoices?vendor=${encodeURIComponent(NONCE)}${sep}${query}`,
+    headers: { cookie },
+  })
+  return res
+}
 
 beforeAll(async () => {
   await app.ready()
   cookie = await loginCookie(app)
+  await app.prisma.invoice.deleteMany({ where: { invoiceNumber: { startsWith: NONCE } } })
+  for (const s of SEEDS) await create(s)
 })
-afterAll(() => app.close())
+afterAll(async () => {
+  await app.prisma.invoice.deleteMany({ where: { invoiceNumber: { startsWith: NONCE } } })
+  await app.close()
+})
 
-describe('GET /api/invoices', () => {
+describe('GET /api/invoices — auth + bounds', () => {
   it('401s without a session cookie', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/invoices' })
     expect(res.statusCode).toBe(401)
   })
 
-  it('caps an absurd limit at 100', async () => {
-    const res = await app.inject({
-      method: 'GET',
-      url: '/api/invoices?limit=1000000',
-      headers: { cookie },
-    })
-    expect(res.statusCode).toBe(200)
-    expect(res.json().pagination.limit).toBe(100)
+  it('400s on out-of-bounds / non-numeric pagination (strict API, KTD-7)', async () => {
+    for (const q of ['limit=1000000', 'limit=abc', 'limit=0', 'offset=-5', 'offset=100001']) {
+      const res = await app.inject({ method: 'GET', url: `/api/invoices?${q}`, headers: { cookie } })
+      expect(res.statusCode, q).toBe(400)
+      expect(res.json().error.code).toBe('VALIDATION_ERROR')
+    }
   })
 
-  it('falls back to the default limit on a non-numeric value', async () => {
-    const res = await app.inject({
-      method: 'GET',
-      url: '/api/invoices?limit=abc',
-      headers: { cookie },
-    })
-    expect(res.json().pagination.limit).toBe(50)
-  })
-
-  it('floors a negative offset to 0 and limit=0 to 1', async () => {
-    const off = await app.inject({
-      method: 'GET',
-      url: '/api/invoices?offset=-5',
-      headers: { cookie },
-    })
-    expect(off.json().pagination.offset).toBe(0)
-    const lim = await app.inject({
-      method: 'GET',
-      url: '/api/invoices?limit=0',
-      headers: { cookie },
-    })
-    expect(lim.json().pagination.limit).toBe(1)
-  })
-
-  it('rejects an out-of-enum status filter with 400 and accepts a valid one', async () => {
-    const bad = await app.inject({
-      method: 'GET',
-      url: '/api/invoices?status=BOGUS',
-      headers: { cookie },
-    })
+  it('rejects an out-of-enum status with 400 and accepts a valid one', async () => {
+    const bad = await app.inject({ method: 'GET', url: '/api/invoices?status=BOGUS', headers: { cookie } })
     expect(bad.statusCode).toBe(400)
-    expect(bad.json().error.code).toBe('VALIDATION_ERROR')
+    const ok = await app.inject({ method: 'GET', url: '/api/invoices?status=PAID', headers: { cookie } })
+    expect(ok.statusCode).toBe(200)
+  })
+})
 
-    const ok = await app.inject({
+describe('GET /api/invoices — filter + sort', () => {
+  it('vendor filter is case-insensitive contains', async () => {
+    // NONCE is uppercase in data; query lowercase still matches all three.
+    const res = await listMine()
+    expect(res.statusCode).toBe(200)
+    const nums = res.json().data.map((i: { invoiceNumber: string }) => i.invoiceNumber)
+    expect(nums).toEqual(expect.arrayContaining([`${NONCE}1`, `${NONCE}2`, `${NONCE}3`]))
+    for (const row of res.json().data) {
+      expect(row.vendorName.toLowerCase()).toContain(NONCE.toLowerCase())
+    }
+  })
+
+  it('date range filters invoiceDate inclusively', async () => {
+    const res = await listMine('from=2026-02-01&to=2026-02-28')
+    const nums = res.json().data.map((i: { invoiceNumber: string }) => i.invoiceNumber)
+    expect(nums).toEqual([`${NONCE}2`])
+  })
+
+  it('sort=amount&order=asc orders ascending by amount', async () => {
+    const res = await listMine('sort=amount&order=asc')
+    const amounts = res.json().data.map((i: { amount: string }) => Number(i.amount))
+    expect(amounts).toEqual([100, 200, 300])
+  })
+
+  it('defaults to invoiceDate desc', async () => {
+    const res = await listMine()
+    const nums = res.json().data.map((i: { invoiceNumber: string }) => i.invoiceNumber)
+    expect(nums).toEqual([`${NONCE}3`, `${NONCE}2`, `${NONCE}1`])
+  })
+
+  it('returns an empty set when filters match nothing', async () => {
+    const res = await listMine('from=2030-01-01')
+    expect(res.json().data).toEqual([])
+    expect(res.json().pagination.total).toBe(0)
+  })
+
+  it('400s on a non-whitelisted sort field', async () => {
+    const res = await app.inject({
       method: 'GET',
-      url: '/api/invoices?status=PAID',
+      url: '/api/invoices?sort=vendorName',
       headers: { cookie },
     })
-    expect(ok.statusCode).toBe(200)
+    expect(res.statusCode).toBe(400)
+  })
+
+  it("never returns a second user's matching invoice", async () => {
+    const second = await createSecondUser(app)
+    try {
+      await create({ n: 'OTHER', vendor: `${NONCE}Other`, date: '2026-02-10', amount: 999 }, second.cookie)
+      const res = await listMine()
+      const nums = res.json().data.map((i: { invoiceNumber: string }) => i.invoiceNumber)
+      expect(nums).not.toContain(`${NONCE}OTHER`)
+    } finally {
+      await second.cleanup()
+    }
   })
 })
