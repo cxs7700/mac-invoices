@@ -28,6 +28,11 @@ jobs:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/invoices
       LANDLORD_USER_ID: landlord_seed_user
       LANDLORD_EMAIL: landlord@example.com
+      # Throwaway fixture credential for the ephemeral CI Postgres. Required by the
+      # seed's fail-closed guard (DEC-018/KTD-6); must match the api test helper's
+      # 'changeme-dev' fallback so the integration tests can log in. NODE_ENV is not
+      # 'production' here, so the default-password guard does not trip.
+      LANDLORD_PASSWORD: changeme-dev
 
     steps:
       - uses: actions/checkout@v4
