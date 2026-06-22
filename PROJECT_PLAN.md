@@ -322,9 +322,9 @@ export const sheets = google.sheets({ version: 'v4', auth });
 - [x] Basic dashboard counts (totals by status) — read-only.
 - **DoD:** Landlord can find any invoice by status/date/vendor in ≤2 interactions.
 
-### Phase 5 — Google Sheets Export
-- [ ] Service account wired (§8); `POST /invoices/export`; `sheetsSyncedAt` set on success.
-- [ ] "Export to Sheets" button + spreadsheet-id setting; retry/backoff on 429.
+### Phase 5 — Google Sheets Export  ✅ *complete (2026-06-22)*
+- [x] Service account wired (§8); `POST /invoices/export`; `sheetsSyncedAt` set on success.
+- [x] "Export to Sheets" button; retry/backoff on 429. (Operator setup: `docs/SHEETS_EXPORT.md`.)
 - **DoD:** Clicking export writes current invoices to the sheet; test mocks the Sheets client.
 
 ### Phase 6 — Harden & Deploy

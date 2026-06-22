@@ -28,3 +28,7 @@ Mirror of `PROJECT_PLAN.md` §11, plus patterns established during execution. Ev
 ## Phase 4 (2026-06-22)
 
 - **CONV-015 — List-query validation + whitelisted sort:** validate `GET` query params with a shared Zod schema (`ListInvoicesQuerySchema`) via `parseBody(schema, request.query, '…')` — `parseBody` is generic over `unknown`, not body-only. Sort/order are `z.enum` whitelists so the `orderBy` is never built from a raw string; numbers/dates use `z.coerce`. Pagination is **strict** (out-of-bounds → 400), and the web side **sanitizes** URL params to defaults before querying (`apps/web/src/lib/listParams.ts`) so a hand-edited URL renders rather than 400ing.
+
+## Phase 5 (2026-06-22)
+
+- **CONV-016 — External integrations behind a thin, mockable module.** Wrap a third-party client (e.g. `googleapis`) in a small module (`apps/api/src/integrations/*`) exposing a narrow function the handler imports directly; tests `vi.mock` that module so there are **no live network calls** (DoD). The module owns retry/backoff on `429`/5xx and **sanitizes provider errors into `AppError`s** before they propagate — the central `errorHandler` logs whatever is thrown, so a raw SDK error could leak credentials/PII. Reference: `apps/api/src/integrations/sheets.ts`.
