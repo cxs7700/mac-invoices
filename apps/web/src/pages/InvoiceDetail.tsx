@@ -83,6 +83,10 @@ export default function InvoiceDetail() {
                 Mark as paid
               </Button>
 
+              <Button variant="outline" className="w-full" asChild>
+                <Link to={`/invoices/${invoice.id}/edit`}>Edit</Link>
+              </Button>
+
               <Button
                 variant="outline"
                 className="w-full"

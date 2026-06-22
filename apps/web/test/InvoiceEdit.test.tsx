@@ -1,0 +1,87 @@
+import { describe, it, expect, vi, afterEach } from 'vitest'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { MemoryRouter, Routes, Route } from 'react-router'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import InvoiceEdit from '@/pages/InvoiceEdit'
+
+const invoice = {
+  id: 'a',
+  invoiceNumber: 'INV-1',
+  vendorName: 'Acme',
+  vendorEmail: null,
+  description: 'Fix sink',
+  amount: '149.99',
+  currency: 'USD',
+  category: 'REPAIRS',
+  propertyId: null,
+  status: 'PENDING',
+  invoiceDate: '2026-01-15',
+  dueDate: null,
+  paidDate: null,
+  notes: 'left key under mat',
+  attachmentUrl: null,
+  createdAt: '2026-01-10',
+  updatedAt: '2026-01-10',
+}
+
+function json(status: number, body: unknown) {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    headers: { get: () => 'application/json' },
+    json: async () => body,
+    text: async () => JSON.stringify(body),
+  }
+}
+
+function setup() {
+  const fetchMock = vi.fn().mockImplementation((_url: string, init?: { method?: string }) => {
+    if ((init?.method ?? 'GET') === 'PATCH') return Promise.resolve(json(200, invoice))
+    return Promise.resolve(json(200, invoice))
+  })
+  vi.stubGlobal('fetch', fetchMock)
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  render(
+    <QueryClientProvider client={qc}>
+      <MemoryRouter initialEntries={['/invoices/a/edit']}>
+        <Routes>
+          <Route path="/invoices/:id" element={<div>DETAIL</div>} />
+          <Route path="/invoices/:id/edit" element={<InvoiceEdit />} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  )
+  return fetchMock
+}
+
+afterEach(() => vi.unstubAllGlobals())
+
+describe('InvoiceEdit', () => {
+  it('prefills the form from the fetched invoice', async () => {
+    setup()
+    await waitFor(() =>
+      expect((screen.getByLabelText('Invoice number') as HTMLInputElement).value).toBe('INV-1'),
+    )
+    expect((screen.getByLabelText('Vendor') as HTMLInputElement).value).toBe('Acme')
+    expect((screen.getByLabelText('Amount') as HTMLInputElement).value).toBe('149.99')
+  })
+
+  it('saves edits via PATCH and navigates to the detail page', async () => {
+    const fetchMock = setup()
+    await waitFor(() =>
+      expect((screen.getByLabelText('Invoice number') as HTMLInputElement).value).toBe('INV-1'),
+    )
+
+    fireEvent.change(screen.getByLabelText('Amount'), { target: { value: '200' } })
+    fireEvent.click(screen.getByRole('button', { name: /save changes/i }))
+
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(
+          (c) => c[1]?.method === 'PATCH' && String(c[1]?.body).includes('200'),
+        ),
+      ).toBe(true),
+    )
+    await waitFor(() => expect(screen.getByText('DETAIL')).toBeDefined())
+  })
+})
