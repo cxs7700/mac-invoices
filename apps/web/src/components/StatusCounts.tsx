@@ -1,13 +1,6 @@
 import { useInvoiceStats } from '@/hooks/useInvoiceStats'
+import { STATUS_LABEL } from '@/lib/format'
 import { STATUS_OPTIONS } from '@/lib/listParams'
-
-const LABELS: Record<string, string> = {
-  PENDING: 'Pending',
-  APPROVED: 'Approved',
-  PAID: 'Paid',
-  REJECTED: 'Rejected',
-  CANCELLED: 'Cancelled',
-}
 
 // Small colored dot keys each chip to its status without full-intensity fills
 // (the strip is a secondary summary, not the table's focal point).
@@ -53,7 +46,7 @@ export function StatusCounts({ activeStatus, onSelect }: Props) {
             key={s}
             type="button"
             aria-pressed={active}
-            aria-label={`Filter by ${LABELS[s]}, ${data.counts[s]} invoices${active ? ', active' : ''}`}
+            aria-label={`Filter by ${STATUS_LABEL[s]}, ${data.counts[s]} invoices${active ? ', active' : ''}`}
             onClick={() => onSelect(active ? '' : s)}
             className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs ${
               active
@@ -62,7 +55,7 @@ export function StatusCounts({ activeStatus, onSelect }: Props) {
             }`}
           >
             <span className={`inline-block h-2 w-2 rounded-full ${DOT[s]}`} aria-hidden />
-            {LABELS[s]}
+            {STATUS_LABEL[s]}
             <span className="font-medium tabular-nums text-foreground">{data.counts[s]}</span>
           </button>
         )

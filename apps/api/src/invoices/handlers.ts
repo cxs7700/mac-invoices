@@ -5,6 +5,7 @@ import {
   UpdateInvoiceSchema,
   ListInvoicesQuerySchema,
   InvoiceStatus,
+  InvoiceSortField,
 } from '@mac-invoices/shared'
 import { AppError } from '../middleware/errorHandler'
 import { parseBody } from '../lib/validate'
@@ -41,8 +42,9 @@ export async function createInvoice(request: FastifyRequest, reply: FastifyReply
 }
 
 /**
- * GET /api/invoices — list the session user's invoices (status filter + clamped
- * pagination). Date/vendor filtering and sort are Phase 4.
+ * GET /api/invoices — list the session user's invoices: status / date-range
+ * (invoiceDate) / vendor (contains) filtering, whitelisted sort, and strict
+ * offset pagination. Ownership-scoped to request.user.id.
  */
 export async function listInvoices(
   request: FastifyRequest<{ Querystring: ListInvoicesQuery }>,
@@ -65,9 +67,16 @@ export async function listInvoices(
   }
   if (q.vendor) where.vendorName = { contains: q.vendor, mode: 'insensitive' }
 
-  // invoiceDate desc is the tiebreaker so the nullable dueDate sort is stable.
+  // Exhaustive map (not a computed-key cast) so a new sort field is a compile
+  // error here. invoiceDate desc is the tiebreaker for the nullable dueDate sort.
+  const sortClause: Record<InvoiceSortField, Prisma.InvoiceOrderByWithRelationInput> = {
+    invoiceDate: { invoiceDate: q.order },
+    amount: { amount: q.order },
+    dueDate: { dueDate: q.order },
+    status: { status: q.order },
+  }
   const orderBy: Prisma.InvoiceOrderByWithRelationInput[] = [
-    { [q.sort]: q.order } as Prisma.InvoiceOrderByWithRelationInput,
+    sortClause[q.sort],
     { invoiceDate: 'desc' },
   ]
 
@@ -96,11 +105,12 @@ export async function invoiceStats(request: FastifyRequest, reply: FastifyReply)
     _count: { _all: true },
   })
 
-  const counts: Record<string, number> = {}
+  // Typed by the shared enum so adding a status is a compile error if missed.
+  const counts = {} as Record<InvoiceStatus, number>
   for (const s of InvoiceStatus.options) counts[s] = 0
   let total = 0
   for (const row of grouped) {
-    counts[row.status] = row._count._all
+    counts[row.status as InvoiceStatus] = row._count._all
     total += row._count._all
   }
 

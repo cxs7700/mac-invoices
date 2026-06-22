@@ -37,6 +37,20 @@ describe('FilterBar', () => {
     expect(onChange).toHaveBeenCalledWith({ vendor: 'acme' })
   })
 
+  it('cancels a pending vendor debounce when filters change externally', () => {
+    vi.useFakeTimers()
+    const onChange = vi.fn()
+    const { rerender } = render(
+      <FilterBar filters={{ ...base, status: 'PAID' }} onChange={onChange} onClear={vi.fn()} />,
+    )
+    fireEvent.change(screen.getByLabelText('Filter by vendor'), { target: { value: 'acme' } })
+    // An external filter change (e.g. clear-all) lands before the 300ms fires.
+    rerender(<FilterBar filters={base} onChange={onChange} onClear={vi.fn()} />)
+    act(() => vi.advanceTimersByTime(300))
+    // The just-typed-but-uncommitted vendor must NOT resurrect.
+    expect(onChange).not.toHaveBeenCalledWith({ vendor: 'acme' })
+  })
+
   it('toggles sort order with a state-reflecting aria-label', () => {
     const onChange = vi.fn()
     render(<FilterBar filters={base} onChange={onChange} onClear={vi.fn()} />)

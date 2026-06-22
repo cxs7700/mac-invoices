@@ -54,4 +54,17 @@ describe('StatusCounts', () => {
     const pending = screen.getByRole('button', { name: /filter by pending/i })
     expect(pending.getAttribute('aria-pressed')).toBe('false')
   })
+
+  it('renders nothing when the stats fetch fails (no blank gap)', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('boom')))
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={qc}>
+        <StatusCounts activeStatus="" onSelect={vi.fn()} />
+      </QueryClientProvider>,
+    )
+    // Loading shows aria-busy skeletons; on error the strip collapses to null.
+    await waitFor(() => expect(document.querySelector('[aria-busy="true"]')).toBeNull())
+    expect(screen.queryByRole('button')).toBeNull()
+  })
 })

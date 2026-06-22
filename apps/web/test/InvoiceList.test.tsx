@@ -87,6 +87,20 @@ describe('InvoiceList', () => {
     )
   })
 
+  it('resets to page 1 (offset 0) when a filter changes', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(listResponse([row], 100))
+    renderList(fetchMock, '/?page=3')
+    await waitFor(() => expect(screen.getByText('INV-1')).toBeDefined())
+
+    fireEvent.change(screen.getByLabelText('Filter by status'), { target: { value: 'PAID' } })
+    await waitFor(() =>
+      expect(fetchMock.mock.calls.some((c) => String(c[0]).includes('status=PAID'))).toBe(true),
+    )
+    // The post-change query carries offset=0, not offset=40.
+    const afterChange = fetchMock.mock.calls.map((c) => String(c[0])).filter((u) => u.includes('status=PAID'))
+    expect(afterChange.every((u) => u.includes('offset=0'))).toBe(true)
+  })
+
   it('sanitizes a garbage URL to defaults rather than erroring', async () => {
     const fetchMock = vi.fn().mockResolvedValue(listResponse([row]))
     renderList(fetchMock, '/?sort=__bad__&from=xyz&status=NOPE')

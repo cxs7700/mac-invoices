@@ -1,4 +1,5 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import type { InvoiceSortField } from '@mac-invoices/shared'
 import {
   STATUS_OPTIONS,
   SORT_OPTIONS,
@@ -9,7 +10,7 @@ import {
 const field =
   'rounded-md border border-input bg-card px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring'
 
-const SORT_LABELS: Record<string, string> = {
+const SORT_LABELS: Record<InvoiceSortField, string> = {
   invoiceDate: 'Date',
   amount: 'Amount',
   dueDate: 'Due date',
@@ -30,15 +31,23 @@ type Props = {
 export function FilterBar({ filters, onChange, onClear }: Props) {
   // Local mirror of the vendor text so we can debounce before lifting it up.
   const [vendor, setVendor] = useState(filters.vendor)
-  const [syncedVendor, setSyncedVendor] = useState(filters.vendor)
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
-  // Re-sync the input when the URL vendor changes externally (e.g. clear-all),
-  // adjusting state during render rather than in an effect.
-  if (filters.vendor !== syncedVendor) {
-    setSyncedVendor(filters.vendor)
+  // Whenever ANY committed filter changes (clear-all, status/sort/page, or a
+  // committed vendor), resync the input to the URL value and cancel a pending
+  // debounce — otherwise an uncommitted keystroke could resurrect a just-cleared
+  // vendor. Keyed on the full filter signature, adjusting state during render.
+  const sig = `${filters.status}|${filters.from}|${filters.to}|${filters.vendor}|${filters.sort}|${filters.order}|${filters.page}`
+  const [syncedSig, setSyncedSig] = useState(sig)
+  if (sig !== syncedSig) {
+    setSyncedSig(sig)
     setVendor(filters.vendor)
   }
+
+  // Cancel a pending debounce whenever the committed filters change (the cleanup
+  // runs on each sig change and on unmount) — so an uncommitted keystroke can't
+  // resurrect a just-cleared vendor.
+  useEffect(() => () => clearTimeout(timer.current), [sig])
 
   const handleVendor = (value: string) => {
     setVendor(value)

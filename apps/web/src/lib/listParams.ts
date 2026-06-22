@@ -1,12 +1,17 @@
+import { InvoiceStatus, InvoiceSortField, SortOrder } from '@mac-invoices/shared'
 import type { InvoiceListParams } from '@/hooks/useInvoices'
 
 // Phase 4 keeps the Phase 3 page size. URL carries 1-based `page`; the API takes
 // `offset` (KTD-4/KTD-6), converted here.
 export const PAGE_SIZE = 20
+// Offset ceiling enforced by ListInvoicesQuerySchema; clamp here so a hand-edited
+// ?page never derives an out-of-bounds offset and 400s (KTD-7).
+const MAX_OFFSET = 100_000
 
-export const STATUS_OPTIONS = ['PENDING', 'APPROVED', 'PAID', 'REJECTED', 'CANCELLED'] as const
-export const SORT_OPTIONS = ['invoiceDate', 'amount', 'dueDate', 'status'] as const
-const ORDER_OPTIONS = ['asc', 'desc'] as const
+// Derived from the shared schema so the allowlist + order never drift from the API.
+export const STATUS_OPTIONS = InvoiceStatus.options
+export const SORT_OPTIONS = InvoiceSortField.options
+const ORDER_OPTIONS = SortOrder.options
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
 export type ListFilters = {
@@ -43,17 +48,18 @@ export function parseListParams(sp: URLSearchParams): ListFilters {
   }
 }
 
-/** Sanitized filters → `useInvoices` params (drop empties, page→offset). */
+/** Sanitized filters → `useInvoices` params (drop empties + defaults, page→offset). */
 export function toQueryParams(f: ListFilters): InvoiceListParams {
   return {
     status: f.status || undefined,
     from: f.from || undefined,
     to: f.to || undefined,
     vendor: f.vendor || undefined,
-    sort: f.sort,
-    order: f.order,
+    // Omit defaults so the query string / cache key stays minimal.
+    sort: f.sort !== 'invoiceDate' ? f.sort : undefined,
+    order: f.order !== 'desc' ? f.order : undefined,
     limit: PAGE_SIZE,
-    offset: (f.page - 1) * PAGE_SIZE,
+    offset: Math.min((f.page - 1) * PAGE_SIZE, MAX_OFFSET),
   }
 }
 

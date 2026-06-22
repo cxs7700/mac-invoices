@@ -1,12 +1,4 @@
-import { isOverdue } from '@/lib/format'
-
-const LABELS: Record<string, string> = {
-  PENDING: 'Pending',
-  APPROVED: 'Approved',
-  PAID: 'Paid',
-  REJECTED: 'Rejected',
-  CANCELLED: 'Cancelled',
-}
+import { isOverdue, STATUS_LABEL } from '@/lib/format'
 
 type Props = {
   status: string
@@ -20,7 +12,7 @@ type Props = {
  */
 export function StatusBadge({ status, dueDate }: Props) {
   const overdue = isOverdue(status, dueDate)
-  const label = overdue ? 'Overdue' : (LABELS[status] ?? status)
+  const label = overdue ? 'Overdue' : (STATUS_LABEL[status] ?? status)
   const tone = overdue
     ? 'bg-status-overdue text-status-overdue-foreground'
     : status === 'PAID'

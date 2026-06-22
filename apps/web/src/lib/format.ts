@@ -1,5 +1,14 @@
 const money = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' })
 
+/** Display labels for invoice statuses — the single source for status text. */
+export const STATUS_LABEL: Record<string, string> = {
+  PENDING: 'Pending',
+  APPROVED: 'Approved',
+  PAID: 'Paid',
+  REJECTED: 'Rejected',
+  CANCELLED: 'Cancelled',
+}
+
 /** Format an invoice amount (a string from the API, per CONV-013) for display. */
 export function formatMoney(amount: string | number): string {
   const n = typeof amount === 'string' ? parseFloat(amount) : amount

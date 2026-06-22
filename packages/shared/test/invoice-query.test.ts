@@ -46,4 +46,8 @@ describe('ListInvoicesQuerySchema', () => {
   it('rejects an unparseable date', () => {
     expect(ListInvoicesQuerySchema.safeParse({ from: 'not-a-date' }).success).toBe(false)
   })
+
+  it('rejects a whitespace-only vendor (trim then min(1))', () => {
+    expect(ListInvoicesQuerySchema.safeParse({ vendor: '   ' }).success).toBe(false)
+  })
 })
