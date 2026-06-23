@@ -66,6 +66,12 @@ export function errorHandler(error: unknown, request: FastifyRequest, reply: Fas
     return reply.code(400).send(body('BAD_REFERENCE', 'A referenced record does not exist'))
   }
 
+  // Request body exceeded the configured bodyLimit — give it a stable code
+  // instead of leaking the raw framework code (FST_ERR_CTP_BODY_TOO_LARGE).
+  if (fe?.code === 'FST_ERR_CTP_BODY_TOO_LARGE' || fe?.statusCode === 413) {
+    return reply.code(413).send(body('PAYLOAD_TOO_LARGE', 'Request body too large'))
+  }
+
   // Other client errors that arrive with a 4xx status
   if (typeof fe?.statusCode === 'number' && fe.statusCode >= 400 && fe.statusCode < 500) {
     return reply.code(fe.statusCode).send(body(fe.code ?? 'BAD_REQUEST', fe.message))

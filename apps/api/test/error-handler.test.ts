@@ -31,6 +31,12 @@ function makeApp() {
   app.get('/client-4xx', async () => {
     throw Object.assign(new Error('unprocessable'), { statusCode: 422, code: 'CUSTOM' })
   })
+  app.get('/too-large', async () => {
+    throw Object.assign(new Error('request entity too large'), {
+      code: 'FST_ERR_CTP_BODY_TOO_LARGE',
+      statusCode: 413,
+    })
+  })
   return app
 }
 
@@ -76,6 +82,16 @@ describe('errorHandler (§7 shape)', () => {
     expect(res.json().error.code).toBe('CUSTOM')
   })
 
+  it('maps a body-too-large error → 413 PAYLOAD_TOO_LARGE (clean code)', async () => {
+    const res = await app.inject({ method: 'GET', url: '/too-large' })
+    expect(res.statusCode).toBe(413)
+    expect(res.json()).toEqual({
+      error: { code: 'PAYLOAD_TOO_LARGE', message: 'Request body too large' },
+    })
+    // The raw framework code must not leak to clients.
+    expect(res.body).not.toContain('FST_ERR_CTP_BODY_TOO_LARGE')
+  })
+
   it('maps unknown errors → 500 with no stack leak', async () => {
     const res = await app.inject({ method: 'GET', url: '/boom' })
     expect(res.statusCode).toBe(500)
@@ -92,6 +108,25 @@ describe('notFoundHandler', () => {
     const res = await real.inject({ method: 'GET', url: '/api/nope' })
     expect(res.statusCode).toBe(404)
     expect(res.json().error.code).toBe('NOT_FOUND')
+    await real.close()
+  })
+})
+
+describe('bodyLimit on the real app', () => {
+  // Body parsing (and the body-too-large check) runs before route preHandlers,
+  // so an oversized payload 413s ahead of the auth 401 — no cookie needed.
+  it('rejects a body over the 64KB limit with 413 PAYLOAD_TOO_LARGE', async () => {
+    const real = buildApp()
+    await real.ready()
+    const oversized = JSON.stringify({ blob: 'x'.repeat(70 * 1024) })
+    const res = await real.inject({
+      method: 'POST',
+      url: '/api/invoices',
+      headers: { 'content-type': 'application/json' },
+      payload: oversized,
+    })
+    expect(res.statusCode).toBe(413)
+    expect(res.json().error.code).toBe('PAYLOAD_TOO_LARGE')
     await real.close()
   })
 })
