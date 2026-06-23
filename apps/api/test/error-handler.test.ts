@@ -1,7 +1,7 @@
 import { describe, it, expect, afterAll, beforeAll } from 'vitest'
 import Fastify from 'fastify'
 import { AppError, errorHandler, notFoundHandler } from '../src/middleware/errorHandler'
-import { buildApp } from '../src/app'
+import { buildApp, BODY_LIMIT_BYTES } from '../src/app'
 
 // Minimal app wired to the real handler, with routes that throw the cases we map.
 function makeApp() {
@@ -115,10 +115,11 @@ describe('notFoundHandler', () => {
 describe('bodyLimit on the real app', () => {
   // Body parsing (and the body-too-large check) runs before route preHandlers,
   // so an oversized payload 413s ahead of the auth 401 — no cookie needed.
-  it('rejects a body over the 64KB limit with 413 PAYLOAD_TOO_LARGE', async () => {
+  it('rejects a body over the limit with 413 PAYLOAD_TOO_LARGE', async () => {
     const real = buildApp()
     await real.ready()
-    const oversized = JSON.stringify({ blob: 'x'.repeat(70 * 1024) })
+    // Derive the oversized payload from the real limit, not a magic number.
+    const oversized = JSON.stringify({ blob: 'x'.repeat(BODY_LIMIT_BYTES + 1024) })
     const res = await real.inject({
       method: 'POST',
       url: '/api/invoices',
@@ -127,6 +128,23 @@ describe('bodyLimit on the real app', () => {
     })
     expect(res.statusCode).toBe(413)
     expect(res.json().error.code).toBe('PAYLOAD_TOO_LARGE')
+    await real.close()
+  })
+
+  it('lets a body just under the limit through to auth (not 413)', async () => {
+    const real = buildApp()
+    await real.ready()
+    // Comfortably under the cap → passes body parsing, then 401s at requireAuth
+    // (no cookie). Proves the limit does not reject legitimately-sized payloads.
+    const underLimit = JSON.stringify({ blob: 'x'.repeat(BODY_LIMIT_BYTES - 2048) })
+    const res = await real.inject({
+      method: 'POST',
+      url: '/api/invoices',
+      headers: { 'content-type': 'application/json' },
+      payload: underLimit,
+    })
+    expect(res.statusCode).not.toBe(413)
+    expect(res.statusCode).toBe(401)
     await real.close()
   })
 })

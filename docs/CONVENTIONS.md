@@ -32,3 +32,7 @@ Mirror of `PROJECT_PLAN.md` §11, plus patterns established during execution. Ev
 ## Phase 5 (2026-06-22)
 
 - **CONV-016 — External integrations behind a thin, mockable module.** Wrap a third-party client (e.g. `googleapis`) in a small module (`apps/api/src/integrations/*`) exposing a narrow function the handler imports directly; tests `vi.mock` that module so there are **no live network calls** (DoD). The module owns retry/backoff on `429`/5xx and **sanitizes provider errors into `AppError`s** before they propagate — the central `errorHandler` logs whatever is thrown, so a raw SDK error could leak credentials/PII. Reference: `apps/api/src/integrations/sheets.ts`.
+
+## Phase 6 (2026-06-22)
+
+- **CONV-017 — Security hardening lives in `buildApp()`; test real values.** Register security middleware (helmet) **once** at the top of the `buildApp()` factory so every route inherits it — never re-register per sub-plugin (the factory is the shared surface for local dev, tests, and the Vercel `/api` function). Use `BODY_LIMIT_BYTES` (exported from `src/app.ts`) in body-size tests rather than a literal. Extend `loggerOptions.redact.paths` whenever a new secret-bearing request/response header is introduced. Security-header tests assert **real values** (a `max-age=\d+`, the explicit CSP directives), not mere presence — a `.toBeDefined()` check passes on a disabled/zeroed header.

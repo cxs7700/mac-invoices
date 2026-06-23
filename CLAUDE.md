@@ -30,7 +30,8 @@ Run from the repo root (scripts delegate to the right workspace):
 
 Fastify server with plugin-based architecture:
 
-- **`src/server.ts`** — Entry point. Registers the Prisma DB connector plugin and invoice routes. Listens on port 3000.
+- **`src/app.ts`** — `buildApp()` factory: constructs the Fastify instance (security headers via `@fastify/helmet`, an explicit `BODY_LIMIT_BYTES` body cap, redacting logger, error/not-found handlers, cookie/CORS/DB plugins, routes) **without listening**, so tests use `app.inject()`. Also used by the Vercel `/api` function.
+- **`src/server.ts`** — Entry point: calls `buildApp()` and `.listen()` on port 3000.
 - **`src/db/connector.ts`** — Fastify plugin that decorates the instance with a Prisma client. Handles disconnect on server close.
 - **`src/lib/prisma.ts`** — Prisma client (pg adapter). Imports `./loadEnv.ts` to load the single root `.env` regardless of cwd.
 - **`src/invoices/`** — Invoice CRUD module.
