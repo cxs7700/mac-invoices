@@ -241,10 +241,11 @@ export async function exportInvoices(request: FastifyRequest, reply: FastifyRepl
       // Append THEN stamp in one guarded step: a stamp-side (DB) failure after a
       // successful append must also surface the durable count, not 500.
       await appendRows(spreadsheetId, rows)
-      await request.server.prisma.invoice.updateMany({
-        where: { id: { in: chunk.map((c) => c.id) }, userId: request.user.id },
-        data: { sheetsSyncedAt: new Date() },
-      })
+      await writeService.stampSynced(
+        request.server.prisma,
+        request.user.id,
+        chunk.map((c) => c.id),
+      )
     } catch (err) {
       // Surface how many rows are durably exported so a retry resumes the rest;
       // attach the count for any error type, not just AppError.

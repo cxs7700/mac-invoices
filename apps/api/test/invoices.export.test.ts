@@ -54,7 +54,13 @@ beforeEach(() => {
   process.env.GOOGLE_SHEET_ID = 'SHEET-TEST'
 })
 afterEach(async () => {
-  // Each test starts with the second user owning zero invoices.
+  // Each test starts with the second user owning zero invoices. Clean the
+  // ledger events for these invoices too (CREATED events from `create`).
+  const invs = await app.prisma.invoice.findMany({
+    where: { invoiceNumber: { startsWith: NONCE } },
+    select: { id: true },
+  })
+  await app.prisma.invoiceEvent.deleteMany({ where: { invoiceId: { in: invs.map((i) => i.id) } } })
   await app.prisma.invoice.deleteMany({ where: { invoiceNumber: { startsWith: NONCE } } })
 })
 
@@ -69,12 +75,15 @@ describe('POST /api/invoices/export', () => {
     await create('2', user.cookie)
     await create('3', user.cookie)
 
+    const eventsBefore = await app.prisma.invoiceEvent.count({ where: { ownerUserId: user.user.id } })
     const res = await exportAs(user.cookie)
     expect(res.statusCode).toBe(200)
     expect(res.json()).toEqual({ exported: 3 })
     expect(appendRows).toHaveBeenCalledTimes(1)
     expect(appendRows.mock.calls[0][0]).toBe('SHEET-TEST')
     expect(appendRows.mock.calls[0][1]).toHaveLength(3)
+    // Export emits no ledger events (sync-as-event is deferred).
+    expect(await app.prisma.invoiceEvent.count({ where: { ownerUserId: user.user.id } })).toBe(eventsBefore)
 
     // A second export sees nothing un-synced.
     const again = await exportAs(user.cookie)

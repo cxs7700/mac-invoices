@@ -183,3 +183,15 @@ export async function deleteInvoice(prisma: PrismaClient, actorId: string, id: s
     await tx.invoice.deleteMany({ where: { id, userId: actorId } })
   })
 }
+
+/**
+ * Stamp invoices as exported to Sheets. A plain `updateMany` (no transaction,
+ * no event): the export emits no timeline event (sync-as-event is deferred), so
+ * the existing append-then-stamp at-least-once export behavior is preserved.
+ */
+export async function stampSynced(prisma: PrismaClient, ownerUserId: string, ids: string[]) {
+  await prisma.invoice.updateMany({
+    where: { id: { in: ids }, userId: ownerUserId },
+    data: { sheetsSyncedAt: new Date() },
+  })
+}
