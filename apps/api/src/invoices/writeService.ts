@@ -128,21 +128,20 @@ export async function updateInvoice(
     if (input.dueDate !== undefined) data.dueDate = input.dueDate
     if (input.notes !== undefined) data.notes = input.notes
     if (input.attachmentUrl !== undefined) data.attachmentUrl = input.attachmentUrl
-    // paidDate is only consistent relative to status: set it on the PAID
-    // transition (default now), clear it when leaving PAID.
-    if (input.status !== undefined) {
-      data.status = input.status
-      data.paidDate = input.status === 'PAID' ? (input.paidDate ?? new Date()) : null
-    }
 
     const events: Prisma.InvoiceEventCreateManyInput[] = []
     const base = { invoiceId: id, actorId, ownerUserId: before.userId }
+
+    // Apply the status change AND its paidDate side-effect only on a genuine
+    // transition — gating on a real change (not merely `status` being present)
+    // prevents an idempotent re-submit from silently moving paidDate with no
+    // ledger event. paidDate: set on entering PAID (default now), cleared on
+    // leaving it.
     if (input.status !== undefined && input.status !== before.status) {
-      events.push({
-        ...base,
-        type: 'STATUS_CHANGED',
-        detail: { from: before.status, to: input.status },
-      })
+      const next = input.status
+      data.status = next
+      data.paidDate = next === 'PAID' ? (input.paidDate ?? new Date()) : null
+      events.push({ ...base, type: 'STATUS_CHANGED', detail: { from: before.status, to: next } })
     }
     for (const field of TRACKED_FIELDS) {
       if (input[field] === undefined) continue

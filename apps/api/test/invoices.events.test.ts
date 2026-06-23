@@ -101,6 +101,31 @@ describe('update records events', () => {
     expect(events).toHaveLength(before)
   })
 
+  it('re-applying the current status is a no-op: paidDate is not moved and no event is logged', async () => {
+    const inv = await createOwn('idempotent-status')
+    const paid = await app.inject({ method: 'PATCH', url: `/api/invoices/${inv.id}`, payload: { status: 'PAID' }, headers: { cookie } })
+    const paidDate = paid.json().paidDate
+    const eventsAfterPaid = await eventsFor(inv.id)
+
+    // Re-PATCH the same status — must not overwrite paidDate or write an event.
+    const again = await app.inject({ method: 'PATCH', url: `/api/invoices/${inv.id}`, payload: { status: 'PAID' }, headers: { cookie } })
+    expect(again.json().paidDate).toBe(paidDate)
+    expect((await eventsFor(inv.id)).length).toBe(eventsAfterPaid.length)
+  })
+
+  it('records a dueDate FIELD_EDITED with null->value, and nothing on a no-op re-submit', async () => {
+    const inv = await createOwn('duedate')
+    await app.inject({ method: 'PATCH', url: `/api/invoices/${inv.id}`, payload: { dueDate: '2026-05-01' }, headers: { cookie } })
+    const edits = (await eventsFor(inv.id)).filter((e) => e.type === 'FIELD_EDITED')
+    expect(edits).toHaveLength(1)
+    expect((edits[0].detail as { field: string; old: unknown }).field).toBe('dueDate')
+    expect((edits[0].detail as { old: unknown }).old).toBeNull()
+
+    const before = (await eventsFor(inv.id)).length
+    await app.inject({ method: 'PATCH', url: `/api/invoices/${inv.id}`, payload: { dueDate: '2026-05-01' }, headers: { cookie } })
+    expect((await eventsFor(inv.id)).length).toBe(before)
+  })
+
   it("does not record an event when patching another user's invoice (404)", async () => {
     const second = await createSecondUser(app)
     try {
