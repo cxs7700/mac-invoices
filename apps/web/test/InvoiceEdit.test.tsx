@@ -60,16 +60,19 @@ describe('InvoiceEdit', () => {
   it('prefills the form from the fetched invoice', async () => {
     setup()
     await waitFor(() =>
-      expect((screen.getByLabelText('Invoice number') as HTMLInputElement).value).toBe('INV-1'),
+      expect((screen.getByLabelText('Vendor') as HTMLInputElement).value).toBe('Acme'),
     )
-    expect((screen.getByLabelText('Vendor') as HTMLInputElement).value).toBe('Acme')
     expect((screen.getByLabelText('Amount') as HTMLInputElement).value).toBe('149.99')
+    // The number is system-assigned: no editable field, but it stays visible in
+    // the heading.
+    expect(screen.queryByLabelText('Invoice number')).toBeNull()
+    expect(screen.getByText(/Edit invoice INV-1/)).toBeDefined()
   })
 
   it('saves edits via PATCH and navigates to the detail page', async () => {
     const fetchMock = setup()
     await waitFor(() =>
-      expect((screen.getByLabelText('Invoice number') as HTMLInputElement).value).toBe('INV-1'),
+      expect((screen.getByLabelText('Vendor') as HTMLInputElement).value).toBe('Acme'),
     )
 
     fireEvent.change(screen.getByLabelText('Amount'), { target: { value: '200' } })

@@ -11,7 +11,9 @@ export const InvoiceCategory = z.enum([
 ])
 
 export const CreateInvoiceSchema = z.object({
-  invoiceNumber: z.string().min(1).max(50),
+  // Optional: the create form omits it so the server auto-assigns the next
+  // sequential number. Still accepted when provided (data import / tests).
+  invoiceNumber: z.string().min(1).max(50).optional(),
   vendorName: z.string().min(1).max(100),
   vendorEmail: z.string().email().optional(),
   description: z.string().min(1).max(500),
@@ -47,6 +49,8 @@ export const ListInvoicesQuerySchema = z.object({
   from: z.coerce.date().optional(),
   to: z.coerce.date().optional(),
   vendor: z.string().trim().min(1).optional(),
+  // Free-text search over the job description (case-insensitive contains).
+  search: z.string().trim().min(1).optional(),
   sort: InvoiceSortField.default('invoiceDate'),
   order: SortOrder.default('desc'),
   limit: z.coerce.number().int().min(1).max(100).default(50),

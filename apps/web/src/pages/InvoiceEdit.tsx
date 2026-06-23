@@ -6,10 +6,11 @@ import { Button } from '@/components/ui/button'
 import { useInvoice, useUpdateInvoice } from '@/hooks/useInvoice'
 import type { Invoice } from '@/hooks/useInvoice'
 
-/** Map a fetched invoice onto the form's default values (dates → yyyy-mm-dd). */
+/** Map a fetched invoice onto the form's default values (dates → yyyy-mm-dd).
+ * The invoice number is system-assigned and immutable, so it's not a form field
+ * (it stays visible in the page heading below). */
 function toDefaults(invoice: Invoice) {
   return {
-    invoiceNumber: invoice.invoiceNumber,
     vendorName: invoice.vendorName,
     vendorEmail: invoice.vendorEmail ?? undefined,
     description: invoice.description,

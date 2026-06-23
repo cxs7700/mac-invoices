@@ -140,6 +140,39 @@ describe('GET /api/invoices — filter + sort', () => {
     }
   })
 
+  it('search filters by job description (case-insensitive contains)', async () => {
+    const SUB = `${NONCE}DESC-`
+    const mk = (n: string, description: string) =>
+      app.inject({
+        method: 'POST',
+        url: '/api/invoices',
+        headers: { cookie },
+        payload: {
+          invoiceNumber: `${SUB}${n}`,
+          vendorName: `${SUB}v`,
+          description,
+          amount: 10,
+          category: 'OTHER',
+          invoiceDate: '2026-01-01',
+        },
+      })
+    try {
+      await mk('a', 'Replaced kitchen faucet')
+      await mk('b', 'Roof shingle repair')
+      // Uppercase query matches the lowercase 'faucet' (case-insensitive) and
+      // only the matching description, not the roof row.
+      const res = await app.inject({
+        method: 'GET',
+        url: `/api/invoices?vendor=${encodeURIComponent(SUB)}&search=${encodeURIComponent('FAUCET')}`,
+        headers: { cookie },
+      })
+      const nums = res.json().data.map((i: { invoiceNumber: string }) => i.invoiceNumber)
+      expect(nums).toEqual([`${SUB}a`])
+    } finally {
+      await app.prisma.invoice.deleteMany({ where: { invoiceNumber: { startsWith: SUB } } })
+    }
+  })
+
   it('sort=amount&order=asc orders ascending by amount', async () => {
     const res = await listMine('sort=amount&order=asc')
     const amounts = res.json().data.map((i: { amount: string }) => Number(i.amount))

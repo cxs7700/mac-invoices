@@ -94,6 +94,17 @@ describe('InvoiceList', () => {
     )
   })
 
+  it('issues a description search query (debounced) when typing in the search box', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(listResponse([row]))
+    renderList(fetchMock)
+    await waitFor(() => expect(screen.getByText('INV-1')).toBeDefined())
+
+    fireEvent.change(screen.getByLabelText('Search by description'), { target: { value: 'faucet' } })
+    await waitFor(() =>
+      expect(fetchMock.mock.calls.some((c) => String(c[0]).includes('search=faucet'))).toBe(true),
+    )
+  })
+
   it('converts URL page=2 to offset=20 in the query', async () => {
     const fetchMock = vi.fn().mockResolvedValue(listResponse([row], 60))
     renderList(fetchMock, '/?page=2')

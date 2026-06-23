@@ -23,27 +23,29 @@ export type InvoiceListParams = {
   from?: string
   to?: string
   vendor?: string
+  search?: string
   sort?: string
   order?: string
   limit?: number
   offset?: number
 }
 
-/** The session user's invoices (status/date/vendor filter, sort, pagination). */
+/** The session user's invoices (status/date/vendor/search filter, sort, pagination). */
 export function useInvoices(params: InvoiceListParams) {
-  const search = new URLSearchParams()
-  if (params.status) search.set('status', params.status)
-  if (params.from) search.set('from', params.from)
-  if (params.to) search.set('to', params.to)
-  if (params.vendor) search.set('vendor', params.vendor)
-  if (params.sort) search.set('sort', params.sort)
-  if (params.order) search.set('order', params.order)
-  search.set('limit', String(params.limit ?? 20))
-  search.set('offset', String(params.offset ?? 0))
+  const qs = new URLSearchParams()
+  if (params.status) qs.set('status', params.status)
+  if (params.from) qs.set('from', params.from)
+  if (params.to) qs.set('to', params.to)
+  if (params.vendor) qs.set('vendor', params.vendor)
+  if (params.search) qs.set('search', params.search)
+  if (params.sort) qs.set('sort', params.sort)
+  if (params.order) qs.set('order', params.order)
+  qs.set('limit', String(params.limit ?? 20))
+  qs.set('offset', String(params.offset ?? 0))
 
   return useQuery<InvoiceListResponse>({
     queryKey: ['invoices', params],
-    queryFn: () => apiClient<InvoiceListResponse>(`/api/invoices?${search.toString()}`),
+    queryFn: () => apiClient<InvoiceListResponse>(`/api/invoices?${qs.toString()}`),
     placeholderData: keepPreviousData,
     // A 401/4xx shouldn't be retried (matches useInvoice/useMe); the global
     // default is retry:1, which would double a doomed request.

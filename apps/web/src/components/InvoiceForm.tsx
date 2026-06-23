@@ -50,16 +50,6 @@ export function InvoiceForm({
       noValidate
     >
       <div>
-        <label htmlFor="invoiceNumber" className="block text-sm font-medium mb-1">
-          Invoice number
-        </label>
-        <input id="invoiceNumber" className={fieldClass} {...register('invoiceNumber')} />
-        {errors.invoiceNumber && (
-          <p className="mt-1 text-sm text-destructive">{errors.invoiceNumber.message}</p>
-        )}
-      </div>
-
-      <div>
         <label htmlFor="vendorName" className="block text-sm font-medium mb-1">
           Vendor
         </label>

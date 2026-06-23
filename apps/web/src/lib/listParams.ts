@@ -19,6 +19,7 @@ export type ListFilters = {
   from: string
   to: string
   vendor: string
+  search: string // free-text over job description
   sort: string
   order: string
   page: number // 1-based
@@ -42,6 +43,7 @@ export function parseListParams(sp: URLSearchParams): ListFilters {
     from: DATE_RE.test(from) ? from : '',
     to: DATE_RE.test(to) ? to : '',
     vendor: (sp.get('vendor') ?? '').trim(),
+    search: (sp.get('search') ?? '').trim(),
     sort: oneOf(sp.get('sort') ?? '', SORT_OPTIONS, 'invoiceDate'),
     order: oneOf(sp.get('order') ?? '', ORDER_OPTIONS, 'desc'),
     page: Number.isFinite(pageRaw) && pageRaw > 0 ? pageRaw : 1,
@@ -55,6 +57,7 @@ export function toQueryParams(f: ListFilters): InvoiceListParams {
     from: f.from || undefined,
     to: f.to || undefined,
     vendor: f.vendor || undefined,
+    search: f.search || undefined,
     // Omit defaults so the query string / cache key stays minimal.
     sort: f.sort !== 'invoiceDate' ? f.sort : undefined,
     order: f.order !== 'desc' ? f.order : undefined,
@@ -70,6 +73,7 @@ export function toSearchParams(f: ListFilters): URLSearchParams {
   if (f.from) sp.set('from', f.from)
   if (f.to) sp.set('to', f.to)
   if (f.vendor) sp.set('vendor', f.vendor)
+  if (f.search) sp.set('search', f.search)
   if (f.sort !== 'invoiceDate') sp.set('sort', f.sort)
   if (f.order !== 'desc') sp.set('order', f.order)
   if (f.page > 1) sp.set('page', String(f.page))
@@ -77,5 +81,5 @@ export function toSearchParams(f: ListFilters): URLSearchParams {
 }
 
 export function hasActiveFilters(f: ListFilters): boolean {
-  return Boolean(f.status || f.from || f.to || f.vendor)
+  return Boolean(f.status || f.from || f.to || f.vendor || f.search)
 }

@@ -11,7 +11,9 @@ describe('InvoiceForm', () => {
     const onSubmit = vi.fn()
     render(<InvoiceForm onSubmit={onSubmit} />)
 
-    fill('Invoice number', 'INV-100')
+    // No invoice-number field — the server auto-assigns it on create.
+    expect(screen.queryByLabelText('Invoice number')).toBeNull()
+
     fill('Vendor', 'Acme Plumbing')
     fill('Description', 'Replaced a valve')
     fill('Amount', '149.99')
@@ -20,7 +22,8 @@ describe('InvoiceForm', () => {
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
     const values = onSubmit.mock.calls[0][0]
-    expect(values.invoiceNumber).toBe('INV-100')
+    expect(values.invoiceNumber).toBeUndefined()
+    expect(values.vendorName).toBe('Acme Plumbing')
     expect(values.amount).toBe(149.99)
     expect(values.currency).toBe('USD')
     expect(values.invoiceDate).toBeInstanceOf(Date)

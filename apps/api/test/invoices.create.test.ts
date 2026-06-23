@@ -17,8 +17,15 @@ const validBody = {
   invoiceDate: '2026-01-15',
 }
 
+// Auto-numbered invoices get a numeric invoiceNumber (no PREFIX), so track their
+// ids and clean them up by id.
+const autoIds: string[] = []
+
 async function cleanup() {
   await app.prisma.invoice.deleteMany({ where: { invoiceNumber: { startsWith: PREFIX } } })
+  if (autoIds.length) {
+    await app.prisma.invoice.deleteMany({ where: { id: { in: autoIds.splice(0) } } })
+  }
 }
 
 beforeAll(async () => {
@@ -76,6 +83,38 @@ describe('POST /api/invoices', () => {
     expect(res.statusCode).toBe(400)
     expect(res.json().error.code).toBe('VALIDATION_ERROR')
     expect(res.json().error.details).toBeDefined()
+  })
+
+  it('auto-assigns the next sequential number when none is supplied', async () => {
+    // Body intentionally omits invoiceNumber — the server assigns it.
+    const autoBody = {
+      vendorName: 'Auto Co',
+      description: 'Auto numbered work',
+      amount: 10,
+      category: 'OTHER',
+      invoiceDate: '2026-03-01',
+    }
+    const first = await app.inject({
+      method: 'POST',
+      url: '/api/invoices',
+      payload: autoBody,
+      headers: { cookie },
+    })
+    expect(first.statusCode).toBe(201)
+    autoIds.push(first.json().id)
+    const n1 = first.json().invoiceNumber
+    expect(n1).toMatch(/^\d+$/) // numeric string, continuing the existing sequence
+
+    const second = await app.inject({
+      method: 'POST',
+      url: '/api/invoices',
+      payload: autoBody,
+      headers: { cookie },
+    })
+    expect(second.statusCode).toBe(201)
+    autoIds.push(second.json().id)
+    // The next create increments by exactly one.
+    expect(Number(second.json().invoiceNumber)).toBe(Number(n1) + 1)
   })
 
   it('rejects a duplicate invoiceNumber with 409', async () => {

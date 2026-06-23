@@ -15,32 +15,73 @@ import type { GetInvoiceParams, ListInvoicesQuery } from './types.ts'
 
 const userSelect = { select: { id: true, name: true, email: true } }
 
+type PrismaClient = FastifyRequest['server']['prisma']
+
 /**
- * POST /api/invoices — create an invoice owned by the session user.
+ * Next sequential invoice number. Existing numbers are numeric strings
+ * ("1", "2", ...); take the current max and add one. The column stays a string
+ * (no migration), so historical / imported numbers are preserved untouched.
+ */
+async function nextInvoiceNumber(prisma: PrismaClient): Promise<string> {
+  const rows = await prisma.invoice.findMany({ select: { invoiceNumber: true } })
+  let max = 0
+  for (const { invoiceNumber } of rows) {
+    const n = Number.parseInt(invoiceNumber, 10)
+    if (Number.isFinite(n) && n > max) max = n
+  }
+  return String(max + 1)
+}
+
+const isUniqueViolation = (err: unknown): boolean =>
+  typeof err === 'object' && err !== null && (err as { code?: unknown }).code === 'P2002'
+
+/**
+ * POST /api/invoices — create an invoice owned by the session user. The invoice
+ * number is auto-assigned (next sequential) when the client omits it.
  */
 export async function createInvoice(request: FastifyRequest, reply: FastifyReply) {
   const input = parseBody(CreateInvoiceSchema, request.body)
+  const prisma = request.server.prisma
 
-  const invoice = await request.server.prisma.invoice.create({
-    data: {
-      invoiceNumber: input.invoiceNumber,
-      vendorName: input.vendorName,
-      vendorEmail: input.vendorEmail ?? null,
-      description: input.description,
-      amount: input.amount,
-      currency: input.currency,
-      category: input.category,
-      propertyId: input.propertyId ?? null,
-      invoiceDate: input.invoiceDate,
-      dueDate: input.dueDate ?? null,
-      notes: input.notes ?? null,
-      attachmentUrl: input.attachmentUrl ?? null,
-      user: { connect: { id: request.user.id } },
-    },
-    include: { user: userSelect },
+  const buildData = (invoiceNumber: string) => ({
+    invoiceNumber,
+    vendorName: input.vendorName,
+    vendorEmail: input.vendorEmail ?? null,
+    description: input.description,
+    amount: input.amount,
+    currency: input.currency,
+    category: input.category,
+    propertyId: input.propertyId ?? null,
+    invoiceDate: input.invoiceDate,
+    dueDate: input.dueDate ?? null,
+    notes: input.notes ?? null,
+    attachmentUrl: input.attachmentUrl ?? null,
+    user: { connect: { id: request.user.id } },
   })
 
-  return reply.code(201).send(invoice)
+  // Client-supplied number: create directly (a duplicate → 409 via errorHandler).
+  if (input.invoiceNumber !== undefined) {
+    const invoice = await prisma.invoice.create({
+      data: buildData(input.invoiceNumber),
+      include: { user: userSelect },
+    })
+    return reply.code(201).send(invoice)
+  }
+
+  // Auto-assigned: compute the next number and retry on the rare concurrent
+  // collision against the unique constraint rather than surfacing a 409.
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const invoice = await prisma.invoice.create({
+        data: buildData(await nextInvoiceNumber(prisma)),
+        include: { user: userSelect },
+      })
+      return reply.code(201).send(invoice)
+    } catch (err) {
+      if (isUniqueViolation(err) && attempt < 4) continue
+      throw err
+    }
+  }
 }
 
 /**
@@ -68,6 +109,7 @@ export async function listInvoices(
     where.invoiceDate = invoiceDate
   }
   if (q.vendor) where.vendorName = { contains: q.vendor, mode: 'insensitive' }
+  if (q.search) where.description = { contains: q.search, mode: 'insensitive' }
 
   // Exhaustive map (not a computed-key cast) so a new sort field is a compile
   // error here. invoiceDate desc is the tiebreaker for the nullable dueDate sort.

@@ -20,10 +20,10 @@ describe('CreateInvoiceSchema', () => {
     }
   })
 
-  it('rejects a missing invoiceNumber', () => {
+  it('allows a missing invoiceNumber (server auto-assigns the next number)', () => {
     const { invoiceNumber, ...rest } = valid
     void invoiceNumber
-    expect(CreateInvoiceSchema.safeParse(rest).success).toBe(false)
+    expect(CreateInvoiceSchema.safeParse(rest).success).toBe(true)
   })
 
   it('rejects a non-positive amount', () => {
