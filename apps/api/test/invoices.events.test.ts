@@ -152,6 +152,48 @@ describe('delete writes a surviving tombstone', () => {
   })
 })
 
+describe('GET /api/invoices/:id/events', () => {
+  it('401s without auth', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/invoices/x/events' })
+    expect(res.statusCode).toBe(401)
+  })
+
+  it('returns the events oldest-first with a resolved actor', async () => {
+    const inv = await createOwn('feed')
+    await app.inject({ method: 'PATCH', url: `/api/invoices/${inv.id}`, payload: { amount: 200 }, headers: { cookie } })
+    const res = await app.inject({ method: 'GET', url: `/api/invoices/${inv.id}/events`, headers: { cookie } })
+    expect(res.statusCode).toBe(200)
+    const data = res.json().data as Array<{ type: string; actor: { id: string; name: string | null } }>
+    expect(data.map((e) => e.type)).toEqual(['CREATED', 'FIELD_EDITED'])
+    expect(data[0].actor.id).toBe(inv.user.id)
+    expect(data[0].actor).toHaveProperty('name')
+  })
+
+  it("returns an empty list for another user's invoice (no existence leak)", async () => {
+    const second = await createSecondUser(app)
+    try {
+      const created = await app.inject({ method: 'POST', url: '/api/invoices', payload: body('feed-second'), headers: { cookie: second.cookie } })
+      const otherId = created.json().id
+      createdIds.push(otherId)
+      const res = await app.inject({ method: 'GET', url: `/api/invoices/${otherId}/events`, headers: { cookie } })
+      expect(res.statusCode).toBe(200)
+      expect(res.json().data).toEqual([])
+    } finally {
+      await second.cleanup()
+    }
+  })
+
+  it("still returns a deleted invoice's events to its owner", async () => {
+    const inv = await createOwn('feed-del')
+    await app.inject({ method: 'DELETE', url: `/api/invoices/${inv.id}`, headers: { cookie } })
+    const res = await app.inject({ method: 'GET', url: `/api/invoices/${inv.id}/events`, headers: { cookie } })
+    expect(res.statusCode).toBe(200)
+    const types = (res.json().data as Array<{ type: string }>).map((e) => e.type)
+    expect(types).toContain('CREATED')
+    expect(types).toContain('DELETED')
+  })
+})
+
 describe('transaction atomicity', () => {
   it('rolls the event back with the mutation: a duplicate-number create writes no orphan CREATED event', async () => {
     const inv = await createOwn('dup')

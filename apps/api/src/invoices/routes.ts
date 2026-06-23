@@ -31,6 +31,7 @@ async function invoiceRoutes(fastify: FastifyInstance) {
     handlers.exportInvoices,
   )
   fastify.get<{ Params: GetInvoiceParams }>('/api/invoices/:id', auth, handlers.getInvoice)
+  fastify.get<{ Params: GetInvoiceParams }>('/api/invoices/:id/events', auth, handlers.listInvoiceEvents)
   fastify.patch<{ Params: GetInvoiceParams }>('/api/invoices/:id', auth, handlers.updateInvoice)
   fastify.delete<{ Params: GetInvoiceParams }>('/api/invoices/:id', auth, handlers.deleteInvoice)
 }

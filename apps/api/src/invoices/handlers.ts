@@ -142,6 +142,43 @@ export async function getInvoice(
 }
 
 /**
+ * GET /api/invoices/:id/events — the invoice's ledger history, oldest-first.
+ * Scoped by the event's ownerUserId (not the invoice), so a deleted invoice's
+ * events stay retrievable by their owner and a non-owner sees an empty list
+ * (no existence leak). Each event's actor is resolved to a light {id, name}.
+ */
+export async function listInvoiceEvents(
+  request: FastifyRequest<{ Params: GetInvoiceParams }>,
+  reply: FastifyReply,
+) {
+  const events = await request.server.prisma.invoiceEvent.findMany({
+    where: { invoiceId: request.params.id, ownerUserId: request.user.id },
+    orderBy: { createdAt: 'asc' },
+  })
+
+  const actorIds = [...new Set(events.map((e) => e.actorId))]
+  const actors = actorIds.length
+    ? await request.server.prisma.user.findMany({
+        where: { id: { in: actorIds } },
+        select: { id: true, name: true },
+      })
+    : []
+  const nameById = new Map(actors.map((u) => [u.id, u.name]))
+
+  const data = events.map((e) => ({
+    id: e.id,
+    invoiceId: e.invoiceId,
+    type: e.type,
+    source: e.source,
+    detail: e.detail,
+    actor: { id: e.actorId, name: nameById.get(e.actorId) ?? null },
+    createdAt: e.createdAt,
+  }))
+
+  return reply.send({ data })
+}
+
+/**
  * PATCH /api/invoices/:id — update an own invoice and record the change in the
  * ledger. Ownership, the old→new diff, and the events are handled atomically in
  * writeService (one transaction); a missing/non-owned row → 404.
