@@ -24,6 +24,22 @@ function normalize(field: string, value: unknown): string | null {
 }
 
 /**
+ * Full, JSON-safe snapshot of an invoice for the DELETED tombstone: Decimal
+ * `amount` as a fixed-2 string and Dates as ISO strings, so the deleted row
+ * round-trips exactly out of the ledger after the invoice is gone.
+ */
+function serializeInvoice(inv: Record<string, unknown>): Prisma.InputJsonObject {
+  const out: Record<string, string | number | boolean | null> = {}
+  for (const [key, value] of Object.entries(inv)) {
+    if (value === null || value === undefined) out[key] = null
+    else if (key === 'amount') out[key] = (value as { toFixed: (n: number) => string }).toFixed(2)
+    else if (value instanceof Date) out[key] = value.toISOString()
+    else out[key] = value as string | number | boolean
+  }
+  return out
+}
+
+/**
  * Next sequential invoice number, scanning the current max. Runs on the
  * transaction client so the read-max and the insert stay race-consistent within
  * the same transaction; the auto-number retry (in the handler) opens a fresh
@@ -142,5 +158,28 @@ export async function updateInvoice(
     if (events.length > 0) await tx.invoiceEvent.createMany({ data: events })
 
     return tx.invoice.findFirstOrThrow({ where: { id }, include: { user: userSelect } })
+  })
+}
+
+/**
+ * Delete an own invoice. In one transaction, append a DELETED event carrying a
+ * full snapshot of the final state (the ledger is the archive), then hard-remove
+ * the row. The event's non-cascading `invoiceId` lets it outlive the invoice.
+ */
+export async function deleteInvoice(prisma: PrismaClient, actorId: string, id: string) {
+  return prisma.$transaction(async (tx) => {
+    const before = await tx.invoice.findFirst({ where: { id, userId: actorId } })
+    if (!before) throw new AppError('NOT_FOUND', 'Invoice not found', 404)
+
+    await tx.invoiceEvent.create({
+      data: {
+        invoiceId: id,
+        actorId,
+        ownerUserId: before.userId,
+        type: 'DELETED',
+        detail: { snapshot: serializeInvoice(before as Record<string, unknown>) },
+      },
+    })
+    await tx.invoice.deleteMany({ where: { id, userId: actorId } })
   })
 }

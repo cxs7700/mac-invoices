@@ -160,17 +160,16 @@ export async function updateInvoice(
   return reply.send(invoice)
 }
 
-/** DELETE /api/invoices/:id — delete an own invoice (count === 0 → 404). */
+/**
+ * DELETE /api/invoices/:id — delete an own invoice (404 if absent/non-owned).
+ * The hard delete and a DELETED tombstone event (carrying a full snapshot) are
+ * written atomically in writeService; the event survives the row.
+ */
 export async function deleteInvoice(
   request: FastifyRequest<{ Params: GetInvoiceParams }>,
   reply: FastifyReply,
 ) {
-  const result = await request.server.prisma.invoice.deleteMany({
-    where: { id: request.params.id, userId: request.user.id },
-  })
-  if (result.count === 0) {
-    throw new AppError('NOT_FOUND', 'Invoice not found', 404)
-  }
+  await writeService.deleteInvoice(request.server.prisma, request.user.id, request.params.id)
   return reply.code(204).send()
 }
 

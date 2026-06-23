@@ -117,6 +117,41 @@ describe('update records events', () => {
   })
 })
 
+describe('delete writes a surviving tombstone', () => {
+  it('AE3: deletion records a DELETED event whose snapshot survives the row', async () => {
+    const inv = await createOwn('del', { amount: 149.99 })
+    const del = await app.inject({ method: 'DELETE', url: `/api/invoices/${inv.id}`, headers: { cookie } })
+    expect(del.statusCode).toBe(204)
+
+    // The invoice row is gone...
+    const gone = await app.inject({ method: 'GET', url: `/api/invoices/${inv.id}`, headers: { cookie } })
+    expect(gone.statusCode).toBe(404)
+
+    // ...but its DELETED event (with a precise snapshot) remains in the ledger.
+    const events = await eventsFor(inv.id)
+    const tomb = events.find((e) => e.type === 'DELETED')
+    expect(tomb).toBeTruthy()
+    const snapshot = (tomb!.detail as { snapshot: Record<string, unknown> }).snapshot
+    expect(snapshot.invoiceNumber).toBe(`${PREFIX}del`)
+    expect(snapshot.amount).toBe('149.99')
+    expect(snapshot.status).toBe('PENDING')
+  })
+
+  it("does not record an event when deleting another user's invoice (404)", async () => {
+    const second = await createSecondUser(app)
+    try {
+      const created = await app.inject({ method: 'POST', url: '/api/invoices', payload: body('del-second'), headers: { cookie: second.cookie } })
+      const otherId = created.json().id
+      createdIds.push(otherId)
+      const res = await app.inject({ method: 'DELETE', url: `/api/invoices/${otherId}`, headers: { cookie } })
+      expect(res.statusCode).toBe(404)
+      expect((await eventsFor(otherId)).filter((e) => e.type === 'DELETED')).toHaveLength(0)
+    } finally {
+      await second.cleanup()
+    }
+  })
+})
+
 describe('transaction atomicity', () => {
   it('rolls the event back with the mutation: a duplicate-number create writes no orphan CREATED event', async () => {
     const inv = await createOwn('dup')
