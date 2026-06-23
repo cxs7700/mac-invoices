@@ -73,3 +73,41 @@ export const ExportInvoicesSchema = z.object({
 export type ExportInvoicesInput = z.infer<typeof ExportInvoicesSchema>
 // Success shape; a partial export is a non-2xx error carrying the durable count.
 export type ExportInvoicesResult = { exported: number }
+
+// --- InvoiceEvent ledger ---------------------------------------------------
+// Append-only history of meaningful invoice changes, surfaced by the timeline.
+
+export const EventType = z.enum(['CREATED', 'STATUS_CHANGED', 'FIELD_EDITED', 'DELETED'])
+// RECORDED = captured live with the mutation; RECONSTRUCTED = backfilled from an
+// existing invoice's fields (pre-ledger) and labelled as inferred in the UI.
+export const EventSource = z.enum(['RECORDED', 'RECONSTRUCTED'])
+
+// The events endpoint resolves the acting user to this light display shape.
+export const InvoiceEventActorSchema = z.object({ id: z.string(), name: z.string().nullable() })
+
+/**
+ * Flat event shape returned by `GET /api/invoices/:id/events`. `detail` is an
+ * open record; each event type's concrete detail shape is narrowed at the
+ * consumer (the API writer and the web renderer), not as a shared union.
+ */
+export const InvoiceEventSchema = z.object({
+  id: z.string(),
+  invoiceId: z.string(),
+  type: EventType,
+  source: EventSource,
+  detail: z.record(z.string(), z.unknown()),
+  actor: InvoiceEventActorSchema,
+  createdAt: z.coerce.date(),
+})
+export const InvoiceEventsResponseSchema = z.object({ data: z.array(InvoiceEventSchema) })
+
+export type EventType = z.infer<typeof EventType>
+export type EventSource = z.infer<typeof EventSource>
+export type InvoiceEventActor = z.infer<typeof InvoiceEventActorSchema>
+export type InvoiceEvent = z.infer<typeof InvoiceEventSchema>
+export type InvoiceEventsResponse = z.infer<typeof InvoiceEventsResponseSchema>
+
+// Consumer-side `detail` shapes (type-only — narrowed where read/written).
+export type StatusChangedDetail = { from: InvoiceStatus; to: InvoiceStatus }
+export type FieldEditedDetail = { field: string; old: string | null; new: string | null }
+export type DeletedDetail = { snapshot: Record<string, unknown> }
