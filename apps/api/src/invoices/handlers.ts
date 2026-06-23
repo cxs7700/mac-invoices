@@ -11,71 +11,34 @@ import {
 import { AppError } from '../middleware/errorHandler'
 import { parseBody } from '../lib/validate'
 import { appendRows } from '../integrations/sheets'
+import * as writeService from './writeService'
 import type { GetInvoiceParams, ListInvoicesQuery } from './types.ts'
 
 const userSelect = { select: { id: true, name: true, email: true } }
-
-type PrismaClient = FastifyRequest['server']['prisma']
-
-/**
- * Next sequential invoice number. Existing numbers are numeric strings
- * ("1", "2", ...); take the current max and add one. The column stays a string
- * (no migration), so historical / imported numbers are preserved untouched.
- */
-async function nextInvoiceNumber(prisma: PrismaClient): Promise<string> {
-  const rows = await prisma.invoice.findMany({ select: { invoiceNumber: true } })
-  let max = 0
-  for (const { invoiceNumber } of rows) {
-    const n = Number.parseInt(invoiceNumber, 10)
-    if (Number.isFinite(n) && n > max) max = n
-  }
-  return String(max + 1)
-}
 
 const isUniqueViolation = (err: unknown): boolean =>
   typeof err === 'object' && err !== null && (err as { code?: unknown }).code === 'P2002'
 
 /**
- * POST /api/invoices — create an invoice owned by the session user. The invoice
- * number is auto-assigned (next sequential) when the client omits it.
+ * POST /api/invoices — create an invoice owned by the session user (with a
+ * CREATED ledger event). The invoice number is auto-assigned (next sequential)
+ * when the client omits it; auto-numbered creates retry the rare concurrent
+ * collision, each attempt in a fresh transaction (see writeService).
  */
 export async function createInvoice(request: FastifyRequest, reply: FastifyReply) {
   const input = parseBody(CreateInvoiceSchema, request.body)
   const prisma = request.server.prisma
+  const actorId = request.user.id
 
-  const buildData = (invoiceNumber: string) => ({
-    invoiceNumber,
-    vendorName: input.vendorName,
-    vendorEmail: input.vendorEmail ?? null,
-    description: input.description,
-    amount: input.amount,
-    currency: input.currency,
-    category: input.category,
-    propertyId: input.propertyId ?? null,
-    invoiceDate: input.invoiceDate,
-    dueDate: input.dueDate ?? null,
-    notes: input.notes ?? null,
-    attachmentUrl: input.attachmentUrl ?? null,
-    user: { connect: { id: request.user.id } },
-  })
-
-  // Client-supplied number: create directly (a duplicate → 409 via errorHandler).
+  // Client-supplied number: a duplicate → 409 via errorHandler (no retry).
   if (input.invoiceNumber !== undefined) {
-    const invoice = await prisma.invoice.create({
-      data: buildData(input.invoiceNumber),
-      include: { user: userSelect },
-    })
+    const invoice = await writeService.createInvoice(prisma, actorId, input)
     return reply.code(201).send(invoice)
   }
 
-  // Auto-assigned: compute the next number and retry on the rare concurrent
-  // collision against the unique constraint rather than surfacing a 409.
   for (let attempt = 0; ; attempt++) {
     try {
-      const invoice = await prisma.invoice.create({
-        data: buildData(await nextInvoiceNumber(prisma)),
-        include: { user: userSelect },
-      })
+      const invoice = await writeService.createInvoice(prisma, actorId, input)
       return reply.code(201).send(invoice)
     } catch (err) {
       if (isUniqueViolation(err) && attempt < 4) continue
@@ -179,53 +142,21 @@ export async function getInvoice(
 }
 
 /**
- * PATCH /api/invoices/:id — update an own invoice. Ownership is enforced via
- * updateMany({ id, userId }) (a non-unique where Prisma's `update` can't take);
- * count === 0 means not found / not owned → 404.
+ * PATCH /api/invoices/:id — update an own invoice and record the change in the
+ * ledger. Ownership, the old→new diff, and the events are handled atomically in
+ * writeService (one transaction); a missing/non-owned row → 404.
  */
 export async function updateInvoice(
   request: FastifyRequest<{ Params: GetInvoiceParams }>,
   reply: FastifyReply,
 ) {
   const input = parseBody(UpdateInvoiceSchema, request.body)
-
-  const data: Prisma.InvoiceUncheckedUpdateInput = {}
-  if (input.invoiceNumber !== undefined) data.invoiceNumber = input.invoiceNumber
-  if (input.vendorName !== undefined) data.vendorName = input.vendorName
-  if (input.vendorEmail !== undefined) data.vendorEmail = input.vendorEmail
-  if (input.description !== undefined) data.description = input.description
-  if (input.amount !== undefined) data.amount = input.amount
-  if (input.currency !== undefined) data.currency = input.currency
-  if (input.category !== undefined) data.category = input.category
-  if (input.propertyId !== undefined) data.propertyId = input.propertyId
-  if (input.invoiceDate !== undefined) data.invoiceDate = input.invoiceDate
-  if (input.dueDate !== undefined) data.dueDate = input.dueDate
-  if (input.notes !== undefined) data.notes = input.notes
-  if (input.attachmentUrl !== undefined) data.attachmentUrl = input.attachmentUrl
-  // paidDate is only consistent relative to status: set it on the PAID transition
-  // (default now), clear it when leaving PAID; never trust a standalone paidDate.
-  if (input.status !== undefined) {
-    data.status = input.status
-    data.paidDate = input.status === 'PAID' ? (input.paidDate ?? new Date()) : null
-  }
-
-  const result = await request.server.prisma.invoice.updateMany({
-    where: { id: request.params.id, userId: request.user.id },
-    data,
-  })
-  if (result.count === 0) {
-    throw new AppError('NOT_FOUND', 'Invoice not found', 404)
-  }
-
-  const invoice = await request.server.prisma.invoice.findFirst({
-    where: { id: request.params.id, userId: request.user.id },
-    include: { user: userSelect },
-  })
-  // The row can be concurrently deleted between updateMany and this re-fetch;
-  // guard so we never reply 200 with a null body.
-  if (!invoice) {
-    throw new AppError('NOT_FOUND', 'Invoice not found', 404)
-  }
+  const invoice = await writeService.updateInvoice(
+    request.server.prisma,
+    request.user.id,
+    request.params.id,
+    input,
+  )
   return reply.send(invoice)
 }
 
