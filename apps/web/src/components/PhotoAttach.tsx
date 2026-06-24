@@ -11,10 +11,14 @@ export function PhotoAttach({
   onUploaded,
   disabled,
   label = 'photo',
+  upload = uploadInvoicePhoto,
 }: {
   onUploaded: (url: string) => void
   disabled?: boolean
   label?: string
+  // Defaults to the authed invoice upload; the public contractor page passes a
+  // token-scoped uploader instead.
+  upload?: (file: File, onProgress?: (percent: number) => void) => Promise<string>
 }) {
   const cameraRef = useRef<HTMLInputElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -33,7 +37,7 @@ export function PhotoAttach({
     setUploading(true)
     setProgress(0)
     try {
-      const url = await uploadInvoicePhoto(file, setProgress)
+      const url = await upload(file, setProgress)
       onUploaded(url)
     } catch {
       setError('Upload failed — please try again.')

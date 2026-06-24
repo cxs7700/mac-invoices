@@ -16,9 +16,13 @@ import InvoiceList from './pages/InvoiceList.tsx'
 import InvoiceNew from './pages/InvoiceNew.tsx'
 import InvoiceDetail from './pages/InvoiceDetail.tsx'
 import InvoiceEdit from './pages/InvoiceEdit.tsx'
+import ContractorSubmit from './pages/ContractorSubmit.tsx'
 
 const router = createBrowserRouter([
   { path: '/login', element: <Login /> },
+  // Public, no-login contractor submission link — a top-level sibling of /login,
+  // deliberately OUTSIDE the AuthGuard subtree. Authorization is the path token.
+  { path: '/submit/:token', element: <ContractorSubmit /> },
   {
     path: '/',
     element: <AuthGuard />,
