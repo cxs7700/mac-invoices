@@ -28,7 +28,9 @@ export async function loginCookie(
 
 /** Create a throwaway second user + their login cookie, with a cleanup fn. */
 export async function createSecondUser(app: FastifyInstance) {
-  const email = `second-${Date.now()}@example.com`
+  // Random suffix as well as the timestamp: test files run in parallel and can
+  // otherwise collide on the same millisecond (unique-email constraint).
+  const email = `second-${Date.now()}-${Math.random().toString(36).slice(2, 10)}@example.com`
   const password = 'second-user-pass'
   const user = await app.prisma.user.create({
     data: { email, name: 'Second', role: 'LANDLORD', passwordHash: await hashPassword(password) },

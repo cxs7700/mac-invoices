@@ -12,12 +12,29 @@ function capture() {
 }
 
 describe('logger redaction (loggerOptions)', () => {
-  it('redacts request cookie + authorization headers', () => {
+  it('redacts the contractor link-token secret from the request URL', () => {
     const { logger, lines } = capture()
     logger.info(
-      { req: { headers: { cookie: 'session=SECRET-COOKIE', authorization: 'Bearer SECRET-TOKEN' } } },
+      { req: { method: 'POST', url: '/api/submissions/inv_ab12cd34_THE-SECRET_part/upload-token' } },
       'incoming',
     )
+    const out = lines.join('')
+    expect(out).not.toContain('THE-SECRET') // the secret never appears
+    expect(out).toContain('inv_ab12cd34_[REDACTED]') // lookupId kept, secret scrubbed
+  })
+
+  it('does not log request header secrets (the req serializer drops headers)', () => {
+    const { logger, lines } = capture()
+    logger.info(
+      { req: { method: 'GET', url: '/api/x', headers: { cookie: 'session=SECRET-COOKIE' } } },
+      'incoming',
+    )
+    expect(lines.join('')).not.toContain('SECRET-COOKIE')
+  })
+
+  it('redacts top-level cookie + authorization headers', () => {
+    const { logger, lines } = capture()
+    logger.info({ headers: { cookie: 'session=SECRET-COOKIE', authorization: 'Bearer SECRET-TOKEN' } }, 'x')
     const out = lines.join('')
     expect(out).not.toContain('SECRET-COOKIE')
     expect(out).not.toContain('SECRET-TOKEN')

@@ -26,6 +26,13 @@ describe('StatusBadge', () => {
     expect(screen.getByText('Rejected')).toBeDefined()
   })
 
+  it('renders a distinct Submitted tone (not the pending fallback)', () => {
+    render(<StatusBadge status="SUBMITTED" />)
+    const badge = screen.getByText('Submitted')
+    expect(badge.className).toContain('bg-status-submitted')
+    expect(badge.className).not.toContain('bg-status-pending')
+  })
+
   it('always carries an accessible label', () => {
     render(<StatusBadge status="PAID" />)
     expect(screen.getByRole('status').getAttribute('aria-label')).toBe('Status: Paid')

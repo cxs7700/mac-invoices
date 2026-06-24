@@ -3,11 +3,13 @@ import { apiClient } from '@/lib/apiClient'
 
 export type InvoiceListItem = {
   id: string
-  invoiceNumber: string
+  // Nullable: a contractor submission is unnumbered/uncategorized until the
+  // landlord approves/categorizes it on review.
+  invoiceNumber: string | null
   vendorName: string
   description: string
   amount: string
-  category: string
+  category: string | null
   status: string
   invoiceDate: string
   dueDate: string | null

@@ -5,3 +5,4 @@ export const SHARED_PACKAGE_VERSION = '0.0.0'
 
 export * from './schemas/invoice'
 export * from './schemas/auth'
+export * from './schemas/contractor'

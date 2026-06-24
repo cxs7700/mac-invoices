@@ -38,6 +38,8 @@
   --color-status-overdue-foreground: var(--status-overdue-foreground);
   --color-status-pending: var(--status-pending);
   --color-status-pending-foreground: var(--status-pending-foreground);
+  --color-status-submitted: var(--status-submitted);
+  --color-status-submitted-foreground: var(--status-submitted-foreground);
 }
 
 /* Rent Ops light theme (the design's palette). */
@@ -71,6 +73,10 @@
   --status-overdue-foreground: #b8442a;
   --status-pending: #eef2f7;
   --status-pending-foreground: #5a6b7b;
+  /* SUBMITTED — a contractor submission awaiting review (blue/info, distinct
+     from pending grey so the "to review" state reads at a glance). */
+  --status-submitted: #e7eefc;
+  --status-submitted-foreground: #1d5fb0;
 }
 
 ::selection {

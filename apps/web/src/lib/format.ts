@@ -7,6 +7,7 @@ export const STATUS_LABEL: Record<string, string> = {
   PAID: 'Paid',
   REJECTED: 'Rejected',
   CANCELLED: 'Cancelled',
+  SUBMITTED: 'Submitted',
 }
 
 /** Format an invoice amount (a string from the API, per CONV-013) for display. */

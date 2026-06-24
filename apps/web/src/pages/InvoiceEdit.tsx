@@ -16,7 +16,9 @@ function toDefaults(invoice: Invoice) {
     description: invoice.description,
     amount: Number(invoice.amount),
     currency: invoice.currency,
-    category: invoice.category as InvoiceCategory,
+    // A contractor submission may be uncategorized; default the form to OTHER so
+    // the required category select has a valid value (the landlord can change it).
+    category: (invoice.category ?? 'OTHER') as InvoiceCategory,
     propertyId: invoice.propertyId ?? undefined,
     invoiceDate: invoice.invoiceDate.slice(0, 10),
     dueDate: invoice.dueDate ? invoice.dueDate.slice(0, 10) : undefined,

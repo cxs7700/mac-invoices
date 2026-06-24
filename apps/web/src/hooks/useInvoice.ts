@@ -8,9 +8,12 @@ export type Invoice = InvoiceListItem & {
   currency: string
   propertyId: string | null
   paidDate: string | null
+  rejectionReason: string | null
   notes: string | null
   attachmentUrl: string | null
   createdAt: string
+  // Present on a contractor-submitted invoice (R11 — "by whom").
+  submitterName: string | null
   user?: { id: string; name: string | null; email: string }
 }
 

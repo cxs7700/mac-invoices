@@ -135,13 +135,24 @@ export async function invoiceStats(request: FastifyRequest, reply: FastifyReply)
  */
 export async function invoiceSummary(request: FastifyRequest, reply: FastifyReply) {
   const prisma = request.server.prisma
-  const where = { userId: request.user.id }
   const money = (d: { toFixed: (n: number) => string } | null) => (d ? d.toFixed(2) : '0.00')
+  // "Spend" is real committed money: PENDING / APPROVED / PAID. SUBMITTED
+  // (un-vetted), REJECTED (declined) and CANCELLED (withdrawn) are excluded from
+  // the grand total and the per-category breakdown — these are exactly the
+  // statuses that can carry a null category (a contractor submission), so
+  // excluding them also keeps byCategory reconciled with the total (no stray
+  // null-category bucket). byStatus KEEPS every status — its SUBMITTED count is
+  // the landlord's "to review" signal.
+  const owned = { userId: request.user.id }
+  const spend: Prisma.InvoiceWhereInput = {
+    ...owned,
+    status: { notIn: ['SUBMITTED', 'REJECTED', 'CANCELLED'] },
+  }
 
   const [agg, byCat, byStat] = await Promise.all([
-    prisma.invoice.aggregate({ where, _sum: { amount: true }, _count: { _all: true } }),
-    prisma.invoice.groupBy({ by: ['category'], where, _sum: { amount: true }, _count: { _all: true } }),
-    prisma.invoice.groupBy({ by: ['status'], where, _sum: { amount: true }, _count: { _all: true } }),
+    prisma.invoice.aggregate({ where: spend, _sum: { amount: true }, _count: { _all: true } }),
+    prisma.invoice.groupBy({ by: ['category'], where: spend, _sum: { amount: true }, _count: { _all: true } }),
+    prisma.invoice.groupBy({ by: ['status'], where: owned, _sum: { amount: true }, _count: { _all: true } }),
   ])
 
   const catMap = new Map(byCat.map((r) => [r.category, { count: r._count._all, amount: money(r._sum.amount) }]))
@@ -167,14 +178,17 @@ export async function getInvoice(
 ) {
   const invoice = await request.server.prisma.invoice.findFirst({
     where: { id: request.params.id, userId: request.user.id },
-    include: { user: userSelect },
+    include: { user: userSelect, submittedByContractor: { select: { name: true } } },
   })
 
   if (!invoice) {
     throw new AppError('NOT_FOUND', 'Invoice not found', 404)
   }
 
-  return reply.send(invoice)
+  // Surface the submitter's name on the detail (R11 — "by whom"); strip the
+  // joined relation object in favour of a flat field.
+  const { submittedByContractor, ...rest } = invoice
+  return reply.send({ ...rest, submitterName: submittedByContractor?.name ?? null })
 }
 
 /**
@@ -192,14 +206,30 @@ export async function listInvoiceEvents(
     orderBy: { createdAt: 'asc' },
   })
 
+  // Actor ids are either a user id (landlord) or a `contractor:<id>` namespace
+  // (a contractor who submitted/edited). Resolve each kind to a display name.
+  // Contractors are scoped to this landlord, so a contractor name never leaks
+  // across owners.
   const actorIds = [...new Set(events.map((e) => e.actorId))]
-  const actors = actorIds.length
-    ? await request.server.prisma.user.findMany({
-        where: { id: { in: actorIds } },
-        select: { id: true, name: true },
-      })
-    : []
-  const nameById = new Map(actors.map((u) => [u.id, u.name]))
+  const contractorPrefix = 'contractor:'
+  const userIds = actorIds.filter((id) => !id.startsWith(contractorPrefix))
+  const contractorIds = actorIds
+    .filter((id) => id.startsWith(contractorPrefix))
+    .map((id) => id.slice(contractorPrefix.length))
+
+  const [users, contractors] = await Promise.all([
+    userIds.length
+      ? request.server.prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, name: true } })
+      : [],
+    contractorIds.length
+      ? request.server.prisma.contractor.findMany({
+          where: { id: { in: contractorIds }, landlordId: request.user.id },
+          select: { id: true, name: true },
+        })
+      : [],
+  ])
+  const nameById = new Map<string, string | null>(users.map((u) => [u.id, u.name]))
+  for (const c of contractors) nameById.set(`${contractorPrefix}${c.id}`, c.name)
 
   const data = events.map((e) => ({
     id: e.id,
@@ -224,13 +254,22 @@ export async function updateInvoice(
   reply: FastifyReply,
 ) {
   const input = parseBody(UpdateInvoiceSchema, request.body)
-  const invoice = await writeService.updateInvoice(
-    request.server.prisma,
-    request.user.id,
-    request.params.id,
-    input,
-  )
-  return reply.send(invoice)
+  // Approving a submission assigns its invoice number (KTD-11); retry the rare
+  // concurrent-approve number collision in a fresh transaction.
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const invoice = await writeService.updateInvoice(
+        request.server.prisma,
+        request.user.id,
+        request.params.id,
+        input,
+      )
+      return reply.send(invoice)
+    } catch (err) {
+      if (isUniqueViolation(err) && attempt < 4) continue
+      throw err
+    }
+  }
 }
 
 /**
@@ -332,7 +371,14 @@ export async function exportInvoices(request: FastifyRequest, reply: FastifyRepl
   }
 
   const invoices = await request.server.prisma.invoice.findMany({
-    where: { userId: request.user.id, sheetsSyncedAt: null },
+    // Only real spend syncs to the accounting sheet (KTD-9): SUBMITTED (un-vetted),
+    // REJECTED (declined) and CANCELLED (withdrawn) are never exported. A later
+    // approval re-qualifies the row (it was never stamped) and assigns its number.
+    where: {
+      userId: request.user.id,
+      sheetsSyncedAt: null,
+      status: { notIn: ['SUBMITTED', 'REJECTED', 'CANCELLED'] },
+    },
     orderBy: { invoiceDate: 'asc' },
   })
 
@@ -343,13 +389,13 @@ export async function exportInvoices(request: FastifyRequest, reply: FastifyRepl
     const rows = chunk.map((inv) => {
       const cell: Record<(typeof EXPORT_COLUMNS)[number], string | number> = {
         id: inv.id,
-        invoiceNumber: inv.invoiceNumber,
+        invoiceNumber: inv.invoiceNumber ?? '',
         vendorName: inv.vendorName,
         amount: inv.amount.toNumber(),
         status: inv.status,
         invoiceDate: ymd(inv.invoiceDate),
         dueDate: inv.dueDate ? ymd(inv.dueDate) : '',
-        category: inv.category,
+        category: inv.category ?? '',
         description: inv.description,
       }
       return EXPORT_COLUMNS.map((c) => cell[c])
