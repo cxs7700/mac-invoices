@@ -77,7 +77,14 @@ export type ExportInvoicesResult = { exported: number }
 // --- InvoiceEvent ledger ---------------------------------------------------
 // Append-only history of meaningful invoice changes, surfaced by the timeline.
 
-export const EventType = z.enum(['CREATED', 'STATUS_CHANGED', 'FIELD_EDITED', 'DELETED'])
+export const EventType = z.enum([
+  'CREATED',
+  'STATUS_CHANGED',
+  'FIELD_EDITED',
+  'DELETED',
+  'IMAGE_ATTACHED',
+  'IMAGE_REMOVED',
+])
 // RECORDED = captured live with the mutation; RECONSTRUCTED = backfilled from an
 // existing invoice's fields (pre-ledger) and labelled as inferred in the UI.
 export const EventSource = z.enum(['RECORDED', 'RECONSTRUCTED'])
