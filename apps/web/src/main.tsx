@@ -17,6 +17,7 @@ import InvoiceNew from './pages/InvoiceNew.tsx'
 import InvoiceDetail from './pages/InvoiceDetail.tsx'
 import InvoiceEdit from './pages/InvoiceEdit.tsx'
 import ContractorSubmit from './pages/ContractorSubmit.tsx'
+import Contractors from './pages/Contractors.tsx'
 
 const router = createBrowserRouter([
   { path: '/login', element: <Login /> },
@@ -36,6 +37,7 @@ const router = createBrowserRouter([
           { path: 'invoices/new', element: <InvoiceNew /> },
           { path: 'invoices/:id', element: <InvoiceDetail /> },
           { path: 'invoices/:id/edit', element: <InvoiceEdit /> },
+          { path: 'contractors', element: <Contractors /> },
         ],
       },
     ],
