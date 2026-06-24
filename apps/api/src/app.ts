@@ -8,6 +8,7 @@ import { errorHandler, notFoundHandler } from './middleware/errorHandler'
 import authRoutes from './auth/routes'
 import healthRoutes from './routes/health'
 import invoiceRoutes from './invoices/routes'
+import contractorRoutes from './contractors/routes'
 
 /** Cap request bodies well above any real invoice JSON (~100x headroom). */
 export const BODY_LIMIT_BYTES = 64 * 1024 // 64 KB
@@ -68,6 +69,7 @@ export function buildApp() {
   app.register(healthRoutes)
   app.register(authRoutes)
   app.register(invoiceRoutes)
+  app.register(contractorRoutes)
 
   return app
 }
