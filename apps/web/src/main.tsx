@@ -11,6 +11,7 @@ import App from './App.tsx'
 import { AuthGuard } from './components/AuthGuard.tsx'
 import { queryClient } from './lib/queryClient'
 import Login from './pages/Login.tsx'
+import Dashboard from './pages/Dashboard.tsx'
 import InvoiceList from './pages/InvoiceList.tsx'
 import InvoiceNew from './pages/InvoiceNew.tsx'
 import InvoiceDetail from './pages/InvoiceDetail.tsx'
@@ -25,7 +26,8 @@ const router = createBrowserRouter([
       {
         element: <App />,
         children: [
-          { index: true, element: <InvoiceList /> },
+          { index: true, element: <Dashboard /> },
+          { path: 'dashboard', element: <Dashboard /> },
           { path: 'invoices', element: <InvoiceList /> },
           { path: 'invoices/new', element: <InvoiceNew /> },
           { path: 'invoices/:id', element: <InvoiceDetail /> },
