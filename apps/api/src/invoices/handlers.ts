@@ -136,12 +136,18 @@ export async function invoiceStats(request: FastifyRequest, reply: FastifyReply)
 export async function invoiceSummary(request: FastifyRequest, reply: FastifyReply) {
   const prisma = request.server.prisma
   const money = (d: { toFixed: (n: number) => string } | null) => (d ? d.toFixed(2) : '0.00')
-  // SUBMITTED is un-vetted contractor input, not yet spend (KTD-9): exclude it
-  // from the grand total and the per-category breakdown (which also drops the
-  // null-category rows so byCategory reconciles with the total). byStatus KEEPS
-  // SUBMITTED — its count is the landlord's "to review" signal.
+  // "Spend" is real committed money: PENDING / APPROVED / PAID. SUBMITTED
+  // (un-vetted), REJECTED (declined) and CANCELLED (withdrawn) are excluded from
+  // the grand total and the per-category breakdown — these are exactly the
+  // statuses that can carry a null category (a contractor submission), so
+  // excluding them also keeps byCategory reconciled with the total (no stray
+  // null-category bucket). byStatus KEEPS every status — its SUBMITTED count is
+  // the landlord's "to review" signal.
   const owned = { userId: request.user.id }
-  const spend = { ...owned, status: { not: 'SUBMITTED' as const } }
+  const spend: Prisma.InvoiceWhereInput = {
+    ...owned,
+    status: { notIn: ['SUBMITTED', 'REJECTED', 'CANCELLED'] },
+  }
 
   const [agg, byCat, byStat] = await Promise.all([
     prisma.invoice.aggregate({ where: spend, _sum: { amount: true }, _count: { _all: true } }),
@@ -365,10 +371,14 @@ export async function exportInvoices(request: FastifyRequest, reply: FastifyRepl
   }
 
   const invoices = await request.server.prisma.invoice.findMany({
-    // SUBMITTED is un-vetted contractor input — never sync it to the landlord's
-    // accounting sheet (KTD-9). A later approval re-qualifies the row (it was
-    // never stamped). A later approval also assigns its invoiceNumber.
-    where: { userId: request.user.id, sheetsSyncedAt: null, status: { not: 'SUBMITTED' } },
+    // Only real spend syncs to the accounting sheet (KTD-9): SUBMITTED (un-vetted),
+    // REJECTED (declined) and CANCELLED (withdrawn) are never exported. A later
+    // approval re-qualifies the row (it was never stamped) and assigns its number.
+    where: {
+      userId: request.user.id,
+      sheetsSyncedAt: null,
+      status: { notIn: ['SUBMITTED', 'REJECTED', 'CANCELLED'] },
+    },
     orderBy: { invoiceDate: 'asc' },
   })
 

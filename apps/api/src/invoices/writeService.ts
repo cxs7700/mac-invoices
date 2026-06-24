@@ -356,7 +356,9 @@ export async function updateInvoice(
       })
       data.status = next
       data.paidDate = next === 'PAID' ? (input.paidDate ?? new Date()) : null
-      if (next === 'REJECTED') data.rejectionReason = input.rejectionReason ?? null
+      // Keep rejectionReason consistent with the status: set it on entering
+      // REJECTED, clear any stale reason on every other transition.
+      data.rejectionReason = next === 'REJECTED' ? (input.rejectionReason ?? null) : null
       // KTD-11: a contractor submission carries no number until it is approved —
       // so withdrawn/rejected submissions never leave gaps in the ledger. Assign
       // the next sequential number on the first transition into APPROVED.
