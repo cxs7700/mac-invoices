@@ -1,11 +1,15 @@
+import { useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { ApiError } from '@/lib/apiClient'
 import { InvoiceForm } from '@/components/InvoiceForm'
+import { PhotoAttach } from '@/components/PhotoAttach'
+import { Button } from '@/components/ui/button'
 import { useCreateInvoice } from '@/hooks/useCreateInvoice'
 
 export default function InvoiceNew() {
   const navigate = useNavigate()
   const { mutate, isPending, error } = useCreateInvoice()
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null)
   const serverError =
     error instanceof ApiError ? error.message : error ? 'Something went wrong' : null
 
@@ -19,26 +23,33 @@ export default function InvoiceNew() {
         Fill in the details below to create a new invoice.
       </p>
 
+      {/* Attach the contractor's invoice photo as proof (optional). */}
+      <div className="mb-6 rounded-lg border border-border bg-card p-5">
+        <div className="mb-2 text-sm font-medium text-foreground">
+          Invoice photo <span className="text-xs font-normal text-muted-foreground">optional</span>
+        </div>
+        {photoUrl ? (
+          <div className="flex items-center gap-3 text-sm text-foreground">
+            <span className="text-status-paid-foreground">✓ Photo attached</span>
+            <Button type="button" variant="outline" size="sm" onClick={() => setPhotoUrl(null)}>
+              Remove
+            </Button>
+          </div>
+        ) : (
+          <PhotoAttach onUploaded={setPhotoUrl} disabled={isPending} />
+        )}
+      </div>
+
       <InvoiceForm
         onSubmit={(values) =>
-          mutate(values, {
-            onSuccess: () => navigate('/invoices'),
-          })
+          mutate(
+            { ...values, image: photoUrl ? { url: photoUrl, type: 'OTHER' } : undefined },
+            { onSuccess: () => navigate('/invoices') },
+          )
         }
         isSubmitting={isPending}
         serverError={serverError}
       />
-
-      {/* Deferred: receipt scan + line items (photo-to-invoice OCR is a later phase). */}
-      <div
-        className="mt-4 rounded-lg border border-dashed border-border bg-muted/40 p-5 text-sm text-muted-foreground"
-        aria-disabled
-      >
-        <div className="font-medium text-foreground">
-          Scan a receipt <span className="text-xs text-muted-foreground">Soon</span>
-        </div>
-        Snap a photo to auto-fill the amount, vendor, and line items. Coming in a later release.
-      </div>
     </div>
   )
 }

@@ -10,6 +10,25 @@ export const InvoiceCategory = z.enum([
   'OTHER',
 ])
 
+// A photo attached to an invoice (the handwritten-invoice proof). `url` is a blob
+// the client already uploaded; the server re-validates that it belongs to the
+// caller before storing it (KTD-5).
+export const ImageType = z.enum(['CASH', 'PARTS', 'CHECK', 'OTHER'])
+export const InvoiceImageInputSchema = z.object({
+  // A full absolute URL (the stored blob's URL). Requiring a parseable URL — not
+  // any string — keeps the owner-prefix gate and what's persisted on one
+  // canonical form, so the access check can't diverge from the stored value.
+  url: z.string().url(),
+  type: ImageType.default('OTHER'),
+  caption: z.string().max(200).optional(),
+})
+export type ImageType = z.infer<typeof ImageType>
+export type InvoiceImageInput = z.infer<typeof InvoiceImageInputSchema>
+
+// Body for requesting a direct-upload token (the client uploads browser→storage).
+export const ImageUploadTokenSchema = z.object({ contentType: z.string().min(1) })
+export type ImageUploadTokenInput = z.infer<typeof ImageUploadTokenSchema>
+
 export const CreateInvoiceSchema = z.object({
   // Optional: the create form omits it so the server auto-assigns the next
   // sequential number. Still accepted when provided (data import / tests).
@@ -27,8 +46,10 @@ export const CreateInvoiceSchema = z.object({
   dueDate: z.coerce.date().optional(),
   notes: z.string().max(1000).optional(),
   // Legacy single-attachment URL. The per-invoice photo feature uses the
-  // InvoiceImage relation instead; its upload/view UI is a later phase.
+  // InvoiceImage relation instead.
   attachmentUrl: z.string().url().optional(),
+  // Optional photo to attach at create time (uploaded to storage first).
+  image: InvoiceImageInputSchema.optional(),
 })
 
 export const UpdateInvoiceSchema = CreateInvoiceSchema.partial().extend({
@@ -77,7 +98,14 @@ export type ExportInvoicesResult = { exported: number }
 // --- InvoiceEvent ledger ---------------------------------------------------
 // Append-only history of meaningful invoice changes, surfaced by the timeline.
 
-export const EventType = z.enum(['CREATED', 'STATUS_CHANGED', 'FIELD_EDITED', 'DELETED'])
+export const EventType = z.enum([
+  'CREATED',
+  'STATUS_CHANGED',
+  'FIELD_EDITED',
+  'DELETED',
+  'IMAGE_ATTACHED',
+  'IMAGE_REMOVED',
+])
 // RECORDED = captured live with the mutation; RECONSTRUCTED = backfilled from an
 // existing invoice's fields (pre-ledger) and labelled as inferred in the UI.
 export const EventSource = z.enum(['RECORDED', 'RECONSTRUCTED'])

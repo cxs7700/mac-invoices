@@ -5,12 +5,15 @@ import {
   UpdateInvoiceSchema,
   ListInvoicesQuerySchema,
   ExportInvoicesSchema,
+  InvoiceImageInputSchema,
+  ImageUploadTokenSchema,
   InvoiceStatus,
   InvoiceSortField,
 } from '@mac-invoices/shared'
 import { AppError } from '../middleware/errorHandler'
 import { parseBody } from '../lib/validate'
 import { appendRows } from '../integrations/sheets'
+import { issueUploadToken, signedReadUrl } from '../integrations/storage'
 import * as writeService from './writeService'
 import type { GetInvoiceParams, ListInvoicesQuery } from './types.ts'
 
@@ -208,6 +211,51 @@ export async function deleteInvoice(
 ) {
   await writeService.deleteInvoice(request.server.prisma, request.user.id, request.params.id)
   return reply.code(204).send()
+}
+
+/**
+ * POST /api/invoices/image-upload-token — a short-lived token scoped to the
+ * session user's storage prefix, so the client can upload a photo directly to
+ * Blob (browser→storage, bypassing the 60s function limit).
+ */
+export async function createImageUploadToken(request: FastifyRequest, reply: FastifyReply) {
+  const { contentType } = parseBody(ImageUploadTokenSchema, request.body)
+  const result = await issueUploadToken(request.user.id, contentType)
+  return reply.send(result)
+}
+
+/** POST /api/invoices/:id/image — attach/replace the invoice's photo (ledger-recorded). */
+export async function attachInvoiceImage(
+  request: FastifyRequest<{ Params: GetInvoiceParams }>,
+  reply: FastifyReply,
+) {
+  const image = parseBody(InvoiceImageInputSchema, request.body)
+  await writeService.attachImage(request.server.prisma, request.user.id, request.params.id, image)
+  return reply.code(204).send()
+}
+
+/** DELETE /api/invoices/:id/image — remove the invoice's photo (ledger-recorded). */
+export async function removeInvoiceImage(
+  request: FastifyRequest<{ Params: GetInvoiceParams }>,
+  reply: FastifyReply,
+) {
+  await writeService.removeImage(request.server.prisma, request.user.id, request.params.id)
+  return reply.code(204).send()
+}
+
+/** GET /api/invoices/:id/image-url — an owner-scoped signed view URL for the photo. */
+export async function getInvoiceImageUrl(
+  request: FastifyRequest<{ Params: GetInvoiceParams }>,
+  reply: FastifyReply,
+) {
+  const invoice = await request.server.prisma.invoice.findFirst({
+    where: { id: request.params.id, userId: request.user.id },
+    include: { images: true },
+  })
+  if (!invoice) throw new AppError('NOT_FOUND', 'Invoice not found', 404)
+  const image = invoice.images[0]
+  if (!image) throw new AppError('NOT_FOUND', 'No photo on this invoice', 404)
+  return reply.send({ url: signedReadUrl(image.url) })
 }
 
 // Read per-call so tests can shrink it via EXPORT_CHUNK_SIZE; clamp to [1, 500]

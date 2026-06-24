@@ -30,8 +30,12 @@ async function invoiceRoutes(fastify: FastifyInstance) {
     { preHandler: requireAuth, config: { rateLimit: { max: exportMax, timeWindow: '15 minutes' } } },
     handlers.exportInvoices,
   )
+  fastify.post('/api/invoices/image-upload-token', auth, handlers.createImageUploadToken)
   fastify.get<{ Params: GetInvoiceParams }>('/api/invoices/:id', auth, handlers.getInvoice)
   fastify.get<{ Params: GetInvoiceParams }>('/api/invoices/:id/events', auth, handlers.listInvoiceEvents)
+  fastify.get<{ Params: GetInvoiceParams }>('/api/invoices/:id/image-url', auth, handlers.getInvoiceImageUrl)
+  fastify.post<{ Params: GetInvoiceParams }>('/api/invoices/:id/image', auth, handlers.attachInvoiceImage)
+  fastify.delete<{ Params: GetInvoiceParams }>('/api/invoices/:id/image', auth, handlers.removeInvoiceImage)
   fastify.patch<{ Params: GetInvoiceParams }>('/api/invoices/:id', auth, handlers.updateInvoice)
   fastify.delete<{ Params: GetInvoiceParams }>('/api/invoices/:id', auth, handlers.deleteInvoice)
 }

@@ -1,6 +1,7 @@
 import type { Prisma, PrismaClient } from '../../prisma/generated/client.ts'
-import type { CreateInvoiceInput, UpdateInvoiceInput } from '@mac-invoices/shared'
+import type { CreateInvoiceInput, UpdateInvoiceInput, InvoiceImageInput } from '@mac-invoices/shared'
 import { AppError } from '../middleware/errorHandler'
+import { isOwnedBy, deleteBlob } from '../integrations/storage'
 
 // The single choke-point for invoice mutations. Every create / update / delete
 // runs inside one `prisma.$transaction` that writes the row AND appends its
@@ -56,16 +57,51 @@ async function nextInvoiceNumber(tx: Prisma.TransactionClient): Promise<string> 
 }
 
 /**
+ * KTD-5 gate: a client-supplied blob ref is trusted only if its `owners/<id>/`
+ * prefix is the acting user's. The blob is uploaded before the invoice exists, so
+ * this prefix check is the access control that stops attaching another user's blob.
+ */
+function gateImageRef(url: string, actorId: string): void {
+  if (!isOwnedBy(url, actorId)) {
+    throw new AppError('FORBIDDEN', 'That image does not belong to you', 403)
+  }
+}
+
+/** Within a transaction: write the single InvoiceImage row + an IMAGE_ATTACHED event. */
+async function writeImageAttachment(
+  tx: Prisma.TransactionClient,
+  invoiceId: string,
+  actorId: string,
+  ownerUserId: string,
+  image: InvoiceImageInput,
+): Promise<void> {
+  await tx.invoiceImage.create({
+    data: { invoiceId, url: image.url, type: image.type, caption: image.caption ?? null },
+  })
+  await tx.invoiceEvent.create({
+    data: {
+      invoiceId,
+      actorId,
+      ownerUserId,
+      type: 'IMAGE_ATTACHED',
+      detail: { url: image.url, type: image.type },
+    },
+  })
+}
+
+/**
  * Create an invoice and its CREATED event in one transaction. The invoice number
- * is the client-supplied one, or the next sequential number computed on `tx`.
- * Throws P2002 on a number collision — the handler retries auto-numbered creates
- * in a fresh transaction.
+ * is the client-supplied one, or the next sequential number computed on `tx`. When
+ * an `image` is supplied (owner-gated), its InvoiceImage row + IMAGE_ATTACHED event
+ * are written in the same transaction. Throws P2002 on a number collision — the
+ * handler retries auto-numbered creates in a fresh transaction.
  */
 export async function createInvoice(
   prisma: PrismaClient,
   actorId: string,
   input: CreateInvoiceInput,
 ) {
+  if (input.image) gateImageRef(input.image.url, actorId)
   return prisma.$transaction(async (tx) => {
     const invoiceNumber = input.invoiceNumber ?? (await nextInvoiceNumber(tx))
     const invoice = await tx.invoice.create({
@@ -95,6 +131,7 @@ export async function createInvoice(
         detail: {},
       },
     })
+    if (input.image) await writeImageAttachment(tx, invoice.id, actorId, invoice.userId, input.image)
     return invoice
   })
 }
@@ -166,21 +203,79 @@ export async function updateInvoice(
  * the row. The event's non-cascading `invoiceId` lets it outlive the invoice.
  */
 export async function deleteInvoice(prisma: PrismaClient, actorId: string, id: string) {
-  return prisma.$transaction(async (tx) => {
-    const before = await tx.invoice.findFirst({ where: { id, userId: actorId } })
+  const imageUrl = await prisma.$transaction(async (tx) => {
+    const before = await tx.invoice.findFirst({
+      where: { id, userId: actorId },
+      include: { images: true },
+    })
     if (!before) throw new AppError('NOT_FOUND', 'Invoice not found', 404)
 
+    // Snapshot the scalar invoice plus the image url, so the archive is complete
+    // even though the cascade drops the InvoiceImage row with the invoice.
+    const { images, user: _user, ...scalar } = before as Record<string, unknown> & {
+      images: { url: string }[]
+    }
+    const url = images[0]?.url ?? null
     await tx.invoiceEvent.create({
       data: {
         invoiceId: id,
         actorId,
         ownerUserId: before.userId,
         type: 'DELETED',
-        detail: { snapshot: serializeInvoice(before as Record<string, unknown>) },
+        detail: { snapshot: { ...serializeInvoice(scalar), imageUrl: url } },
       },
     })
     await tx.invoice.deleteMany({ where: { id, userId: actorId } })
+    return url
   })
+  // Reclaim the blob after the row is gone (best-effort — never fail the delete).
+  if (imageUrl) await deleteBlob(imageUrl).catch(() => {})
+}
+
+/**
+ * Attach (or replace) an invoice's photo. Gates the blob ref by owner (KTD-5),
+ * verifies invoice ownership, then in one transaction removes any existing image
+ * row and writes the new one + an IMAGE_ATTACHED event. The replaced blob is
+ * reclaimed best-effort after commit.
+ */
+export async function attachImage(
+  prisma: PrismaClient,
+  actorId: string,
+  invoiceId: string,
+  image: InvoiceImageInput,
+) {
+  gateImageRef(image.url, actorId)
+  const priorUrl = await prisma.$transaction(async (tx) => {
+    const invoice = await tx.invoice.findFirst({ where: { id: invoiceId, userId: actorId } })
+    if (!invoice) throw new AppError('NOT_FOUND', 'Invoice not found', 404)
+    const existing = await tx.invoiceImage.findFirst({ where: { invoiceId } })
+    if (existing) await tx.invoiceImage.deleteMany({ where: { invoiceId } })
+    await writeImageAttachment(tx, invoiceId, actorId, invoice.userId, image)
+    return existing?.url ?? null
+  })
+  if (priorUrl && priorUrl !== image.url) await deleteBlob(priorUrl).catch(() => {})
+}
+
+/** Remove an invoice's photo: delete the row + blob and emit IMAGE_REMOVED. */
+export async function removeImage(prisma: PrismaClient, actorId: string, invoiceId: string) {
+  const removedUrl = await prisma.$transaction(async (tx) => {
+    const invoice = await tx.invoice.findFirst({ where: { id: invoiceId, userId: actorId } })
+    if (!invoice) throw new AppError('NOT_FOUND', 'Invoice not found', 404)
+    const existing = await tx.invoiceImage.findFirst({ where: { invoiceId } })
+    if (!existing) throw new AppError('NOT_FOUND', 'No photo on this invoice', 404)
+    await tx.invoiceImage.deleteMany({ where: { invoiceId } })
+    await tx.invoiceEvent.create({
+      data: {
+        invoiceId,
+        actorId,
+        ownerUserId: invoice.userId,
+        type: 'IMAGE_REMOVED',
+        detail: { url: existing.url },
+      },
+    })
+    return existing.url
+  })
+  await deleteBlob(removedUrl).catch(() => {})
 }
 
 /**

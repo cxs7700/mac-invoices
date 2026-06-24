@@ -22,6 +22,10 @@ function describe(e: TimelineEvent): { label: string; detail?: string; tone: Ton
     }
     case 'DELETED':
       return { label: 'Deleted', tone: 'terminal' }
+    case 'IMAGE_ATTACHED':
+      return { label: 'Photo attached', tone: 'done' }
+    case 'IMAGE_REMOVED':
+      return { label: 'Photo removed', tone: 'terminal' }
     default:
       return { label: e.type, tone: 'current' }
   }

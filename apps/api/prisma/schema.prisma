@@ -103,6 +103,8 @@ enum EventType {
   STATUS_CHANGED
   FIELD_EDITED
   DELETED
+  IMAGE_ATTACHED
+  IMAGE_REMOVED
 }
 
 enum Role {
