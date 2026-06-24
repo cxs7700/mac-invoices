@@ -8,6 +8,7 @@ import {
   InvoiceImageInputSchema,
   ImageUploadTokenSchema,
   InvoiceStatus,
+  InvoiceCategory,
   InvoiceSortField,
 } from '@mac-invoices/shared'
 import { AppError } from '../middleware/errorHandler'
@@ -125,6 +126,38 @@ export async function invoiceStats(request: FastifyRequest, reply: FastifyReply)
   }
 
   return reply.send({ counts, total })
+}
+
+/**
+ * GET /api/invoices/summary — all-time spend for the dashboard: the grand total
+ * (count + summed amount) plus per-category and per-status breakdowns. Amounts are
+ * Decimal-safe strings; every category/status is zero-filled for a stable shape.
+ */
+export async function invoiceSummary(request: FastifyRequest, reply: FastifyReply) {
+  const prisma = request.server.prisma
+  const where = { userId: request.user.id }
+  const money = (d: { toFixed: (n: number) => string } | null) => (d ? d.toFixed(2) : '0.00')
+
+  const [agg, byCat, byStat] = await Promise.all([
+    prisma.invoice.aggregate({ where, _sum: { amount: true }, _count: { _all: true } }),
+    prisma.invoice.groupBy({ by: ['category'], where, _sum: { amount: true }, _count: { _all: true } }),
+    prisma.invoice.groupBy({ by: ['status'], where, _sum: { amount: true }, _count: { _all: true } }),
+  ])
+
+  const catMap = new Map(byCat.map((r) => [r.category, { count: r._count._all, amount: money(r._sum.amount) }]))
+  const statMap = new Map(byStat.map((r) => [r.status, { count: r._count._all, amount: money(r._sum.amount) }]))
+
+  return reply.send({
+    total: { count: agg._count._all, amount: money(agg._sum.amount) },
+    byCategory: InvoiceCategory.options.map((category) => ({
+      category,
+      ...(catMap.get(category) ?? { count: 0, amount: '0.00' }),
+    })),
+    byStatus: InvoiceStatus.options.map((status) => ({
+      status,
+      ...(statMap.get(status) ?? { count: 0, amount: '0.00' }),
+    })),
+  })
 }
 
 /** GET /api/invoices/:id — own invoice, or 404 (no existence leak for others'). */
