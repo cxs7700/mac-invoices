@@ -40,6 +40,9 @@ export function freshLinkData() {
 
 type Params = { id: string }
 
+const isUniqueViolation = (err: unknown): boolean =>
+  typeof err === 'object' && err !== null && (err as { code?: unknown }).code === 'P2002'
+
 /** Find a contractor scoped to the landlord, or 404 (no existence leak). */
 async function ownContractor(prisma: PrismaClient, id: string, landlordId: string) {
   const c = await prisma.contractor.findFirst({ where: { id, landlordId } })
@@ -90,4 +93,44 @@ export async function updateContractor(
     data: { ...(input.name !== undefined && { name: input.name }), ...(input.contact !== undefined && { contact: input.contact }) },
   })
   return reply.send(toContractor(c))
+}
+
+/**
+ * POST /api/contractors/:id/revoke — invalidate the link (idempotent). A revoked
+ * link can neither submit nor read; the contractor's existing (landlord-owned)
+ * submissions are untouched.
+ */
+export async function revokeLink(request: FastifyRequest<{ Params: Params }>, reply: FastifyReply) {
+  await ownContractor(request.server.prisma, request.params.id, request.user.id)
+  const c = await request.server.prisma.contractor.update({
+    where: { id: request.params.id },
+    data: { revokedAt: new Date() },
+  })
+  return reply.send(toContractor(c))
+}
+
+/**
+ * POST /api/contractors/:id/regenerate — rotate the link: a new lookupId + hash
+ * replace the old (which becomes inert) and any revocation is cleared, in one
+ * update. Returns the new one-time plaintext link. Retries the rare lookupId
+ * collision.
+ */
+export async function regenerateLink(
+  request: FastifyRequest<{ Params: Params }>,
+  reply: FastifyReply,
+) {
+  await ownContractor(request.server.prisma, request.params.id, request.user.id)
+  for (let attempt = 0; ; attempt++) {
+    const { columns, plaintext } = freshLinkData()
+    try {
+      const c = await request.server.prisma.contractor.update({
+        where: { id: request.params.id },
+        data: { ...columns, revokedAt: null },
+      })
+      return reply.send({ ...toContractor(c), link: linkUrl(plaintext) })
+    } catch (err) {
+      if (isUniqueViolation(err) && attempt < 4) continue
+      throw err
+    }
+  }
 }

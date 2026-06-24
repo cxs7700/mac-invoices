@@ -16,6 +16,8 @@ async function contractorRoutes(fastify: FastifyInstance) {
   fastify.get('/api/contractors', auth, handlers.listContractors)
   fastify.get<{ Params: Params }>('/api/contractors/:id', auth, handlers.getContractor)
   fastify.patch<{ Params: Params }>('/api/contractors/:id', auth, handlers.updateContractor)
+  fastify.post<{ Params: Params }>('/api/contractors/:id/revoke', auth, handlers.revokeLink)
+  fastify.post<{ Params: Params }>('/api/contractors/:id/regenerate', auth, handlers.regenerateLink)
 }
 
 //ESM

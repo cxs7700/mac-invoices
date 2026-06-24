@@ -1,6 +1,10 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { buildApp } from '../src/app'
 import { loginCookie, createSecondUser } from './helpers/auth'
+import { validateLinkToken } from '../src/contractors/token'
+
+/** Pull the `inv_...` token out of a `.../submit/<token>` link URL. */
+const tokenOf = (link: string) => link.split('/submit/')[1]
 
 // U3 contractor CRUD (landlord, authed). Ownership-scoped with no existence
 // leak: another landlord's contractor reads/patches as 404.
@@ -72,5 +76,49 @@ describe('GET/PATCH /api/contractors/:id', () => {
     expect(
       (await app.inject({ method: 'PATCH', url: `/api/contractors/${id}`, payload: { name: 'x' }, headers: { cookie } })).statusCode,
     ).toBe(404)
+  })
+})
+
+describe('revoke / regenerate (U5)', () => {
+  const revoke = (id: string, c = cookie) =>
+    app.inject({ method: 'POST', url: `/api/contractors/${id}/revoke`, headers: { cookie: c } })
+  const regenerate = (id: string, c = cookie) =>
+    app.inject({ method: 'POST', url: `/api/contractors/${id}/regenerate`, headers: { cookie: c } })
+
+  it('revoke makes the link inert (validates to null, linkActive false)', async () => {
+    const created = (await create({ name: 'CRUD-Revoke', contact: 'x' })).json()
+    expect(await validateLinkToken(app.prisma, tokenOf(created.link))).not.toBeNull()
+    const res = await revoke(created.id)
+    expect(res.statusCode).toBe(200)
+    expect(res.json().linkActive).toBe(false)
+    expect(await validateLinkToken(app.prisma, tokenOf(created.link))).toBeNull()
+  })
+
+  it('regenerate kills the old link and the new one works', async () => {
+    const created = (await create({ name: 'CRUD-Rotate', contact: 'x' })).json()
+    const oldToken = tokenOf(created.link)
+    const regenerated = (await regenerate(created.id)).json()
+    const newToken = tokenOf(regenerated.link)
+    expect(newToken).not.toBe(oldToken)
+    expect(await validateLinkToken(app.prisma, oldToken)).toBeNull() // old is dead
+    expect(await validateLinkToken(app.prisma, newToken)).not.toBeNull() // new works
+    expect(regenerated.linkActive).toBe(true)
+  })
+
+  it('regenerate revives a previously revoked link', async () => {
+    const created = (await create({ name: 'CRUD-Revive', contact: 'x' })).json()
+    await revoke(created.id)
+    const regenerated = (await regenerate(created.id)).json()
+    expect(regenerated.linkActive).toBe(true)
+    expect(await validateLinkToken(app.prisma, tokenOf(regenerated.link))).not.toBeNull()
+  })
+
+  it('revoke is idempotent and 404s a non-owned contractor', async () => {
+    const id = (await create({ name: 'CRUD-Idem', contact: 'x' })).json().id
+    expect((await revoke(id)).statusCode).toBe(200)
+    expect((await revoke(id)).statusCode).toBe(200) // idempotent
+    const otherId = (await create({ name: 'CRUD-Bystander3', contact: 'b' }, other.cookie)).json().id
+    expect((await revoke(otherId)).statusCode).toBe(404)
+    expect((await regenerate(otherId)).statusCode).toBe(404)
   })
 })
