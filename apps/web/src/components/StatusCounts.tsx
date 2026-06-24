@@ -10,6 +10,7 @@ const DOT: Record<string, string> = {
   CANCELLED: 'bg-status-overdue-foreground',
   PENDING: 'bg-status-pending-foreground',
   APPROVED: 'bg-status-pending-foreground',
+  SUBMITTED: 'bg-status-submitted-foreground',
 }
 
 type Props = {

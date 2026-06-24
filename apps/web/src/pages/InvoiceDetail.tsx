@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
+import type { InvoiceCategory } from '@mac-invoices/shared'
 import { useInvoice, useUpdateInvoice, useDeleteInvoice } from '@/hooks/useInvoice'
 import { useInvoiceEvents } from '@/hooks/useInvoiceEvents'
 import { StatusBadge } from '@/components/StatusBadge'
 import { SyncBadge } from '@/components/SyncBadge'
+import { ReviewActions } from '@/components/ReviewActions'
 import { InvoicePhoto } from '@/components/InvoicePhoto'
 import { InvoiceTimeline } from '@/components/InvoiceTimeline'
 import { formatMoney, formatDate } from '@/lib/format'
@@ -49,7 +51,9 @@ export default function InvoiceDetail() {
         {/* Record */}
         <div className="rounded-lg border border-border bg-card p-6">
           <div className="mb-4 flex items-center justify-between">
-            <h1 className="text-xl font-bold text-foreground">Invoice {invoice.invoiceNumber}</h1>
+            <h1 className="text-xl font-bold text-foreground">
+              {invoice.invoiceNumber ? `Invoice ${invoice.invoiceNumber}` : 'Submission'}
+            </h1>
             <div className="flex items-center gap-2">
               <SyncBadge sheetsSyncedAt={invoice.sheetsSyncedAt} updatedAt={invoice.updatedAt} />
               <StatusBadge status={invoice.status} dueDate={invoice.dueDate} />
@@ -65,11 +69,19 @@ export default function InvoiceDetail() {
 
           <div className="grid grid-cols-2 gap-4">
             <Field label="Vendor" value={invoice.vendorName} />
-            <Field label="Category" value={invoice.category} />
+            <Field label="Category" value={invoice.category ?? 'Uncategorized'} />
+            {invoice.submitterName && <Field label="Submitted by" value={invoice.submitterName} />}
             <Field label="Invoice date" value={formatDate(invoice.invoiceDate)} />
             <Field label="Due date" value={formatDate(invoice.dueDate)} />
             <Field label="Paid date" value={formatDate(invoice.paidDate)} />
           </div>
+
+          {invoice.status === 'REJECTED' && invoice.rejectionReason && (
+            <div className="mt-4 rounded-md border border-destructive/30 bg-destructive/5 p-3">
+              <div className="text-xs uppercase tracking-wide text-destructive">Rejection reason</div>
+              <div className="text-sm text-foreground">{invoice.rejectionReason}</div>
+            </div>
+          )}
 
           <div className="mt-4 space-y-3">
             <Field label="Description" value={invoice.description} />
@@ -82,13 +94,51 @@ export default function InvoiceDetail() {
           <div className="rounded-lg border border-border bg-card p-5">
             <h2 className="mb-3 text-sm font-semibold text-foreground">Actions</h2>
             <div className="space-y-2">
-              <Button
-                className="w-full"
-                disabled={invoice.status === 'PAID' || update.isPending}
-                onClick={() => update.mutate({ status: 'PAID' })}
-              >
-                Mark as paid
-              </Button>
+              {invoice.status === 'SUBMITTED' ? (
+                <ReviewActions
+                  isPending={update.isPending}
+                  onApprove={(category) =>
+                    update.mutate({ status: 'APPROVED', category: category as InvoiceCategory })
+                  }
+                  onReject={(reason) => update.mutate({ status: 'REJECTED', rejectionReason: reason })}
+                />
+              ) : (
+                <>
+                  <Button
+                    className="w-full"
+                    disabled={invoice.status === 'PAID' || update.isPending}
+                    onClick={() => update.mutate({ status: 'PAID' })}
+                  >
+                    Mark as paid
+                  </Button>
+
+                  {confirmReject ? (
+                    <div className="flex gap-2">
+                      <Button
+                        variant="destructive"
+                        className="flex-1"
+                        onClick={() => {
+                          update.mutate({ status: 'REJECTED' })
+                          setConfirmReject(false)
+                        }}
+                      >
+                        Confirm reject
+                      </Button>
+                      <Button variant="outline" className="flex-1" onClick={() => setConfirmReject(false)}>
+                        Cancel
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      className="w-full text-destructive"
+                      onClick={() => setConfirmReject(true)}
+                    >
+                      Dispute / reject
+                    </Button>
+                  )}
+                </>
+              )}
 
               <Button variant="outline" className="w-full" asChild>
                 <Link to={`/invoices/${invoice.id}/edit`}>Edit</Link>
@@ -104,32 +154,6 @@ export default function InvoiceDetail() {
               >
                 Send reminder <span className="ml-1 text-xs text-muted-foreground">Soon</span>
               </Button>
-
-              {confirmReject ? (
-                <div className="flex gap-2">
-                  <Button
-                    variant="destructive"
-                    className="flex-1"
-                    onClick={() => {
-                      update.mutate({ status: 'REJECTED' })
-                      setConfirmReject(false)
-                    }}
-                  >
-                    Confirm reject
-                  </Button>
-                  <Button variant="outline" className="flex-1" onClick={() => setConfirmReject(false)}>
-                    Cancel
-                  </Button>
-                </div>
-              ) : (
-                <Button
-                  variant="outline"
-                  className="w-full text-destructive"
-                  onClick={() => setConfirmReject(true)}
-                >
-                  Dispute / reject
-                </Button>
-              )}
 
               <Button
                 variant="outline"

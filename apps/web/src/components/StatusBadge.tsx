@@ -10,14 +10,21 @@ type Props = {
  * due date past), not a stored status. Always shows a text label + aria-label
  * so meaning isn't color-only.
  */
+// Status-keyed tones (not a hardcoded ternary) so a new status reads distinctly.
+// Unlisted statuses fall back to the neutral pending tone.
+const TONE: Record<string, string> = {
+  PAID: 'bg-status-paid text-status-paid-foreground',
+  SUBMITTED: 'bg-status-submitted text-status-submitted-foreground',
+  REJECTED: 'bg-status-overdue text-status-overdue-foreground',
+}
+const PENDING_TONE = 'bg-status-pending text-status-pending-foreground'
+
 export function StatusBadge({ status, dueDate }: Props) {
   const overdue = isOverdue(status, dueDate)
   const label = overdue ? 'Overdue' : (STATUS_LABEL[status] ?? status)
   const tone = overdue
     ? 'bg-status-overdue text-status-overdue-foreground'
-    : status === 'PAID'
-      ? 'bg-status-paid text-status-paid-foreground'
-      : 'bg-status-pending text-status-pending-foreground'
+    : (TONE[status] ?? PENDING_TONE)
 
   return (
     <span
