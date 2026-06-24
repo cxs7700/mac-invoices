@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { useInvoice, useUpdateInvoice, useDeleteInvoice } from '@/hooks/useInvoice'
+import { useInvoiceEvents } from '@/hooks/useInvoiceEvents'
 import { StatusBadge } from '@/components/StatusBadge'
 import { InvoiceTimeline } from '@/components/InvoiceTimeline'
 import { formatMoney, formatDate } from '@/lib/format'
@@ -19,6 +20,7 @@ export default function InvoiceDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { data: invoice, isPending, isError } = useInvoice(id)
+  const { data: events, isPending: eventsPending } = useInvoiceEvents(id)
   const update = useUpdateInvoice(id!)
   const del = useDeleteInvoice()
   const [confirmReject, setConfirmReject] = useState(false)
@@ -136,7 +138,7 @@ export default function InvoiceDetail() {
 
           <div className="rounded-lg border border-border bg-card p-5">
             <h2 className="mb-3 text-sm font-semibold text-foreground">Timeline</h2>
-            <InvoiceTimeline invoice={invoice} />
+            <InvoiceTimeline events={events ?? []} isLoading={eventsPending} />
           </div>
         </div>
       </div>

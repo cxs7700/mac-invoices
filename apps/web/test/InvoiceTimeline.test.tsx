@@ -1,60 +1,57 @@
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { InvoiceTimeline } from '@/components/InvoiceTimeline'
-import type { Invoice } from '@/hooks/useInvoice'
+import type { TimelineEvent } from '@/hooks/useInvoiceEvents'
 
-const base: Invoice = {
-  id: 'a',
-  invoiceNumber: 'INV-1',
-  vendorName: 'Acme',
-  vendorEmail: null,
-  description: 'Fix sink',
-  amount: '100.00',
-  currency: 'USD',
-  category: 'REPAIRS',
-  propertyId: null,
-  status: 'PENDING',
-  invoiceDate: '2026-01-15',
-  dueDate: null,
-  paidDate: null,
-  notes: null,
-  attachmentUrl: null,
-  createdAt: '2026-01-10',
-  updatedAt: '2026-01-10',
-}
-
-function renderTimeline(overrides: Partial<Invoice>) {
-  return render(<InvoiceTimeline invoice={{ ...base, ...overrides }} />)
-}
+const ev = (over: Partial<TimelineEvent>): TimelineEvent => ({
+  id: Math.random().toString(36).slice(2),
+  invoiceId: 'inv1',
+  type: 'CREATED',
+  source: 'RECORDED',
+  detail: {},
+  actor: { id: 'u1', name: 'Landlord' },
+  createdAt: '2026-01-10T00:00:00.000Z',
+  ...over,
+})
 
 describe('InvoiceTimeline', () => {
-  it('PENDING without a due date → Created + Awaiting payment', () => {
-    renderTimeline({ status: 'PENDING' })
+  it('renders created, a status transition, and a field edit with old → new', () => {
+    render(
+      <InvoiceTimeline
+        events={[
+          ev({ type: 'CREATED' }),
+          ev({ type: 'STATUS_CHANGED', detail: { from: 'PENDING', to: 'APPROVED' } }),
+          ev({ type: 'FIELD_EDITED', detail: { field: 'amount', old: '100.00', new: '250.00' } }),
+        ]}
+      />,
+    )
     expect(screen.getByText('Created')).toBeDefined()
-    expect(screen.getByText('Awaiting payment')).toBeDefined()
-    expect(screen.queryByText('Overdue')).toBeNull()
+    expect(screen.getByText('Pending → Approved')).toBeDefined()
+    expect(screen.getByText('Edited amount')).toBeDefined()
+    expect(screen.getByText('100.00 → 250.00')).toBeDefined()
+    expect(screen.getAllByText('by Landlord').length).toBeGreaterThan(0)
   })
 
-  it('PAID → Created + Paid', () => {
-    renderTimeline({ status: 'PAID', paidDate: '2026-02-01' })
-    expect(screen.getByText('Paid')).toBeDefined()
-    expect(screen.queryByText('Awaiting payment')).toBeNull()
+  it('AE5: labels a reconstructed event as inferred; a recorded event is not', () => {
+    const { rerender } = render(<InvoiceTimeline events={[ev({ source: 'RECONSTRUCTED' })]} />)
+    expect(screen.getByText('inferred')).toBeDefined()
+
+    rerender(<InvoiceTimeline events={[ev({ source: 'RECORDED' })]} />)
+    expect(screen.queryByText('inferred')).toBeNull()
   })
 
-  it('REJECTED → Created + Rejected (terminal)', () => {
-    renderTimeline({ status: 'REJECTED' })
-    expect(screen.getByText('Rejected')).toBeDefined()
+  it('shows an empty state when there is no history', () => {
+    render(<InvoiceTimeline events={[]} />)
+    expect(screen.getByText('No recorded history yet.')).toBeDefined()
   })
 
-  it('CANCELLED → Created + Cancelled (terminal)', () => {
-    renderTimeline({ status: 'CANCELLED' })
-    expect(screen.getByText('Cancelled')).toBeDefined()
+  it('shows a loading state', () => {
+    render(<InvoiceTimeline events={[]} isLoading />)
+    expect(screen.getByText('Loading history…')).toBeDefined()
   })
 
-  it('PENDING past its due date → inserts an Overdue node', () => {
-    renderTimeline({ status: 'PENDING', dueDate: '2020-01-01' })
-    expect(screen.getByText('Created')).toBeDefined()
-    expect(screen.getByText('Overdue')).toBeDefined()
-    expect(screen.getByText('Awaiting payment')).toBeDefined()
+  it('renders a deletion as a terminal event', () => {
+    render(<InvoiceTimeline events={[ev({ type: 'DELETED', detail: { snapshot: {} } })]} />)
+    expect(screen.getByText('Deleted')).toBeDefined()
   })
 })

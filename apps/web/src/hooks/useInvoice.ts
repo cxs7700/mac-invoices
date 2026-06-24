@@ -32,6 +32,8 @@ export function useUpdateInvoice(id: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['invoice', id] })
       queryClient.invalidateQueries({ queryKey: ['invoices'] })
+      // An edit/transition appends ledger events — refresh the timeline.
+      queryClient.invalidateQueries({ queryKey: ['invoice-events', id] })
       // A status change shifts the all-time counts strip.
       queryClient.invalidateQueries({ queryKey: ['invoice-stats'] })
     },

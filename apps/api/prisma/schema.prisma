@@ -74,6 +74,37 @@ model InvoiceImage {
   @@map("invoice_images")
 }
 
+// Append-only ledger of meaningful invoice changes (creation, status
+// transitions, money-field edits, deletion). The materialized Invoice row stays
+// the source of truth; this is the history of how it got there.
+//
+// `invoiceId` is intentionally a plain column with NO relation/foreign key: a
+// DELETED event must outlive its invoice (the snapshot in `detail` is the
+// archive), so the row must NOT cascade-delete with the invoice. `actorId` is
+// who caused the event; `ownerUserId` is the invoice owner and the read-scoping
+// key (a future contractor can author an event the landlord still owns/reads).
+model InvoiceEvent {
+  id          String    @id @default(cuid())
+  invoiceId   String
+  actorId     String
+  ownerUserId String
+  type        EventType
+  detail      Json
+  source      String    @default("RECORDED")
+  createdAt   DateTime  @default(now())
+
+  @@index([invoiceId])
+  @@index([ownerUserId, createdAt])
+  @@map("invoice_events")
+}
+
+enum EventType {
+  CREATED
+  STATUS_CHANGED
+  FIELD_EDITED
+  DELETED
+}
+
 enum Role {
   LANDLORD
   CONTRACTOR
