@@ -2,13 +2,23 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 
 // Mock the storage adapter — image logic + ownership/ledger are what we test; no
 // live Blob calls. isOwnedBy/ownerOf mirror the real owner-prefix parsing.
-const storage = vi.hoisted(() => ({
-  isOwnedBy: (url: string, owner: string) => url.startsWith(`owners/${owner}/`),
-  ownerOf: (url: string) => /^owners\/([^/]+)\//.exec(url)?.[1] ?? null,
-  deleteBlob: vi.fn(async () => {}),
-  issueUploadToken: vi.fn(async () => ({ token: 'client-token', pathname: 'owners/u/p' })),
-  signedReadUrl: vi.fn(() => 'https://signed/url'),
-}))
+// Mirror the real adapter's pathname parsing (handles full URLs + bare paths).
+const storage = vi.hoisted(() => {
+  const path = (u: string) => {
+    try {
+      return new URL(u).pathname.replace(/^\/+/, '')
+    } catch {
+      return u.replace(/^\/+/, '')
+    }
+  }
+  return {
+    ownerOf: (url: string) => /^owners\/([^/]+)\//.exec(path(url))?.[1] ?? null,
+    isOwnedBy: (url: string, owner: string) => path(url).startsWith(`owners/${owner}/`),
+    deleteBlob: vi.fn(async () => {}),
+    issueUploadToken: vi.fn(async () => ({ token: 'client-token', pathname: 'owners/u/p' })),
+    signedReadUrl: vi.fn(() => 'https://signed/url'),
+  }
+})
 vi.mock('../src/integrations/storage', () => storage)
 
 import { buildApp } from '../src/app'
@@ -40,7 +50,7 @@ async function createOwn(n: string, over: Record<string, unknown> = {}) {
 
 const eventsFor = (id: string) => app.prisma.invoiceEvent.findMany({ where: { invoiceId: id }, orderBy: { createdAt: 'asc' } })
 const imagesFor = (id: string) => app.prisma.invoiceImage.findMany({ where: { invoiceId: id } })
-const ownUrl = (name: string) => `owners/${landlordId}/${name}`
+const ownUrl = (name: string) => `https://blob.test/owners/${landlordId}/${name}`
 
 beforeAll(async () => {
   await app.ready()
@@ -70,7 +80,7 @@ describe('create with an image', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/invoices',
-      payload: body('foreign', { image: { url: 'owners/someone-else/x' } }),
+      payload: body('foreign', { image: { url: 'https://blob.test/owners/someone-else/x' } }),
       headers: { cookie },
     })
     expect(res.statusCode).toBe(403)
@@ -93,7 +103,7 @@ describe('attach / replace / remove', () => {
 
   it('rejects a foreign blob ref on attach (403)', async () => {
     const inv = await createOwn('attach-foreign')
-    const res = await app.inject({ method: 'POST', url: `/api/invoices/${inv.id}/image`, payload: { url: 'owners/evil/x' }, headers: { cookie } })
+    const res = await app.inject({ method: 'POST', url: `/api/invoices/${inv.id}/image`, payload: { url: 'https://blob.test/owners/evil/x' }, headers: { cookie } })
     expect(res.statusCode).toBe(403)
     expect(await imagesFor(inv.id)).toHaveLength(0)
   })
@@ -133,6 +143,14 @@ describe('delete cleanup', () => {
     expect((tomb!.detail as { snapshot: { imageUrl: string } }).snapshot.imageUrl).toBe(ownUrl('d'))
     expect(storage.deleteBlob).toHaveBeenCalledWith(ownUrl('d'))
   })
+
+  it('blob reclaim is best-effort: a storage failure does not fail the delete', async () => {
+    const inv = await createOwn('del-fail', { image: { url: ownUrl('df') } })
+    storage.deleteBlob.mockRejectedValueOnce(new Error('storage down'))
+    expect((await app.inject({ method: 'DELETE', url: `/api/invoices/${inv.id}`, headers: { cookie } })).statusCode).toBe(204)
+    expect((await eventsFor(inv.id)).some((e) => e.type === 'DELETED')).toBe(true)
+    expect(await app.prisma.invoice.findFirst({ where: { id: inv.id } })).toBeNull()
+  })
 })
 
 describe('image-url + upload-token endpoints', () => {
@@ -145,6 +163,17 @@ describe('image-url + upload-token endpoints', () => {
 
     const noImg = await createOwn('url-noimg')
     expect((await app.inject({ method: 'GET', url: `/api/invoices/${noImg.id}/image-url`, headers: { cookie } })).statusCode).toBe(404)
+  })
+
+  it("does not return another user's image url (404, no existence leak)", async () => {
+    const second = await createSecondUser(app)
+    try {
+      const inv = await createOwn('url-mine', { image: { url: ownUrl('m') } })
+      const res = await app.inject({ method: 'GET', url: `/api/invoices/${inv.id}/image-url`, headers: { cookie: second.cookie } })
+      expect(res.statusCode).toBe(404)
+    } finally {
+      await second.cleanup()
+    }
   })
 
   it('issues an upload token (auth required)', async () => {

@@ -15,7 +15,10 @@ export const InvoiceCategory = z.enum([
 // caller before storing it (KTD-5).
 export const ImageType = z.enum(['CASH', 'PARTS', 'CHECK', 'OTHER'])
 export const InvoiceImageInputSchema = z.object({
-  url: z.string().min(1),
+  // A full absolute URL (the stored blob's URL). Requiring a parseable URL — not
+  // any string — keeps the owner-prefix gate and what's persisted on one
+  // canonical form, so the access check can't diverge from the stored value.
+  url: z.string().url(),
   type: ImageType.default('OTHER'),
   caption: z.string().max(200).optional(),
 })
