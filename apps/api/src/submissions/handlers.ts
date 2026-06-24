@@ -1,10 +1,14 @@
 import type { FastifyRequest, FastifyReply } from 'fastify'
-import { SubmissionSchema, ImageUploadTokenSchema } from '@mac-invoices/shared'
+import { SubmissionSchema, EditSubmissionSchema, ImageUploadTokenSchema } from '@mac-invoices/shared'
 import { AppError } from '../middleware/errorHandler'
 import { parseBody } from '../lib/validate'
 import { validateLinkToken } from '../contractors/token'
 import { issueUploadToken } from '../integrations/storage'
-import { createSubmission, contractorBlobOwner } from '../invoices/writeService'
+import {
+  createSubmission,
+  contractorUpdateSubmission,
+  contractorBlobOwner,
+} from '../invoices/writeService'
 
 // Public (no-session) endpoints authorized purely by the link token. Every
 // failure to resolve the token returns the SAME opaque 404 ("link no longer
@@ -58,4 +62,72 @@ export async function createUploadToken(
   const { contentType } = parseBody(ImageUploadTokenSchema, request.body)
   const result = await issueUploadToken(contractorBlobOwner(contractorId), contentType)
   return reply.send(result)
+}
+
+/**
+ * GET /api/submissions/:token — the contractor's OWN submissions and statuses,
+ * scoped to their contractor id. Safe fields only: never invoiceNumber, never
+ * another contractor's or the landlord's invoices (no existence leak, AE4).
+ */
+export async function listOwn(
+  request: FastifyRequest<{ Params: TokenParams }>,
+  reply: FastifyReply,
+) {
+  const { contractorId } = await resolveLink(request)
+  const rows = await request.server.prisma.invoice.findMany({
+    where: { submittedByContractorId: contractorId },
+    orderBy: { createdAt: 'desc' },
+    select: {
+      id: true,
+      status: true,
+      amount: true,
+      description: true,
+      invoiceDate: true,
+      rejectionReason: true,
+      createdAt: true,
+    },
+  })
+  return reply.send({
+    data: rows.map((r) => ({ ...r, amount: r.amount.toFixed(2) })),
+  })
+}
+
+type EditParams = TokenParams & { id: string }
+
+/**
+ * PATCH /api/submissions/:token/:id — edit a still-SUBMITTED submission. The
+ * write is a compare-and-set scoped to this contractor; a reviewed (or foreign,
+ * or absent) submission returns a uniform 409.
+ */
+export async function edit(
+  request: FastifyRequest<{ Params: EditParams }>,
+  reply: FastifyReply,
+) {
+  const { contractorId } = await resolveLink(request)
+  const input = parseBody(EditSubmissionSchema, request.body)
+  const inv = await contractorUpdateSubmission(
+    request.server.prisma,
+    { contractorId, invoiceId: request.params.id },
+    input,
+  )
+  return reply.send({ id: inv.id, status: inv.status })
+}
+
+/**
+ * POST /api/submissions/:token/:id/withdraw — withdraw a still-SUBMITTED
+ * submission (→ CANCELLED), compare-and-set so a concurrent landlord review
+ * wins. The landlord-owned invoice row and its photo survive — withdraw never
+ * deletes them.
+ */
+export async function withdraw(
+  request: FastifyRequest<{ Params: EditParams }>,
+  reply: FastifyReply,
+) {
+  const { contractorId } = await resolveLink(request)
+  const inv = await contractorUpdateSubmission(
+    request.server.prisma,
+    { contractorId, invoiceId: request.params.id },
+    { withdraw: true },
+  )
+  return reply.send({ id: inv.id, status: inv.status })
 }

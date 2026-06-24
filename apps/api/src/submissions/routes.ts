@@ -30,10 +30,27 @@ async function submissionRoutes(fastify: FastifyInstance) {
   const submitMax = Number(process.env.SUBMISSION_RATE_LIMIT_MAX ?? 10)
   const uploadMax = Number(process.env.SUBMISSION_UPLOAD_RATE_LIMIT_MAX ?? 20)
 
+  const readMax = Number(process.env.SUBMISSION_READ_RATE_LIMIT_MAX ?? 30)
+
   fastify.post<{ Params: TokenParams }>(
     '/api/submissions/:token',
     { config: { rateLimit: { max: submitMax, timeWindow: '1 minute' } } },
     handlers.submit,
+  )
+  fastify.get<{ Params: TokenParams }>(
+    '/api/submissions/:token',
+    { config: { rateLimit: { max: readMax, timeWindow: '1 minute' } } },
+    handlers.listOwn,
+  )
+  fastify.patch<{ Params: TokenParams & { id: string } }>(
+    '/api/submissions/:token/:id',
+    { config: { rateLimit: { max: submitMax, timeWindow: '1 minute' } } },
+    handlers.edit,
+  )
+  fastify.post<{ Params: TokenParams & { id: string } }>(
+    '/api/submissions/:token/:id/withdraw',
+    { config: { rateLimit: { max: submitMax, timeWindow: '1 minute' } } },
+    handlers.withdraw,
   )
   // The upload-token route mints Blob write credentials, so it carries its own
   // tighter limit — a stolen link can't flood storage.

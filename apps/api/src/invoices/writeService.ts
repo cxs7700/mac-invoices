@@ -250,6 +250,64 @@ export async function createSubmission(
 }
 
 /**
+ * Contractor edit/withdraw of their OWN still-SUBMITTED submission. This is a
+ * distinct path from updateInvoice — NOT a parameterization of it — because
+ * updateInvoice scopes ownership by `userId` (the landlord), which a contractor
+ * never is. Scoping is by `submittedByContractorId`, and the write is a
+ * compare-and-set: the `updateMany` re-asserts `status: 'SUBMITTED'`, so if the
+ * landlord approved/rejected in the meantime the update matches zero rows and we
+ * return a uniform 409 (landlord action wins the race). The same 409 covers
+ * "not yours" and "doesn't exist", so a contractor can't probe other rows.
+ */
+export async function contractorUpdateSubmission(
+  prisma: PrismaClient,
+  args: { contractorId: string; invoiceId: string },
+  input: { amount?: number; description?: string; invoiceDate?: Date; withdraw?: boolean },
+) {
+  const actorId = contractorActorId(args.contractorId)
+  const locked = () => new AppError('CONFLICT', 'This submission can no longer be changed', 409)
+  return prisma.$transaction(async (tx) => {
+    const scope = {
+      id: args.invoiceId,
+      submittedByContractorId: args.contractorId,
+      status: 'SUBMITTED' as const,
+    }
+    const before = await tx.invoice.findFirst({ where: scope })
+    if (!before) throw locked()
+
+    const data: Prisma.InvoiceUncheckedUpdateInput = {}
+    const events: Prisma.InvoiceEventCreateManyInput[] = []
+    const base = { invoiceId: args.invoiceId, actorId, ownerUserId: before.userId }
+
+    if (input.withdraw) {
+      data.status = 'CANCELLED'
+      events.push({ ...base, type: 'STATUS_CHANGED', detail: { from: 'SUBMITTED', to: 'CANCELLED' } })
+    } else {
+      const fields: { key: 'amount' | 'description' | 'invoiceDate'; value: unknown }[] = [
+        { key: 'amount', value: input.amount },
+        { key: 'description', value: input.description },
+        { key: 'invoiceDate', value: input.invoiceDate },
+      ]
+      for (const { key, value } of fields) {
+        if (value === undefined) continue
+        ;(data as Record<string, unknown>)[key] = value
+        const oldValue = normalize(key, (before as Record<string, unknown>)[key])
+        const newValue = normalize(key, value)
+        if (oldValue !== newValue) {
+          events.push({ ...base, type: 'FIELD_EDITED', detail: { field: key, old: oldValue, new: newValue } })
+        }
+      }
+    }
+
+    // Compare-and-set: re-assert SUBMITTED so a concurrent landlord review wins.
+    const result = await tx.invoice.updateMany({ where: scope, data })
+    if (result.count === 0) throw locked()
+    if (events.length > 0) await tx.invoiceEvent.createMany({ data: events })
+    return tx.invoice.findFirstOrThrow({ where: { id: args.invoiceId } })
+  })
+}
+
+/**
  * Update an own invoice and append events for the changes, in one transaction.
  * Reads the pre-image first (which both enforces ownership → 404 and supplies
  * old values for diffing). Emits STATUS_CHANGED on a status transition and one
@@ -310,8 +368,19 @@ export async function updateInvoice(
       }
     }
 
-    // Ownership already verified via the scoped pre-read, so update by unique id.
-    await tx.invoice.update({ where: { id }, data })
+    // Ownership already verified via the scoped pre-read. When the status is
+    // transitioning, re-assert the from-status in the write (compare-and-set) so
+    // a concurrent transition (e.g. a contractor withdrawing the same instant
+    // the landlord approves) can't be silently overwritten — the loser 409s and
+    // exactly one terminal state results. Field-only edits update by id directly.
+    if (data.status !== undefined) {
+      const res = await tx.invoice.updateMany({ where: { id, status: before.status }, data })
+      if (res.count === 0) {
+        throw new AppError('CONFLICT', 'This invoice was just updated; reload and retry', 409)
+      }
+    } else {
+      await tx.invoice.update({ where: { id }, data })
+    }
     if (events.length > 0) await tx.invoiceEvent.createMany({ data: events })
 
     return tx.invoice.findFirstOrThrow({ where: { id }, include: { user: userSelect } })

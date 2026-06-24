@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { InvoiceImageInputSchema } from './invoice'
+import { InvoiceImageInputSchema, InvoiceStatus } from './invoice'
 
 const DAY_MS = 86_400_000
 
@@ -18,6 +18,28 @@ export const SubmissionSchema = z.object({
   image: InvoiceImageInputSchema,
 })
 export type SubmissionInput = z.infer<typeof SubmissionSchema>
+
+// What a contractor may change while a submission is still SUBMITTED (amount,
+// description, date — same validators as submit, all optional). The photo is not
+// edited here in v1.
+export const EditSubmissionSchema = z.object({
+  amount: SubmissionSchema.shape.amount.optional(),
+  description: SubmissionSchema.shape.description.optional(),
+  invoiceDate: SubmissionSchema.shape.invoiceDate.optional(),
+})
+export type EditSubmissionInput = z.infer<typeof EditSubmissionSchema>
+
+/** A contractor's own submission as shown in their status list (safe fields only). */
+export const SubmissionStatusSchema = z.object({
+  id: z.string(),
+  status: InvoiceStatus,
+  amount: z.string(),
+  description: z.string(),
+  invoiceDate: z.coerce.date(),
+  rejectionReason: z.string().nullable(),
+  createdAt: z.coerce.date(),
+})
+export type SubmissionStatus = z.infer<typeof SubmissionStatusSchema>
 
 // A lightweight contractor the landlord collects invoices from via a no-login
 // link. NOT a User — no password, no session. The link token is a bearer
