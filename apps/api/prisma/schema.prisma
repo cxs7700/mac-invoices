@@ -163,6 +163,8 @@ enum InvoiceStatus {
   PAID
   REJECTED
   CANCELLED
+  // Entry state for a contractor-submitted invoice, awaiting landlord review.
+  SUBMITTED
 }
 
 enum InvoiceCategory {

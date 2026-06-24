@@ -57,7 +57,35 @@ describe('GET /api/invoices/summary', () => {
 
     const stat = Object.fromEntries(data.byStatus.map((r: { status: string }) => [r.status, r]))
     expect(stat.PENDING).toEqual({ status: 'PENDING', count: 3, amount: '350.00' })
-    expect(data.byStatus).toHaveLength(5)
+    expect(stat.SUBMITTED).toEqual({ status: 'SUBMITTED', count: 0, amount: '0.00' }) // zero-filled
+    expect(data.byStatus).toHaveLength(6)
+  })
+
+  it('excludes SUBMITTED from total + byCategory but keeps it in byStatus (KTD-9)', async () => {
+    // A contractor submission lands SUBMITTED with a null category and is not
+    // yet "spend": it must not move the total or appear in byCategory, but its
+    // count IS the landlord's "to review" signal in byStatus.
+    const sub = await app.prisma.invoice.create({
+      data: {
+        vendorName: 'Contractor',
+        description: 'Submitted work',
+        amount: '999.00',
+        invoiceDate: new Date('2026-03-01'),
+        status: 'SUBMITTED',
+        userId: user.user.id,
+        invoiceNumber: `${PREFIX}sub`,
+      },
+    })
+    const data = (await app.inject({ method: 'GET', url: '/api/invoices/summary', headers: { cookie } })).json()
+    // total unchanged (still the 3 PENDING = 350), SUBMITTED's 999 excluded.
+    expect(data.total).toEqual({ count: 3, amount: '350.00' })
+    // byCategory still reconciles to the total (null-category row dropped).
+    const catSum = data.byCategory.reduce((s: number, r: { amount: string }) => s + Number(r.amount), 0)
+    expect(catSum.toFixed(2)).toBe('350.00')
+    // byStatus surfaces the SUBMITTED count.
+    const stat = Object.fromEntries(data.byStatus.map((r: { status: string }) => [r.status, r]))
+    expect(stat.SUBMITTED).toEqual({ status: 'SUBMITTED', count: 1, amount: '999.00' })
+    await app.prisma.invoice.delete({ where: { id: sub.id } })
   })
 
   it("excludes another user's invoices", async () => {

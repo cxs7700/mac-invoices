@@ -1,7 +1,70 @@
 import type { Prisma, PrismaClient } from '../../prisma/generated/client.ts'
-import type { CreateInvoiceInput, UpdateInvoiceInput, InvoiceImageInput } from '@mac-invoices/shared'
+import type {
+  CreateInvoiceInput,
+  UpdateInvoiceInput,
+  InvoiceImageInput,
+  InvoiceStatus,
+} from '@mac-invoices/shared'
 import { AppError } from '../middleware/errorHandler'
 import { isOwnedBy, deleteBlob } from '../integrations/storage'
+
+// --- Status transition guard (KTD-3) ---------------------------------------
+// SUBMITTED is the contractor-submission entry state. The guard governs that
+// lifecycle specifically; legacy transitions among the pre-existing statuses
+// keep their prior freedom (e.g. reopening a PAID invoice clears paidDate), so
+// the landlord's existing flows are not regressed (R-8). Actor kind is derived
+// from the `contractor:` actorId namespace — no extra parameter threads through
+// the shared updateInvoice signature.
+
+type ActorKind = 'landlord' | 'contractor'
+
+function actorKindOf(actorId: string): ActorKind {
+  return actorId.startsWith('contractor:') ? 'contractor' : 'landlord'
+}
+
+/**
+ * Throw 422 on an illegal status transition. Rules:
+ * - Nothing may move *into* SUBMITTED (it is created only by a submission).
+ * - From SUBMITTED a contractor may only withdraw (→ CANCELLED); a landlord may
+ *   only approve (→ APPROVED, requires a category) or reject (→ REJECTED,
+ *   requires a reason).
+ * - Entering APPROVED from any state requires a category to be set.
+ * - All other (legacy, non-SUBMITTED) transitions are permitted unchanged.
+ * A no-op (from === to) is not a transition and returns immediately.
+ */
+export function assertTransitionAllowed(
+  actorId: string,
+  from: InvoiceStatus,
+  to: InvoiceStatus,
+  ctx: { categoryAfter: unknown; rejectionReason?: string | null },
+): void {
+  if (from === to) return
+  if (to === 'SUBMITTED') {
+    throw new AppError('INVALID_TRANSITION', 'An invoice cannot be moved into SUBMITTED', 422)
+  }
+  if (from === 'SUBMITTED') {
+    if (actorKindOf(actorId) === 'contractor') {
+      if (to === 'CANCELLED') return
+      throw new AppError('INVALID_TRANSITION', `A submission cannot move from SUBMITTED to ${to}`, 422)
+    }
+    if (to === 'APPROVED') {
+      if (ctx.categoryAfter == null) {
+        throw new AppError('CATEGORY_REQUIRED', 'Set a category before approving', 422)
+      }
+      return
+    }
+    if (to === 'REJECTED') {
+      if (!ctx.rejectionReason) {
+        throw new AppError('REASON_REQUIRED', 'A rejection reason is required', 422)
+      }
+      return
+    }
+    throw new AppError('INVALID_TRANSITION', `A submission can only be approved or rejected, not ${to}`, 422)
+  }
+  if (to === 'APPROVED' && ctx.categoryAfter == null) {
+    throw new AppError('CATEGORY_REQUIRED', 'Set a category before approving', 422)
+  }
+}
 
 // The single choke-point for invoice mutations. Every create / update / delete
 // runs inside one `prisma.$transaction` that writes the row AND appends its
@@ -50,6 +113,9 @@ async function nextInvoiceNumber(tx: Prisma.TransactionClient): Promise<string> 
   const rows = await tx.invoice.findMany({ select: { invoiceNumber: true } })
   let max = 0
   for (const { invoiceNumber } of rows) {
+    // invoiceNumber is nullable now (contractor submissions are unnumbered until
+    // approved) — skip nulls when scanning for the max.
+    if (!invoiceNumber) continue
     const n = Number.parseInt(invoiceNumber, 10)
     if (Number.isFinite(n) && n > max) max = n
   }
@@ -176,8 +242,16 @@ export async function updateInvoice(
     // leaving it.
     if (input.status !== undefined && input.status !== before.status) {
       const next = input.status
+      // The category in effect after this update (the landlord may set category
+      // and APPROVED in one call). Guard the transition before writing.
+      const categoryAfter = input.category !== undefined ? input.category : before.category
+      assertTransitionAllowed(actorId, before.status, next, {
+        categoryAfter,
+        rejectionReason: input.rejectionReason,
+      })
       data.status = next
       data.paidDate = next === 'PAID' ? (input.paidDate ?? new Date()) : null
+      if (next === 'REJECTED') data.rejectionReason = input.rejectionReason ?? null
       events.push({ ...base, type: 'STATUS_CHANGED', detail: { from: before.status, to: next } })
     }
     for (const field of TRACKED_FIELDS) {

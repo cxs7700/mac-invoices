@@ -135,13 +135,18 @@ export async function invoiceStats(request: FastifyRequest, reply: FastifyReply)
  */
 export async function invoiceSummary(request: FastifyRequest, reply: FastifyReply) {
   const prisma = request.server.prisma
-  const where = { userId: request.user.id }
   const money = (d: { toFixed: (n: number) => string } | null) => (d ? d.toFixed(2) : '0.00')
+  // SUBMITTED is un-vetted contractor input, not yet spend (KTD-9): exclude it
+  // from the grand total and the per-category breakdown (which also drops the
+  // null-category rows so byCategory reconciles with the total). byStatus KEEPS
+  // SUBMITTED — its count is the landlord's "to review" signal.
+  const owned = { userId: request.user.id }
+  const spend = { ...owned, status: { not: 'SUBMITTED' as const } }
 
   const [agg, byCat, byStat] = await Promise.all([
-    prisma.invoice.aggregate({ where, _sum: { amount: true }, _count: { _all: true } }),
-    prisma.invoice.groupBy({ by: ['category'], where, _sum: { amount: true }, _count: { _all: true } }),
-    prisma.invoice.groupBy({ by: ['status'], where, _sum: { amount: true }, _count: { _all: true } }),
+    prisma.invoice.aggregate({ where: spend, _sum: { amount: true }, _count: { _all: true } }),
+    prisma.invoice.groupBy({ by: ['category'], where: spend, _sum: { amount: true }, _count: { _all: true } }),
+    prisma.invoice.groupBy({ by: ['status'], where: owned, _sum: { amount: true }, _count: { _all: true } }),
   ])
 
   const catMap = new Map(byCat.map((r) => [r.category, { count: r._count._all, amount: money(r._sum.amount) }]))
@@ -332,7 +337,10 @@ export async function exportInvoices(request: FastifyRequest, reply: FastifyRepl
   }
 
   const invoices = await request.server.prisma.invoice.findMany({
-    where: { userId: request.user.id, sheetsSyncedAt: null },
+    // SUBMITTED is un-vetted contractor input — never sync it to the landlord's
+    // accounting sheet (KTD-9). A later approval re-qualifies the row (it was
+    // never stamped). A later approval also assigns its invoiceNumber.
+    where: { userId: request.user.id, sheetsSyncedAt: null, status: { not: 'SUBMITTED' } },
     orderBy: { invoiceDate: 'asc' },
   })
 
@@ -343,13 +351,13 @@ export async function exportInvoices(request: FastifyRequest, reply: FastifyRepl
     const rows = chunk.map((inv) => {
       const cell: Record<(typeof EXPORT_COLUMNS)[number], string | number> = {
         id: inv.id,
-        invoiceNumber: inv.invoiceNumber,
+        invoiceNumber: inv.invoiceNumber ?? '',
         vendorName: inv.vendorName,
         amount: inv.amount.toNumber(),
         status: inv.status,
         invoiceDate: ymd(inv.invoiceDate),
         dueDate: inv.dueDate ? ymd(inv.dueDate) : '',
-        category: inv.category,
+        category: inv.category ?? '',
         description: inv.description,
       }
       return EXPORT_COLUMNS.map((c) => cell[c])
