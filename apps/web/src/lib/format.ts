@@ -35,3 +35,30 @@ export function isOverdue(status: string, dueDate: string | Date | null | undefi
   if (dueDate == null) return false
   return new Date(dueDate).getTime() < Date.now()
 }
+
+export type SyncState = 'not-exported' | 'exported' | 'drifted'
+
+export const SYNC_LABEL: Record<SyncState, string> = {
+  'not-exported': 'Not exported',
+  exported: 'Exported',
+  drifted: 'Drifted',
+}
+
+// The Sheets export stamp also bumps the row's updatedAt (~the same instant), so
+// only treat an invoice as "drifted" once it was edited more than this long
+// after its last export — otherwise freshly-exported rows would flicker drifted.
+const DRIFT_TOLERANCE_MS = 2000
+
+/**
+ * Per-invoice Sheets export state: not yet exported, exported, or drifted
+ * (edited after the last export, so the sheet is now stale). Read-only — the app
+ * never re-pushes (export is one-way); "drifted" prompts a manual re-export.
+ */
+export function syncState(
+  sheetsSyncedAt: string | null | undefined,
+  updatedAt: string,
+): SyncState {
+  if (!sheetsSyncedAt) return 'not-exported'
+  const drift = new Date(updatedAt).getTime() - new Date(sheetsSyncedAt).getTime()
+  return drift > DRIFT_TOLERANCE_MS ? 'drifted' : 'exported'
+}

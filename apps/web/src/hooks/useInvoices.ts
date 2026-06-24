@@ -11,6 +11,8 @@ export type InvoiceListItem = {
   status: string
   invoiceDate: string
   dueDate: string | null
+  updatedAt: string
+  sheetsSyncedAt: string | null
 }
 
 export type InvoiceListResponse = {

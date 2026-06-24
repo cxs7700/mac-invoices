@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router'
 import { useInvoice, useUpdateInvoice, useDeleteInvoice } from '@/hooks/useInvoice'
 import { useInvoiceEvents } from '@/hooks/useInvoiceEvents'
 import { StatusBadge } from '@/components/StatusBadge'
+import { SyncBadge } from '@/components/SyncBadge'
 import { InvoiceTimeline } from '@/components/InvoiceTimeline'
 import { formatMoney, formatDate } from '@/lib/format'
 import { Button } from '@/components/ui/button'
@@ -48,7 +49,10 @@ export default function InvoiceDetail() {
         <div className="rounded-lg border border-border bg-card p-6">
           <div className="mb-4 flex items-center justify-between">
             <h1 className="text-xl font-bold text-foreground">Invoice {invoice.invoiceNumber}</h1>
-            <StatusBadge status={invoice.status} dueDate={invoice.dueDate} />
+            <div className="flex items-center gap-2">
+              <SyncBadge sheetsSyncedAt={invoice.sheetsSyncedAt} updatedAt={invoice.updatedAt} />
+              <StatusBadge status={invoice.status} dueDate={invoice.dueDate} />
+            </div>
           </div>
 
           <div className="mb-6 rounded-md bg-muted p-4">

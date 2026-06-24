@@ -1,6 +1,7 @@
 import { Link } from 'react-router'
 import type { InvoiceListItem } from '@/hooks/useInvoices'
 import { StatusBadge } from './StatusBadge'
+import { SyncBadge } from './SyncBadge'
 import { formatMoney, formatDate } from '@/lib/format'
 
 const th = 'px-4 py-2 font-medium'
@@ -19,6 +20,7 @@ export function InvoiceTable({ invoices }: { invoices: InvoiceListItem[] }) {
             <th className={th}>Due</th>
             <th className={`${th} text-right`}>Price</th>
             <th className={th}>Status</th>
+            <th className={th}>Sheet</th>
           </tr>
         </thead>
         <tbody>
@@ -36,6 +38,9 @@ export function InvoiceTable({ invoices }: { invoices: InvoiceListItem[] }) {
               <td className={`${td} text-right tabular-nums`}>{formatMoney(inv.amount)}</td>
               <td className={td}>
                 <StatusBadge status={inv.status} dueDate={inv.dueDate} />
+              </td>
+              <td className={td}>
+                <SyncBadge sheetsSyncedAt={inv.sheetsSyncedAt} updatedAt={inv.updatedAt} />
               </td>
             </tr>
           ))}
