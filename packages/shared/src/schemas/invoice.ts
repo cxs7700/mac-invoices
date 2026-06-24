@@ -10,6 +10,22 @@ export const InvoiceCategory = z.enum([
   'OTHER',
 ])
 
+// A photo attached to an invoice (the handwritten-invoice proof). `url` is a blob
+// the client already uploaded; the server re-validates that it belongs to the
+// caller before storing it (KTD-5).
+export const ImageType = z.enum(['CASH', 'PARTS', 'CHECK', 'OTHER'])
+export const InvoiceImageInputSchema = z.object({
+  url: z.string().min(1),
+  type: ImageType.default('OTHER'),
+  caption: z.string().max(200).optional(),
+})
+export type ImageType = z.infer<typeof ImageType>
+export type InvoiceImageInput = z.infer<typeof InvoiceImageInputSchema>
+
+// Body for requesting a direct-upload token (the client uploads browser→storage).
+export const ImageUploadTokenSchema = z.object({ contentType: z.string().min(1) })
+export type ImageUploadTokenInput = z.infer<typeof ImageUploadTokenSchema>
+
 export const CreateInvoiceSchema = z.object({
   // Optional: the create form omits it so the server auto-assigns the next
   // sequential number. Still accepted when provided (data import / tests).
@@ -27,8 +43,10 @@ export const CreateInvoiceSchema = z.object({
   dueDate: z.coerce.date().optional(),
   notes: z.string().max(1000).optional(),
   // Legacy single-attachment URL. The per-invoice photo feature uses the
-  // InvoiceImage relation instead; its upload/view UI is a later phase.
+  // InvoiceImage relation instead.
   attachmentUrl: z.string().url().optional(),
+  // Optional photo to attach at create time (uploaded to storage first).
+  image: InvoiceImageInputSchema.optional(),
 })
 
 export const UpdateInvoiceSchema = CreateInvoiceSchema.partial().extend({
