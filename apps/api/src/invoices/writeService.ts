@@ -42,6 +42,14 @@ export function assertTransitionAllowed(
   if (to === 'SUBMITTED') {
     throw new AppError('INVALID_TRANSITION', 'An invoice cannot be moved into SUBMITTED', 422)
   }
+  // CANCELLED (withdrawn) and REJECTED (declined) are terminal — nothing moves
+  // out of them (a correction is a brand-new submission). This is also what makes
+  // the withdraw-vs-approve race single-winner: if a withdraw commits first, the
+  // landlord's approve sees CANCELLED and is refused here rather than resurrecting
+  // it to APPROVED. (PAID stays reopenable — existing landlord behavior.)
+  if (from === 'CANCELLED' || from === 'REJECTED') {
+    throw new AppError('INVALID_TRANSITION', `A ${from.toLowerCase()} invoice cannot change status`, 422)
+  }
   if (from === 'SUBMITTED') {
     if (actorKindOf(actorId) === 'contractor') {
       if (to === 'CANCELLED') return

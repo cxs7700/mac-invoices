@@ -140,11 +140,13 @@ describe('U2 transition guard — legacy landlord flows still pass (R-8)', () =>
     expect(res.json().status).toBe('APPROVED')
   })
 
-  it('clears a stale rejectionReason when an invoice leaves REJECTED', async () => {
-    const id = await makePending('reasonclear')
-    const rejected = await patch(id, { status: 'REJECTED', rejectionReason: 'bad receipt' })
-    expect(rejected.json().rejectionReason).toBe('bad receipt')
-    const reopened = await patch(id, { status: 'PENDING' })
-    expect(reopened.json().rejectionReason).toBeNull() // not stale
+  it('REJECTED is terminal — no transition out (forward-only)', async () => {
+    const id = await makePending('terminal')
+    const rejected = await patch(id, { status: 'REJECTED' })
+    expect(rejected.statusCode).toBe(200)
+    expect(rejected.json().rejectionReason).toBeNull() // legacy reject carries no reason
+    const reopen = await patch(id, { status: 'PENDING' })
+    expect(reopen.statusCode).toBe(422)
+    expect(reopen.json().error.code).toBe('INVALID_TRANSITION')
   })
 })
