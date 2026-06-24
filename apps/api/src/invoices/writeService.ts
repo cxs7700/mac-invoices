@@ -127,11 +127,19 @@ async function nextInvoiceNumber(tx: Prisma.TransactionClient): Promise<string> 
  * prefix is the acting user's. The blob is uploaded before the invoice exists, so
  * this prefix check is the access control that stops attaching another user's blob.
  */
-function gateImageRef(url: string, actorId: string): void {
-  if (!isOwnedBy(url, actorId)) {
+function gateImageRef(url: string, ownerId: string): void {
+  if (!isOwnedBy(url, ownerId)) {
     throw new AppError('FORBIDDEN', 'That image does not belong to you', 403)
   }
 }
+
+// A contractor has two namespaced strings, deliberately kept distinct (KTD-7/8):
+// the ledger actor id (`contractor:<id>`) and the blob-prefix owner (`c_<id>`).
+// Centralized here so the submit path, the contractor edit path, the public
+// upload-token route, and the events resolver all derive them one way and never
+// conflate them with each other or with the landlord owner id.
+export const contractorActorId = (contractorId: string) => `contractor:${contractorId}`
+export const contractorBlobOwner = (contractorId: string) => `c_${contractorId}`
 
 /** Within a transaction: write the single InvoiceImage row + an IMAGE_ATTACHED event. */
 async function writeImageAttachment(
@@ -198,6 +206,45 @@ export async function createInvoice(
       },
     })
     if (input.image) await writeImageAttachment(tx, invoice.id, actorId, invoice.userId, input.image)
+    return invoice
+  })
+}
+
+/**
+ * Create a contractor submission: an invoice OWNED by the landlord but submitted
+ * by (and attributed in the ledger to) the contractor. The three identities are
+ * distinct (KTD-7/8): `ownerUserId` is the landlord (`user.connect` + the event's
+ * ownerUserId), the event `actorId` is `contractor:<id>`, and the image gate uses
+ * the contractor's blob prefix `c_<id>` (the uploader). The row lands SUBMITTED,
+ * uncategorized, and unnumbered (a number is assigned on approval — KTD-11). The
+ * photo is required (the proof) and gated to the contractor's own uploads.
+ */
+export async function createSubmission(
+  prisma: PrismaClient,
+  args: { ownerUserId: string; contractorId: string; vendorName: string },
+  input: { amount: number; description: string; invoiceDate: Date; image: InvoiceImageInput },
+) {
+  const actorId = contractorActorId(args.contractorId)
+  gateImageRef(input.image.url, contractorBlobOwner(args.contractorId))
+  return prisma.$transaction(async (tx) => {
+    const invoice = await tx.invoice.create({
+      data: {
+        invoiceNumber: null,
+        vendorName: args.vendorName,
+        description: input.description,
+        amount: input.amount,
+        category: null,
+        invoiceDate: input.invoiceDate,
+        status: 'SUBMITTED',
+        user: { connect: { id: args.ownerUserId } },
+        submittedByContractor: { connect: { id: args.contractorId } },
+      },
+      include: { user: userSelect },
+    })
+    await tx.invoiceEvent.create({
+      data: { invoiceId: invoice.id, actorId, ownerUserId: invoice.userId, type: 'CREATED', detail: {} },
+    })
+    await writeImageAttachment(tx, invoice.id, actorId, invoice.userId, input.image)
     return invoice
   })
 }

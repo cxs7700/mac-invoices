@@ -9,6 +9,7 @@ import authRoutes from './auth/routes'
 import healthRoutes from './routes/health'
 import invoiceRoutes from './invoices/routes'
 import contractorRoutes from './contractors/routes'
+import submissionRoutes from './submissions/routes'
 
 /** Cap request bodies well above any real invoice JSON (~100x headroom). */
 export const BODY_LIMIT_BYTES = 64 * 1024 // 64 KB
@@ -39,7 +40,10 @@ export const loggerOptions = {
  * Registration is deferred by Fastify until `.ready()` / `.listen()` / `.inject()`.
  */
 export function buildApp() {
-  const app = Fastify({ logger: loggerOptions, bodyLimit: BODY_LIMIT_BYTES })
+  // trustProxy: behind Vercel's edge proxy, request.ip must be the real client
+  // (from x-forwarded-for) so the public-submission per-IP rate limit keys on the
+  // caller, not the shared proxy address (KTD-5).
+  const app = Fastify({ logger: loggerOptions, bodyLimit: BODY_LIMIT_BYTES, trustProxy: true })
 
   // Error handling (registered before routes so thrown errors are caught)
   app.setErrorHandler(errorHandler)
@@ -55,6 +59,11 @@ export function buildApp() {
       directives: { defaultSrc: ["'none'"], frameAncestors: ["'none'"] },
     },
     frameguard: { action: 'deny' },
+    // The contractor link carries its bearer token in the URL. no-referrer keeps
+    // that token out of the Referer header on any cross-origin request the
+    // contractor page makes (e.g. loading a signed Blob photo URL), so it never
+    // leaks to a third-party CDN's access logs (R-3).
+    referrerPolicy: { policy: 'no-referrer' },
   })
 
   // Plugins
@@ -70,6 +79,7 @@ export function buildApp() {
   app.register(authRoutes)
   app.register(invoiceRoutes)
   app.register(contractorRoutes)
+  app.register(submissionRoutes)
 
   return app
 }

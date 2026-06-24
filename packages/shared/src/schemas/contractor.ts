@@ -1,4 +1,23 @@
 import { z } from 'zod'
+import { InvoiceImageInputSchema } from './invoice'
+
+const DAY_MS = 86_400_000
+
+// What a contractor submits via their link (no login). No category — the
+// landlord sets it on review; the vendor defaults to the contractor's name
+// server-side. The photo is REQUIRED (it is the proof). Date bounds are tighter
+// than the landlord path: not in the future (1-day timezone slack), not older
+// than ~12 months — a contractor fat-fingering 2099 or 1999 is rejected.
+export const SubmissionSchema = z.object({
+  amount: z.number().positive().multipleOf(0.01).lte(99_999_999.99),
+  description: z.string().trim().min(1).max(500),
+  invoiceDate: z.coerce
+    .date()
+    .refine((d) => d.getTime() <= Date.now() + DAY_MS, 'Invoice date cannot be in the future')
+    .refine((d) => d.getTime() >= Date.now() - 366 * DAY_MS, 'Invoice date is too far in the past'),
+  image: InvoiceImageInputSchema,
+})
+export type SubmissionInput = z.infer<typeof SubmissionSchema>
 
 // A lightweight contractor the landlord collects invoices from via a no-login
 // link. NOT a User — no password, no session. The link token is a bearer
