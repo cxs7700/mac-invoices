@@ -8,17 +8,42 @@ datasource db {
 }
 
 model User {
-  id           String    @id @default(cuid())
-  email        String    @unique
+  id           String       @id @default(cuid())
+  email        String       @unique
   passwordHash String
   name         String?
-  role         Role      @default(LANDLORD)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  role         Role         @default(LANDLORD)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
   invoices     Invoice[]
   sessions     Session[]
+  contractors  Contractor[]
 
   @@map("users")
+}
+
+// A lightweight contractor the landlord collects invoices from via a no-login
+// tokenized link. NOT a User: no password, no session. The link is a bearer
+// credential — `tokenLookupId` is a non-secret indexed handle for a point
+// lookup; `tokenHash` is the SHA-256 of the secret (never stored in plaintext,
+// mirroring Session). `revokedAt` invalidates the link; regenerate overwrites
+// the lookupId + hash. A contractor belongs to exactly one landlord (v1).
+model Contractor {
+  id            String    @id @default(cuid())
+  landlordId    String
+  landlord      User      @relation(fields: [landlordId], references: [id], onDelete: Cascade)
+  name          String
+  contact       String
+  tokenLookupId String    @unique
+  tokenHash     String
+  revokedAt     DateTime?
+  lastUsedAt    DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  submissions   Invoice[]
+
+  @@index([landlordId])
+  @@map("contractors")
 }
 
 model Session {
@@ -31,30 +56,42 @@ model Session {
 }
 
 model Invoice {
-  id             String          @id @default(cuid())
-  invoiceNumber  String          @unique
-  vendorName     String
-  vendorEmail    String?
-  description    String
-  amount         Decimal         @db.Decimal(10, 2)
-  currency       String          @default("USD")
-  category       InvoiceCategory
-  propertyId     String?
-  status         InvoiceStatus   @default(PENDING)
-  invoiceDate    DateTime
-  dueDate        DateTime?
-  paidDate       DateTime?
-  notes          String?
-  attachmentUrl  String?
-  sheetsSyncedAt DateTime?
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-  userId         String
-  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  images         InvoiceImage[]
+  id                     String           @id @default(cuid())
+  // Nullable: contractor submissions are created before a number is assigned.
+  // The sequential number is stamped on the first APPROVED transition (KTD-11)
+  // so withdrawn/rejected submissions never leave gaps in the landlord's ledger.
+  invoiceNumber          String?          @unique
+  vendorName             String
+  vendorEmail            String?
+  description            String
+  amount                 Decimal          @db.Decimal(10, 2)
+  currency               String           @default("USD")
+  // Nullable: a contractor submission carries no category — the landlord sets
+  // it on review (APPROVED is blocked until it is set).
+  category               InvoiceCategory?
+  propertyId             String?
+  status                 InvoiceStatus    @default(PENDING)
+  invoiceDate            DateTime
+  dueDate                DateTime?
+  paidDate               DateTime?
+  rejectionReason        String?
+  notes                  String?
+  attachmentUrl          String?
+  sheetsSyncedAt         DateTime?
+  createdAt              DateTime         @default(now())
+  updatedAt              DateTime         @updatedAt
+  userId                 String
+  user                   User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // The contractor who submitted this invoice, if any. The invoice is still
+  // owned by the landlord (`userId`); this only records the submitter. SetNull
+  // so deleting a contractor never cascades into the landlord's owned invoice.
+  submittedByContractorId String?
+  submittedByContractor   Contractor?     @relation(fields: [submittedByContractorId], references: [id], onDelete: SetNull)
+  images                 InvoiceImage[]
 
   @@index([userId, status])
   @@index([userId, invoiceDate])
+  @@index([submittedByContractorId])
   @@map("invoices")
 }
 
