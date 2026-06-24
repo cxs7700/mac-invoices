@@ -11,7 +11,6 @@ export type Invoice = InvoiceListItem & {
   notes: string | null
   attachmentUrl: string | null
   createdAt: string
-  updatedAt: string
   user?: { id: string; name: string | null; email: string }
 }
 

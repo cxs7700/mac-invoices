@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { formatMoney, formatDate } from '@/lib/format'
+import { formatMoney, formatDate, syncState } from '@/lib/format'
 
 describe('formatMoney', () => {
   it('formats a string amount (no float math on the value)', () => {
@@ -20,5 +20,21 @@ describe('formatDate', () => {
   it('returns a dash for null/invalid', () => {
     expect(formatDate(null)).toBe('—')
     expect(formatDate('garbage')).toBe('—')
+  })
+})
+
+describe('syncState', () => {
+  it('is not-exported when never synced', () => {
+    expect(syncState(null, '2026-06-01T00:00:00.000Z')).toBe('not-exported')
+  })
+
+  it('is exported when last edited at/just-after the sync (within tolerance)', () => {
+    // The export stamp bumps updatedAt ~the same instant — must not read as drifted.
+    expect(syncState('2026-06-01T00:00:00.000Z', '2026-06-01T00:00:00.500Z')).toBe('exported')
+    expect(syncState('2026-06-01T00:00:00.000Z', '2026-06-01T00:00:00.000Z')).toBe('exported')
+  })
+
+  it('is drifted when edited well after the last export', () => {
+    expect(syncState('2026-06-01T00:00:00.000Z', '2026-06-01T00:05:00.000Z')).toBe('drifted')
   })
 })
