@@ -357,6 +357,12 @@ export async function updateInvoice(
       data.status = next
       data.paidDate = next === 'PAID' ? (input.paidDate ?? new Date()) : null
       if (next === 'REJECTED') data.rejectionReason = input.rejectionReason ?? null
+      // KTD-11: a contractor submission carries no number until it is approved —
+      // so withdrawn/rejected submissions never leave gaps in the ledger. Assign
+      // the next sequential number on the first transition into APPROVED.
+      if (next === 'APPROVED' && before.invoiceNumber === null) {
+        data.invoiceNumber = await nextInvoiceNumber(tx)
+      }
       events.push({ ...base, type: 'STATUS_CHANGED', detail: { from: before.status, to: next } })
     }
     for (const field of TRACKED_FIELDS) {
