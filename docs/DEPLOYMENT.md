@@ -84,6 +84,22 @@ Notes:
   server secret is `VITE_*`, so nothing sensitive ships to the client.
 - Each PR **Preview** is its own HTTPS `*.vercel.app` origin; the strict cookie works per-origin,
   so login is exercised per preview (hence `COOKIE_SECURE=true` on Preview).
+- `WEB_ORIGIN` must equal the actual production URL (e.g. `https://mac-invoices.vercel.app`, or a
+  custom domain). It is both the CORS allow-origin and the same-origin the strict cookie needs.
+- `SESSION_SECRET` is **not** used — sessions are opaque `@oslojs` tokens (a SHA-256 lookup id),
+  so there is no signing secret to configure. It is intentionally absent from `.env.example`.
+
+### Optional — set only to enable a feature
+
+Each of these has a safe "off" behavior; add them when you turn the feature on. None block a first deploy.
+
+| Variable(s) | Enables | Behavior if unset |
+|---|---|---|
+| `GOOGLE_SERVICE_ACCOUNT_KEY` (JSON), `GOOGLE_SHEET_ID`, `GOOGLE_SHEET_TAB` (default `Invoices`) | Google Sheets export | the export endpoint returns `503 *_NOT_CONFIGURED`; the rest of the app is unaffected. Share the target sheet as **Editor** with the key's `client_email`. |
+| `BLOB_READ_WRITE_TOKEN` | invoice photo capture (upload + view) | auto-injected once a **Vercel Blob store** is linked to the project; photo upload fails until then. |
+| `RESEND_API_KEY`, `EMAIL_FROM`, `CRON_SECRET` | the landlord notification digest | see [Contractor notifications](#contractor-notifications-landlord-digest) below — the in-app feed works regardless; email no-ops without `RESEND_API_KEY`. |
+
+Tuning knobs (`EXPORT_RATE_LIMIT_MAX`, `EXPORT_CHUNK_SIZE`, `SHEETS_RETRY_BASE_MS`, `PASSWORD_RATE_LIMIT_MAX`, `SUBMISSION_RATE_LIMIT_MAX`, `SUBMISSION_READ_RATE_LIMIT_MAX`, `SUBMISSION_UPLOAD_RATE_LIMIT_MAX`, `EMAIL_RETRY_BASE_MS`) have safe defaults — leave unset.
 
 ## 6. Deploy + smoke test
 
@@ -122,6 +138,7 @@ endpoint. To enable it in production:
    - Variable `APP_URL` = the production base URL.
    - Secret `CRON_SECRET` = the same value as the Vercel env var.
    - (Vercel's free Hobby cron is daily-only, which is why the schedule lives in GitHub Actions; cron-job.org is a drop-in alternative.)
+3. **Enable the workflow.** The schedule is disabled before the first deploy (it would fail every ~15 min against an un-deployed app). Turn it on once the app is live: `gh workflow enable "Contractor notification digest"` (or the Actions tab). Disable again with `gh workflow disable "…"`.
 
 ## Known limitations (tracked)
 
