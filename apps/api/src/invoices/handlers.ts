@@ -361,7 +361,15 @@ const EXPORT_COLUMNS = [
  */
 export async function exportInvoices(request: FastifyRequest, reply: FastifyReply) {
   const { spreadsheetId: bodyId } = parseBody(ExportInvoicesSchema, request.body)
-  const spreadsheetId = bodyId ?? process.env.GOOGLE_SHEET_ID
+  // Target resolution: an explicit body override, else the landlord's saved
+  // spreadsheet id (Settings), else the server env default.
+  const saved = (
+    await request.server.prisma.user.findUnique({
+      where: { id: request.user.id },
+      select: { sheetSpreadsheetId: true },
+    })
+  )?.sheetSpreadsheetId
+  const spreadsheetId = bodyId ?? saved ?? process.env.GOOGLE_SHEET_ID
   if (!spreadsheetId) {
     throw new AppError(
       'VALIDATION_ERROR',

@@ -8,7 +8,7 @@ const NAV: NavItem[] = [
   { label: 'Expenses' },
   { label: 'Properties' },
   { label: 'Contractors', to: '/contractors', match: (p) => p.startsWith('/contractors') },
-  { label: 'Settings' },
+  { label: 'Settings', to: '/settings', match: (p) => p.startsWith('/settings') },
 ]
 
 /** The app's primary nav, shared by the desktop sidebar and the mobile drawer.

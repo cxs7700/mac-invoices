@@ -89,6 +89,32 @@ function sanitize(err: unknown): AppError {
   }
 }
 
+/**
+ * The service-account's email (`client_email`) — the address a landlord shares
+ * their sheet with as Editor. This is NON-secret (the private_key is never
+ * exposed); safe to surface in the settings UI. Throws the same 503 as the
+ * export when credentials are unset/malformed.
+ */
+export function serviceAccountEmail(): string {
+  const email = loadCredentials().client_email
+  return typeof email === 'string' ? email : ''
+}
+
+/**
+ * Verify the service account can reach a spreadsheet — a metadata read
+ * (`spreadsheets.get`), NOT an append, so a "test connection" never mutates the
+ * sheet. Resolves on success; throws a sanitized AppError (e.g. the share-as-
+ * Editor 403 message) on failure, never a raw provider error.
+ */
+export async function checkAccess(spreadsheetId: string): Promise<void> {
+  const sheets = getSheetsClient()
+  try {
+    await sheets.spreadsheets.get({ spreadsheetId, fields: 'spreadsheetId' }, { timeout: 30_000 })
+  } catch (err) {
+    throw sanitize(err)
+  }
+}
+
 /** Append `rows` to the pinned tab, retrying transient 429/5xx with backoff. */
 export async function appendRows(spreadsheetId: string, rows: (string | number)[][]): Promise<void> {
   const sheets = getSheetsClient()

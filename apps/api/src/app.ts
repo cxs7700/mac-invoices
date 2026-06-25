@@ -10,6 +10,7 @@ import healthRoutes from './routes/health'
 import invoiceRoutes from './invoices/routes'
 import contractorRoutes from './contractors/routes'
 import submissionRoutes from './submissions/routes'
+import settingsRoutes from './settings/routes'
 
 /** Cap request bodies well above any real invoice JSON (~100x headroom). */
 export const BODY_LIMIT_BYTES = 64 * 1024 // 64 KB
@@ -111,6 +112,7 @@ export function buildApp() {
   app.register(invoiceRoutes)
   app.register(contractorRoutes)
   app.register(submissionRoutes)
+  app.register(settingsRoutes)
 
   return app
 }
