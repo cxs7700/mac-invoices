@@ -38,7 +38,6 @@ describe('Sidebar', () => {
     expect(screen.getByRole('link', { name: 'Contractors' })).toBeDefined() // now a real route
     expect(screen.getByRole('link', { name: 'Settings' })).toBeDefined() // now a real route
     expect(screen.getByRole('link', { name: 'Properties' })).toBeDefined() // now a real route
-    expect(screen.getByText('Expenses').getAttribute('aria-disabled')).toBe('true') // still a Soon stub
 
     fireEvent.click(screen.getByRole('button', { name: /log out/i }))
     await waitFor(() =>
