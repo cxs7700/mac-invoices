@@ -10,6 +10,7 @@ import { createSecondUser } from './helpers/auth'
 const app = buildApp()
 let u: Awaited<ReturnType<typeof createSecondUser>>
 let cookie: string
+let propId: string // a property the landlord assigns when approving (required-on-approval)
 
 // Create a row directly (the public submit path is U6) so we can drive the
 // landlord PATCH endpoint against a real SUBMITTED, owned invoice.
@@ -52,6 +53,7 @@ beforeAll(async () => {
   await app.ready()
   u = await createSecondUser(app)
   cookie = u.cookie
+  propId = (await app.prisma.property.create({ data: { landlordId: u.user.id, name: 'P', address: 'A' } })).id
 })
 afterAll(async () => {
   await app.prisma.invoice.deleteMany({ where: { invoiceNumber: { startsWith: 'T-TRANS-' } } })
@@ -63,7 +65,7 @@ afterAll(async () => {
 describe('U2 transition guard — SUBMITTED lifecycle', () => {
   it('approves a submission when a category is supplied in the same call', async () => {
     const inv = await makeSubmitted('approve')
-    const res = await patch(inv.id, { status: 'APPROVED', category: 'LABOR' })
+    const res = await patch(inv.id, { status: 'APPROVED', category: 'LABOR', propertyId: propId })
     expect(res.statusCode).toBe(200)
     expect(res.json().status).toBe('APPROVED')
     expect(res.json().category).toBe('LABOR')
@@ -133,9 +135,9 @@ describe('U2 transition guard — legacy landlord flows still pass (R-8)', () =>
     expect(res.json().status).toBe('REJECTED')
   })
 
-  it('PENDING → APPROVED passes (legacy invoices carry a category)', async () => {
+  it('PENDING → APPROVED passes (category + property set on approve)', async () => {
     const id = await makePending('legacyapprove')
-    const res = await patch(id, { status: 'APPROVED' })
+    const res = await patch(id, { status: 'APPROVED', propertyId: propId })
     expect(res.statusCode).toBe(200)
     expect(res.json().status).toBe('APPROVED')
   })

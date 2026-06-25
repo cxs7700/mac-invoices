@@ -36,7 +36,7 @@ export function assertTransitionAllowed(
   actorId: string,
   from: InvoiceStatus,
   to: InvoiceStatus,
-  ctx: { categoryAfter: unknown; rejectionReason?: string | null },
+  ctx: { categoryAfter: unknown; propertyIdAfter: unknown; rejectionReason?: string | null },
 ): void {
   if (from === to) return
   if (to === 'SUBMITTED') {
@@ -59,6 +59,9 @@ export function assertTransitionAllowed(
       if (ctx.categoryAfter == null) {
         throw new AppError('CATEGORY_REQUIRED', 'Set a category before approving', 422)
       }
+      if (ctx.propertyIdAfter == null) {
+        throw new AppError('PROPERTY_REQUIRED', 'Assign a property before approving', 422)
+      }
       return
     }
     if (to === 'REJECTED') {
@@ -69,8 +72,13 @@ export function assertTransitionAllowed(
     }
     throw new AppError('INVALID_TRANSITION', `A submission can only be approved or rejected, not ${to}`, 422)
   }
-  if (to === 'APPROVED' && ctx.categoryAfter == null) {
-    throw new AppError('CATEGORY_REQUIRED', 'Set a category before approving', 422)
+  if (to === 'APPROVED') {
+    if (ctx.categoryAfter == null) {
+      throw new AppError('CATEGORY_REQUIRED', 'Set a category before approving', 422)
+    }
+    if (ctx.propertyIdAfter == null) {
+      throw new AppError('PROPERTY_REQUIRED', 'Assign a property before approving', 422)
+    }
   }
 }
 
@@ -185,6 +193,12 @@ export async function createInvoice(
 ) {
   if (input.image) gateImageRef(input.image.url, actorId)
   return prisma.$transaction(async (tx) => {
+    // A property assigned at create must belong to the acting landlord (404, not
+    // 403, so another landlord's property existence never leaks).
+    if (input.propertyId != null) {
+      const owned = await tx.property.findFirst({ where: { id: input.propertyId, landlordId: actorId } })
+      if (!owned) throw new AppError('NOT_FOUND', 'Property not found', 404)
+    }
     const invoiceNumber = input.invoiceNumber ?? (await nextInvoiceNumber(tx))
     const invoice = await tx.invoice.create({
       data: {
@@ -331,6 +345,13 @@ export async function updateInvoice(
     const before = await tx.invoice.findFirst({ where: { id, userId: actorId } })
     if (!before) throw new AppError('NOT_FOUND', 'Invoice not found', 404)
 
+    // A property assigned here must belong to the acting landlord. 404 (not 403)
+    // so another landlord's property existence never leaks.
+    if (input.propertyId != null) {
+      const owned = await tx.property.findFirst({ where: { id: input.propertyId, landlordId: actorId } })
+      if (!owned) throw new AppError('NOT_FOUND', 'Property not found', 404)
+    }
+
     const data: Prisma.InvoiceUncheckedUpdateInput = {}
     if (input.invoiceNumber !== undefined) data.invoiceNumber = input.invoiceNumber
     if (input.vendorName !== undefined) data.vendorName = input.vendorName
@@ -358,8 +379,10 @@ export async function updateInvoice(
       // The category in effect after this update (the landlord may set category
       // and APPROVED in one call). Guard the transition before writing.
       const categoryAfter = input.category !== undefined ? input.category : before.category
+      const propertyIdAfter = input.propertyId !== undefined ? input.propertyId : before.propertyId
       assertTransitionAllowed(actorId, before.status, next, {
         categoryAfter,
+        propertyIdAfter,
         rejectionReason: input.rejectionReason,
       })
       data.status = next

@@ -78,6 +78,9 @@ export async function listInvoices(
   }
   if (q.vendor) where.vendorName = { contains: q.vendor, mode: 'insensitive' }
   if (q.search) where.description = { contains: q.search, mode: 'insensitive' }
+  // Property filter: "none" → the unassigned bucket; any other value → that
+  // property. Appended to the userId-anchored where, so scope is preserved.
+  if (q.propertyId) where.propertyId = q.propertyId === 'none' ? null : q.propertyId
 
   // Exhaustive map (not a computed-key cast) so a new sort field is a compile
   // error here. invoiceDate desc is the tiebreaker for the nullable dueDate sort.
