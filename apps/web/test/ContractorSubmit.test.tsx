@@ -15,6 +15,9 @@ vi.mock('@/hooks/useSubmission', () => ({
   useWithdraw,
   uploadSubmissionPhoto: vi.fn(),
 }))
+// The language switcher in the header uses the profile mutation; stub it so this
+// public-page test needs no QueryClientProvider.
+vi.mock('@/hooks/useSettings', () => ({ useUpdateProfile: () => ({ mutate: vi.fn() }) }))
 
 const renderPage = () =>
   render(

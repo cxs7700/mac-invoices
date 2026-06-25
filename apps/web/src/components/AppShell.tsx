@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Sidebar } from './Sidebar'
 import { NavLinks } from './NavLinks'
 import { NotificationsBell } from './NotificationsBell'
+import { LanguageSwitcher } from './LanguageSwitcher'
 import { useLogout } from '@/hooks/useAuth'
 
 /** Authenticated layout: sidebar (desktop) + a mobile top bar with a slide-out
@@ -36,6 +37,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <span className="font-bold text-foreground">{t('app.name')}</span>
           </div>
           <div className="flex items-center gap-3">
+            <LanguageSwitcher persist />
             <NotificationsBell />
             <button
               type="button"

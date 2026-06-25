@@ -8,12 +8,13 @@ vi.mock('@/hooks/useAuth', () => ({
   useLogout: () => ({ mutate: vi.fn() }),
 }))
 
-// The bell mounts in the shell header; stub its data hooks so this drawer test
-// needs no QueryClientProvider.
+// The bell + language switcher mount in the shell header; stub their data hooks
+// so this drawer test needs no QueryClientProvider.
 vi.mock('@/hooks/useNotifications', () => ({
   useNotifications: () => ({ data: { data: [], unreadCount: 0 } }),
   useMarkNotificationsSeen: () => ({ mutate: vi.fn() }),
 }))
+vi.mock('@/hooks/useSettings', () => ({ useUpdateProfile: () => ({ mutate: vi.fn() }) }))
 
 const renderShell = () =>
   render(

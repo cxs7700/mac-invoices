@@ -332,5 +332,29 @@
     "unreadAria": "通知（{{count}} 条未读）",
     "empty": "暂无承包商动态。",
     "fallbackContractor": "某承包商"
+  },
+  "contractorSubmit": {
+    "title": "提交发票",
+    "loading": "加载中…",
+    "inactiveTitle": "此链接已失效",
+    "inactiveBody": "请向发送链接的人索取最新链接。",
+    "rateLimited": "提交次数过多 — 请稍等几分钟后再试。",
+    "genericError": "出错了 — 请重试。",
+    "submittedTitle": "您的发票已提交",
+    "submittedBody": "审核完成后我们会通知您。",
+    "submitAnother": "再提交一张发票",
+    "amount": "金额",
+    "date": "日期",
+    "description": "说明",
+    "photoLabel": "发票照片",
+    "photoAttached": "已附加照片 ✓",
+    "photoRequired": "必须提供发票照片。",
+    "submitting": "提交中…",
+    "submit": "提交",
+    "yourSubmissions": "您的提交记录",
+    "noSubmissions": "暂无提交记录 — 在上方提交您的第一张发票。",
+    "rejectedPrefix": "已拒绝：",
+    "resubmit": "提交新发票以重新提交",
+    "withdraw": "撤回"
   }
 }
