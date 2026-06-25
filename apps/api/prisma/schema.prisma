@@ -16,6 +16,9 @@ model User {
   // Per-landlord Google Sheets export target; the export prefers this over the
   // GOOGLE_SHEET_ID env default. Null = use the env default.
   sheetSpreadsheetId String?
+  // In-app notification read-state: contractor activity newer than this is
+  // "unread". Cleared (set to now) when the landlord opens the notifications feed.
+  notificationsSeenAt DateTime?
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
   invoices     Invoice[]
@@ -131,6 +134,9 @@ model InvoiceEvent {
   type        EventType
   detail      Json
   source      String    @default("RECORDED")
+  // When this event was swept into a landlord digest email (null = un-notified).
+  // The flush stamps it after a successful send (at-least-once); not a new event.
+  notifiedAt  DateTime?
   createdAt   DateTime  @default(now())
 
   @@index([invoiceId])
