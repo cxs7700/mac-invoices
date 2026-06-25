@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router'
 import { Sidebar } from './Sidebar'
 import { NavLinks } from './NavLinks'
+import { NotificationsBell } from './NotificationsBell'
 import { useLogout } from '@/hooks/useAuth'
 
 /** Authenticated layout: sidebar (desktop) + a mobile top bar with a slide-out
@@ -32,13 +33,16 @@ export function AppShell({ children }: { children: ReactNode }) {
             </button>
             <span className="font-bold text-foreground">Rent Ops</span>
           </div>
-          <button
-            type="button"
-            onClick={doLogout}
-            className="text-xs text-muted-foreground hover:text-foreground"
-          >
-            Log out
-          </button>
+          <div className="flex items-center gap-3">
+            <NotificationsBell />
+            <button
+              type="button"
+              onClick={doLogout}
+              className="text-xs text-muted-foreground hover:text-foreground"
+            >
+              Log out
+            </button>
+          </div>
         </header>
 
         {drawerOpen && (

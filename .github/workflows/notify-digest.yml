@@ -1,0 +1,29 @@
+# Free external scheduler for the landlord notification digest. Vercel's Hobby
+# cron is daily-only, so a GitHub Actions schedule pings the CRON_SECRET-gated
+# endpoint every ~15 min instead (keeps Vercel on the free plan).
+#
+# Setup (repo Settings → Secrets and variables → Actions):
+#   - Variable  APP_URL      = the production base URL (e.g. https://mac-invoices.vercel.app)
+#   - Secret    CRON_SECRET  = the same value set as CRON_SECRET in Vercel
+#
+# Caveats: GitHub scheduled workflows are best-effort (can be delayed under load)
+# and are auto-disabled after ~60 days of repo inactivity. If that bites, point a
+# free pinger (e.g. cron-job.org) at the same endpoint with the Bearer header.
+name: Contractor notification digest
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch: {} # manual trigger for testing
+
+jobs:
+  flush:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger digest flush
+        env:
+          APP_URL: ${{ vars.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          curl -fsS -X POST "${APP_URL}/api/cron/notify-digest" \
+            -H "Authorization: Bearer ${CRON_SECRET}"

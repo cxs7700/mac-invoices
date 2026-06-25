@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router'
 import { NavLinks } from './NavLinks'
+import { NotificationsBell } from './NotificationsBell'
 import { useMe, useLogout } from '@/hooks/useAuth'
 
 export function Sidebar() {
@@ -12,7 +13,10 @@ export function Sidebar() {
       data-rnav
       className="hidden md:flex w-56 shrink-0 flex-col bg-sidebar border-r border-sidebar-border"
     >
-      <div className="px-4 py-4 text-lg font-bold text-foreground">Rent Ops</div>
+      <div className="flex items-center justify-between px-4 py-4">
+        <span className="text-lg font-bold text-foreground">Rent Ops</span>
+        <NotificationsBell />
+      </div>
 
       <NavLinks />
 

@@ -109,6 +109,20 @@ keep `DIRECT_URL` access to revert by hand if needed.
 
 ---
 
+## Contractor notifications (landlord digest)
+
+The landlord digest email is sent by a scheduled flush hitting a secret-gated
+endpoint. To enable it in production:
+
+1. **Vercel env vars** (Project → Settings → Environment Variables):
+   - `RESEND_API_KEY` — a Resend API key (free tier). Unset → notifications no-op (the in-app feed still works).
+   - `EMAIL_FROM` — the sender. `onboarding@resend.dev` works with no DNS for testing; a verified-domain address (SPF + 2 DKIM CNAMEs in Resend) for real mail.
+   - `CRON_SECRET` — a random string (`openssl rand -base64 32`). The flush endpoint rejects any call without `Authorization: Bearer <CRON_SECRET>`, and fails closed if unset.
+2. **GitHub Actions scheduler** (`.github/workflows/notify-digest.yml`, runs every ~15 min) — set in repo Settings → Secrets and variables → Actions:
+   - Variable `APP_URL` = the production base URL.
+   - Secret `CRON_SECRET` = the same value as the Vercel env var.
+   - (Vercel's free Hobby cron is daily-only, which is why the schedule lives in GitHub Actions; cron-job.org is a drop-in alternative.)
+
 ## Known limitations (tracked)
 
 - **Login rate-limit** uses an in-process store → per-warm-instance on serverless, not fleet-wide.
