@@ -42,5 +42,32 @@
     "password": "Password",
     "serverError": "Could not reach the server",
     "signingIn": "Signing in…"
+  },
+  "status": {
+    "PENDING": "Pending",
+    "APPROVED": "Approved",
+    "PAID": "Paid",
+    "REJECTED": "Rejected",
+    "CANCELLED": "Cancelled",
+    "SUBMITTED": "Submitted",
+    "overdue": "Overdue",
+    "aria": "Status: {{label}}"
+  },
+  "category": {
+    "MAINTENANCE": "Maintenance",
+    "REPAIRS": "Repairs",
+    "UTILITIES": "Utilities",
+    "SUPPLIES": "Supplies",
+    "LABOR": "Labor",
+    "OTHER": "Other"
+  },
+  "sync": {
+    "label": { "not-exported": "Not exported", "exported": "Exported", "drifted": "Drifted" },
+    "hint": {
+      "not-exported": "Not yet exported to the Google Sheet",
+      "exported": "Synced to the Google Sheet",
+      "drifted": "Edited after the last export — re-export to refresh the sheet"
+    },
+    "aria": "Sheets export: {{label}}"
   }
 }

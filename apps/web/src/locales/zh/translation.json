@@ -42,5 +42,32 @@
     "password": "密码",
     "serverError": "无法连接服务器",
     "signingIn": "登录中…"
+  },
+  "status": {
+    "PENDING": "待处理",
+    "APPROVED": "已批准",
+    "PAID": "已支付",
+    "REJECTED": "已拒绝",
+    "CANCELLED": "已取消",
+    "SUBMITTED": "已提交",
+    "overdue": "逾期",
+    "aria": "状态：{{label}}"
+  },
+  "category": {
+    "MAINTENANCE": "维护",
+    "REPAIRS": "维修",
+    "UTILITIES": "水电费",
+    "SUPPLIES": "用品",
+    "LABOR": "人工",
+    "OTHER": "其他"
+  },
+  "sync": {
+    "label": { "not-exported": "未导出", "exported": "已导出", "drifted": "已变更" },
+    "hint": {
+      "not-exported": "尚未导出到 Google 表格",
+      "exported": "已同步到 Google 表格",
+      "drifted": "上次导出后已修改 — 重新导出以更新表格"
+    },
+    "aria": "表格导出：{{label}}"
   }
 }
