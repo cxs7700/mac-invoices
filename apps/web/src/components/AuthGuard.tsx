@@ -1,6 +1,8 @@
+import { useEffect } from 'react'
 import { Navigate, Outlet } from 'react-router'
 import { useMe } from '@/hooks/useAuth'
 import { ApiError } from '@/lib/apiClient'
+import i18n from '@/lib/i18n'
 
 /**
  * Gates the authenticated app. While the session check is in flight, shows a
@@ -10,6 +12,15 @@ import { ApiError } from '@/lib/apiClient'
  */
 export function AuthGuard() {
   const { data, isPending, isError, error, refetch } = useMe()
+
+  // Reconcile the UI language to the server's stored preference once the session
+  // resolves (the localStorage mirror drove first paint; the server is the source
+  // of truth across devices). Effect lives before the early returns so the hook
+  // order is stable.
+  const serverLocale = data?.locale
+  useEffect(() => {
+    if (serverLocale && i18n.language !== serverLocale) i18n.changeLanguage(serverLocale)
+  }, [serverLocale])
 
   if (isPending) {
     return (

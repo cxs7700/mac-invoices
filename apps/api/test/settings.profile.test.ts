@@ -13,8 +13,8 @@ beforeAll(async () => {
   other = await createSecondUser(app)
 })
 afterAll(async () => {
-  // Restore the landlord's name so other suites aren't affected.
-  await app.prisma.user.update({ where: { id: (await app.prisma.user.findFirstOrThrow({ where: { role: 'LANDLORD', email: process.env.LANDLORD_EMAIL ?? 'landlord@example.com' } })).id }, data: { name: 'Landlord' } }).catch(() => {})
+  // Restore the landlord's name + locale so other suites aren't affected.
+  await app.prisma.user.update({ where: { id: (await app.prisma.user.findFirstOrThrow({ where: { role: 'LANDLORD', email: process.env.LANDLORD_EMAIL ?? 'landlord@example.com' } })).id }, data: { name: 'Landlord', locale: 'en' } }).catch(() => {})
   await other.cleanup()
   await app.close()
 })
@@ -57,5 +57,18 @@ describe('PATCH /api/settings/profile', () => {
     expect(theirs.name).toBe('Second Name')
     const mine = (await app.inject({ method: 'GET', url: '/api/auth/me', headers: { cookie } })).json()
     expect(mine.name).toBe('Keep') // unaffected by the other user's edit
+  })
+
+  it('accepts a supported locale (and /me reflects it); locale-only update needs no name', async () => {
+    const res = await patch({ locale: 'zh' }, other.cookie)
+    expect(res.statusCode).toBe(200)
+    expect(res.json().locale).toBe('zh')
+    const me = (await app.inject({ method: 'GET', url: '/api/auth/me', headers: { cookie: other.cookie } })).json()
+    expect(me.locale).toBe('zh')
+    expect(me.name).toBe('Second Name') // locale-only update left the name intact
+  })
+
+  it('rejects an unsupported locale', async () => {
+    expect((await patch({ locale: 'fr' }, other.cookie)).statusCode).toBe(400)
   })
 })

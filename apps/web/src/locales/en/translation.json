@@ -16,5 +16,8 @@
     "saving": "Saving…",
     "openMenu": "Open menu",
     "closeMenu": "Close menu"
+  },
+  "settings": {
+    "language": { "title": "Language" }
   }
 }

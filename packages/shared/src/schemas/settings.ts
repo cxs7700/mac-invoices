@@ -1,9 +1,15 @@
 import { z } from 'zod'
 
-// Landlord self-serve settings. Profile v1 edits the display name only — email
-// is the unique login id with no verification flow, so it is read-only.
+// Supported UI languages (server-validated; mirrored by the web i18n config).
+export const Locale = z.enum(['en', 'zh'])
+export type Locale = z.infer<typeof Locale>
+
+// Landlord self-serve settings. Profile edits the display name (email is the
+// unique login id with no verification flow, so it is read-only) and/or the UI
+// locale. Both optional so the language switcher can PATCH just `{ locale }`.
 export const UpdateProfileSchema = z.object({
-  name: z.string().trim().min(1).max(100),
+  name: z.string().trim().min(1).max(100).optional(),
+  locale: Locale.optional(),
 })
 export type UpdateProfileInput = z.infer<typeof UpdateProfileSchema>
 
@@ -22,6 +28,7 @@ export const AccountSchema = z.object({
   email: z.string(),
   name: z.string().nullable(),
   role: z.string(),
+  locale: z.string(),
 })
 export type Account = z.infer<typeof AccountSchema>
 

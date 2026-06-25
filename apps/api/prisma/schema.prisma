@@ -19,6 +19,8 @@ model User {
   // In-app notification read-state: contractor activity newer than this is
   // "unread". Cleared (set to now) when the landlord opens the notifications feed.
   notificationsSeenAt DateTime?
+  // UI language preference (server source of truth, mirrored to localStorage).
+  locale       String       @default("en")
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
   invoices     Invoice[]
