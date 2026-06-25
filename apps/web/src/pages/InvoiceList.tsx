@@ -1,4 +1,6 @@
 import { Link, useSearchParams } from 'react-router'
+import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import { useInvoices } from '@/hooks/useInvoices'
 import { useExportInvoices } from '@/hooks/useExportInvoices'
 import { InvoiceTable } from '@/components/InvoiceTable'
@@ -16,19 +18,20 @@ import {
 } from '@/lib/listParams'
 
 /** Human-readable message for an export failure (null when there's no error). */
-function exportErrorMessage(error: unknown): string | null {
+function exportErrorMessage(error: unknown, t: TFunction): string | null {
   if (!error) return null
-  if (!(error instanceof ApiError)) return 'Export failed.'
-  if (error.code === 'EXPORT_NOT_CONFIGURED') return 'Sheets export isn’t configured on the server.'
+  if (!(error instanceof ApiError)) return t('invoiceList.exportFailed')
+  if (error.code === 'EXPORT_NOT_CONFIGURED') return t('invoiceList.exportNotConfigured')
   // A 502 partial export carries how many rows made it durably.
   const exported = (error.details as { exported?: number } | undefined)?.exported
   if (error.status === 502 && typeof exported === 'number') {
-    return `Partial export: ${exported} written, then it failed. Try again to continue.`
+    return t('invoiceList.exportPartial', { exported })
   }
   return error.message
 }
 
 export default function InvoiceList() {
+  const { t } = useTranslation()
   const [searchParams, setSearchParams] = useSearchParams()
   const filters = parseListParams(searchParams)
   const { data, isPending, isError, refetch } = useInvoices(toQueryParams(filters))
@@ -45,22 +48,22 @@ export default function InvoiceList() {
   const filtersActive = hasActiveFilters(filters)
 
   const exportM = useExportInvoices()
-  const exportError = exportErrorMessage(exportM.error)
+  const exportError = exportErrorMessage(exportM.error, t)
 
   return (
     <div>
       <div className="mb-2 flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-foreground">Invoices</h1>
+        <h1 className="text-2xl font-bold text-foreground">{t('invoiceList.heading')}</h1>
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
             disabled={exportM.isPending}
             onClick={() => exportM.mutate()}
           >
-            {exportM.isPending ? 'Exporting…' : 'Export to Sheets'}
+            {exportM.isPending ? t('invoiceList.exporting') : t('invoiceList.exportToSheets')}
           </Button>
           <Button asChild>
-            <Link to="/invoices/new">New invoice</Link>
+            <Link to="/invoices/new">{t('invoiceList.newInvoice')}</Link>
           </Button>
         </div>
       </div>
@@ -68,7 +71,9 @@ export default function InvoiceList() {
       <div className="mb-4 min-h-5 text-sm" aria-live="polite">
         {exportM.isSuccess && (
           <span role="status" className="text-status-paid-foreground">
-            Exported {exportM.data.exported} invoice{exportM.data.exported === 1 ? '' : 's'} to Sheets.
+            {exportM.data.exported === 1
+              ? t('invoiceList.exportSuccessOne', { exported: exportM.data.exported })
+              : t('invoiceList.exportSuccessOther', { exported: exportM.data.exported })}
           </span>
         )}
         {exportError && (
@@ -93,24 +98,24 @@ export default function InvoiceList() {
         </div>
       ) : isError ? (
         <div className="rounded-lg border border-border bg-card p-8 text-center">
-          <p className="text-muted-foreground">Failed to load invoices.</p>
+          <p className="text-muted-foreground">{t('invoiceList.loadError')}</p>
           <Button variant="outline" className="mt-3" onClick={() => refetch()}>
-            Retry
+            {t('invoiceList.retry')}
           </Button>
         </div>
       ) : data.data.length === 0 ? (
         filtersActive ? (
           <div className="rounded-lg border border-border bg-card p-10 text-center">
-            <p className="font-medium text-foreground">No invoices match your filters</p>
+            <p className="font-medium text-foreground">{t('invoiceList.noMatch')}</p>
             <button type="button" onClick={clearAll} className="mt-2 text-sm text-primary">
-              Clear filters
+              {t('invoiceList.clearFilters')}
             </button>
           </div>
         ) : (
           <div className="rounded-lg border border-border bg-card p-10 text-center">
-            <p className="font-medium text-foreground">No invoices yet</p>
+            <p className="font-medium text-foreground">{t('invoiceList.noInvoicesYet')}</p>
             <Button asChild className="mt-3">
-              <Link to="/invoices/new">Create invoice</Link>
+              <Link to="/invoices/new">{t('invoiceList.createInvoice')}</Link>
             </Button>
           </div>
         )
@@ -120,7 +125,7 @@ export default function InvoiceList() {
           {pageCount > 1 && (
             <div className="mt-4 flex items-center justify-end gap-3 text-sm">
               <span className="text-muted-foreground">
-                Page {filters.page} of {pageCount}
+                {t('invoiceList.pageOf', { page: filters.page, pageCount })}
               </span>
               <Button
                 variant="outline"
@@ -128,7 +133,7 @@ export default function InvoiceList() {
                 disabled={filters.page <= 1}
                 onClick={() => goToPage(filters.page - 1)}
               >
-                Prev
+                {t('invoiceList.prev')}
               </Button>
               <Button
                 variant="outline"
@@ -136,7 +141,7 @@ export default function InvoiceList() {
                 disabled={filters.page >= pageCount}
                 onClick={() => goToPage(filters.page + 1)}
               >
-                Next
+                {t('invoiceList.next')}
               </Button>
             </div>
           )}

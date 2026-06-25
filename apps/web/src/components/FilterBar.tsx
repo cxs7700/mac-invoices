@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { InvoiceSortField } from '@mac-invoices/shared'
 import {
   STATUS_OPTIONS,
@@ -11,11 +12,11 @@ import { useProperties } from '@/hooks/useProperties'
 const field =
   'rounded-md border border-input bg-card px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring'
 
-const SORT_LABELS: Record<InvoiceSortField, string> = {
-  invoiceDate: 'Date',
-  amount: 'Amount',
-  dueDate: 'Due date',
-  status: 'Status',
+const SORT_LABEL_KEYS: Record<InvoiceSortField, string> = {
+  invoiceDate: 'filterBar.sortDate',
+  amount: 'filterBar.sortAmount',
+  dueDate: 'filterBar.sortDueDate',
+  status: 'filterBar.sortStatus',
 }
 
 type Props = {
@@ -30,6 +31,7 @@ type Props = {
  * debounced so typing doesn't issue a request per keystroke.
  */
 export function FilterBar({ filters, onChange, onClear }: Props) {
+  const { t } = useTranslation()
   const { data: propData } = useProperties()
   const properties = propData?.data ?? []
   // Local mirrors of the free-text inputs so we can debounce before lifting up.
@@ -78,11 +80,11 @@ export function FilterBar({ filters, onChange, onClear }: Props) {
   return (
     <div className="mb-4 flex flex-col gap-3 md:flex-row md:flex-wrap md:items-end">
       <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-        Search
+        {t('filterBar.search')}
         <input
           type="search"
-          aria-label="Search by description"
-          placeholder="Search description…"
+          aria-label={t('filterBar.searchByDescription')}
+          placeholder={t('filterBar.searchDescriptionPlaceholder')}
           className={field}
           value={search}
           onChange={(e) => handleSearch(e.target.value)}
@@ -90,32 +92,32 @@ export function FilterBar({ filters, onChange, onClear }: Props) {
       </label>
 
       <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-        Status
+        {t('filterBar.status')}
         <select
-          aria-label="Filter by status"
+          aria-label={t('filterBar.filterByStatus')}
           className={field}
           value={filters.status}
           onChange={(e) => onChange({ status: e.target.value })}
         >
-          <option value="">All statuses</option>
+          <option value="">{t('filterBar.allStatuses')}</option>
           {STATUS_OPTIONS.map((s) => (
             <option key={s} value={s}>
-              {s}
+              {t(`status.${s}`)}
             </option>
           ))}
         </select>
       </label>
 
       <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-        Property
+        {t('filterBar.property')}
         <select
-          aria-label="Filter by property"
+          aria-label={t('filterBar.filterByProperty')}
           className={field}
           value={filters.propertyId}
           onChange={(e) => onChange({ propertyId: e.target.value })}
         >
-          <option value="">All properties</option>
-          <option value="none">Unassigned</option>
+          <option value="">{t('filterBar.allProperties')}</option>
+          <option value="none">{t('filterBar.unassigned')}</option>
           {properties.map((p) => (
             <option key={p.id} value={p.id}>
               {p.name}
@@ -125,10 +127,10 @@ export function FilterBar({ filters, onChange, onClear }: Props) {
       </label>
 
       <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-        From date
+        {t('filterBar.fromDate')}
         <input
           type="date"
-          aria-label="From date"
+          aria-label={t('filterBar.fromDate')}
           className={field}
           value={filters.from}
           max={filters.to || undefined}
@@ -137,10 +139,10 @@ export function FilterBar({ filters, onChange, onClear }: Props) {
       </label>
 
       <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-        To date
+        {t('filterBar.toDate')}
         <input
           type="date"
-          aria-label="To date"
+          aria-label={t('filterBar.toDate')}
           className={field}
           value={filters.to}
           min={filters.from || undefined}
@@ -149,11 +151,11 @@ export function FilterBar({ filters, onChange, onClear }: Props) {
       </label>
 
       <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-        Vendor
+        {t('filterBar.vendor')}
         <input
           type="text"
-          aria-label="Filter by vendor"
-          placeholder="Search vendor…"
+          aria-label={t('filterBar.filterByVendor')}
+          placeholder={t('filterBar.searchVendorPlaceholder')}
           className={field}
           value={vendor}
           onChange={(e) => handleVendor(e.target.value)}
@@ -161,16 +163,16 @@ export function FilterBar({ filters, onChange, onClear }: Props) {
       </label>
 
       <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-        Sort by
+        {t('filterBar.sortBy')}
         <select
-          aria-label="Sort by"
+          aria-label={t('filterBar.sortBy')}
           className={field}
           value={filters.sort}
           onChange={(e) => onChange({ sort: e.target.value })}
         >
           {SORT_OPTIONS.map((s) => (
             <option key={s} value={s}>
-              {SORT_LABELS[s]}
+              {t(SORT_LABEL_KEYS[s])}
             </option>
           ))}
         </select>
@@ -178,23 +180,23 @@ export function FilterBar({ filters, onChange, onClear }: Props) {
 
       <button
         type="button"
-        aria-label={filters.order === 'asc' ? 'Sort ascending' : 'Sort descending'}
-        title={filters.order === 'asc' ? 'Ascending' : 'Descending'}
+        aria-label={filters.order === 'asc' ? t('filterBar.sortAscending') : t('filterBar.sortDescending')}
+        title={filters.order === 'asc' ? t('filterBar.ascending') : t('filterBar.descending')}
         className={`${field} md:self-stretch`}
         onClick={() => onChange({ order: filters.order === 'asc' ? 'desc' : 'asc' })}
       >
-        {filters.order === 'asc' ? '↑ Asc' : '↓ Desc'}
+        {filters.order === 'asc' ? t('filterBar.ascShort') : t('filterBar.descShort')}
       </button>
 
       {hasActiveFilters(filters) && (
         <button type="button" onClick={onClear} className="text-sm text-primary md:self-end md:pb-2">
-          Clear filters
+          {t('filterBar.clearFilters')}
         </button>
       )}
 
       {dateError && (
         <p role="alert" className="basis-full text-sm text-destructive">
-          Start date must be on or before the end date.
+          {t('filterBar.dateRangeError')}
         </p>
       )}
     </div>

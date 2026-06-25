@@ -1,4 +1,5 @@
-import { isOverdue, STATUS_LABEL } from '@/lib/format'
+import { useTranslation } from 'react-i18next'
+import { isOverdue } from '@/lib/format'
 
 type Props = {
   status: string
@@ -20,8 +21,9 @@ const TONE: Record<string, string> = {
 const PENDING_TONE = 'bg-status-pending text-status-pending-foreground'
 
 export function StatusBadge({ status, dueDate }: Props) {
+  const { t } = useTranslation()
   const overdue = isOverdue(status, dueDate)
-  const label = overdue ? 'Overdue' : (STATUS_LABEL[status] ?? status)
+  const label = overdue ? t('status.overdue') : t(`status.${status}`, status)
   const tone = overdue
     ? 'bg-status-overdue text-status-overdue-foreground'
     : (TONE[status] ?? PENDING_TONE)
@@ -29,7 +31,7 @@ export function StatusBadge({ status, dueDate }: Props) {
   return (
     <span
       role="status"
-      aria-label={`Status: ${label}`}
+      aria-label={t('status.aria', { label })}
       className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${tone}`}
     >
       {label}

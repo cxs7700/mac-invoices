@@ -1,4 +1,5 @@
 import { Link } from 'react-router'
+import { useTranslation } from 'react-i18next'
 import type { InvoiceListItem } from '@/hooks/useInvoices'
 import { StatusBadge } from './StatusBadge'
 import { SyncBadge } from './SyncBadge'
@@ -8,19 +9,20 @@ const th = 'px-4 py-2 font-medium'
 const td = 'px-4 py-2.5'
 
 export function InvoiceTable({ invoices }: { invoices: InvoiceListItem[] }) {
+  const { t } = useTranslation()
   return (
     <div data-rscroll className="overflow-x-auto rounded-lg border border-border bg-card">
       <table className="w-full text-sm">
         <thead className="border-b border-border text-left text-muted-foreground">
           <tr>
-            <th className={th}>#</th>
-            <th className={th}>Job</th>
-            <th className={th}>Vendor</th>
-            <th className={th}>Date</th>
-            <th className={th}>Due</th>
-            <th className={`${th} text-right`}>Price</th>
-            <th className={th}>Status</th>
-            <th className={th}>Sheet</th>
+            <th className={th}>{t('invoiceTable.number')}</th>
+            <th className={th}>{t('invoiceTable.job')}</th>
+            <th className={th}>{t('invoiceTable.vendor')}</th>
+            <th className={th}>{t('invoiceTable.date')}</th>
+            <th className={th}>{t('invoiceTable.due')}</th>
+            <th className={`${th} text-right`}>{t('invoiceTable.price')}</th>
+            <th className={th}>{t('invoiceTable.status')}</th>
+            <th className={th}>{t('invoiceTable.sheet')}</th>
           </tr>
         </thead>
         <tbody>

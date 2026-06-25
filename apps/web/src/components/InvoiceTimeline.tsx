@@ -1,31 +1,43 @@
+import { useTranslation } from 'react-i18next'
 import type { TimelineEvent } from '@/hooks/useInvoiceEvents'
-import { STATUS_LABEL, formatDate } from '@/lib/format'
+import { formatDate } from '@/lib/format'
 
 type Tone = 'done' | 'current' | 'overdue' | 'terminal'
 
-const statusLabel = (s: unknown) => STATUS_LABEL[String(s)] ?? String(s)
+type TFn = (key: string) => string
+
+const statusLabel = (t: TFn, s: unknown) => t(`status.${String(s)}`)
 
 /** Derive the display label, optional sub-detail, and tone for one ledger event. */
-function describe(e: TimelineEvent): { label: string; detail?: string; tone: Tone } {
+function describe(e: TimelineEvent, t: TFn): { label: string; detail?: string; tone: Tone } {
   switch (e.type) {
     case 'CREATED':
-      return { label: 'Created', tone: 'done' }
+      return { label: t('timeline.created'), tone: 'done' }
     case 'STATUS_CHANGED': {
       const { from, to } = e.detail as { from?: unknown; to?: unknown }
       const tone: Tone = to === 'PAID' ? 'done' : to === 'REJECTED' || to === 'CANCELLED' ? 'terminal' : 'current'
-      return { label: from ? `${statusLabel(from)} → ${statusLabel(to)}` : `Marked ${statusLabel(to)}`, tone }
+      return {
+        label: from
+          ? `${statusLabel(t, from)} → ${statusLabel(t, to)}`
+          : `${t('timeline.marked')} ${statusLabel(t, to)}`,
+        tone,
+      }
     }
     case 'FIELD_EDITED': {
       const { field, old: oldV, new: newV } = e.detail as { field?: unknown; old?: unknown; new?: unknown }
       const fmt = (v: unknown) => (v == null || v === '' ? '—' : String(v))
-      return { label: `Edited ${String(field ?? 'field')}`, detail: `${fmt(oldV)} → ${fmt(newV)}`, tone: 'current' }
+      return {
+        label: `${t('timeline.edited')} ${String(field ?? t('timeline.field'))}`,
+        detail: `${fmt(oldV)} → ${fmt(newV)}`,
+        tone: 'current',
+      }
     }
     case 'DELETED':
-      return { label: 'Deleted', tone: 'terminal' }
+      return { label: t('timeline.deleted'), tone: 'terminal' }
     case 'IMAGE_ATTACHED':
-      return { label: 'Photo attached', tone: 'done' }
+      return { label: t('timeline.photoAttached'), tone: 'done' }
     case 'IMAGE_REMOVED':
-      return { label: 'Photo removed', tone: 'terminal' }
+      return { label: t('timeline.photoRemoved'), tone: 'terminal' }
     default:
       return { label: e.type, tone: 'current' }
   }
@@ -50,13 +62,15 @@ export function InvoiceTimeline({
   events: TimelineEvent[]
   isLoading?: boolean
 }) {
-  if (isLoading) return <p className="text-sm text-muted-foreground">Loading history…</p>
-  if (events.length === 0) return <p className="text-sm text-muted-foreground">No recorded history yet.</p>
+  const { t } = useTranslation()
+  if (isLoading) return <p className="text-sm text-muted-foreground">{t('timeline.loadingHistory')}</p>
+  if (events.length === 0)
+    return <p className="text-sm text-muted-foreground">{t('timeline.noHistory')}</p>
 
   return (
     <ol className="space-y-3">
       {events.map((e) => {
-        const { label, detail, tone } = describe(e)
+        const { label, detail, tone } = describe(e, t)
         return (
           <li key={e.id} className="flex items-start gap-3">
             <span className={`mt-1 inline-block h-2.5 w-2.5 shrink-0 rounded-full ${dot[tone]}`} aria-hidden />
@@ -65,13 +79,17 @@ export function InvoiceTimeline({
                 <span className="text-sm text-foreground">{label}</span>
                 {e.source === 'RECONSTRUCTED' && (
                   <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-                    inferred
+                    {t('timeline.inferred')}
                   </span>
                 )}
                 <span className="text-xs text-muted-foreground">{formatDate(e.createdAt)}</span>
               </div>
               {detail && <div className="text-xs text-muted-foreground">{detail}</div>}
-              {e.actor.name && <div className="text-xs text-muted-foreground">by {e.actor.name}</div>}
+              {e.actor.name && (
+                <div className="text-xs text-muted-foreground">
+                  {t('timeline.by')} {e.actor.name}
+                </div>
+              )}
             </div>
           </li>
         )

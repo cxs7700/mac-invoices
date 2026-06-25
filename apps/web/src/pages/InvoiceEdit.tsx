@@ -1,4 +1,5 @@
 import { Link, useNavigate, useParams } from 'react-router'
+import { useTranslation } from 'react-i18next'
 import type { CreateInvoiceInput, InvoiceCategory } from '@mac-invoices/shared'
 import { ApiError } from '@/lib/apiClient'
 import { InvoiceForm } from '@/components/InvoiceForm'
@@ -27,18 +28,19 @@ function toDefaults(invoice: Invoice) {
 }
 
 export default function InvoiceEdit() {
+  const { t } = useTranslation()
   const { id } = useParams()
   const navigate = useNavigate()
   const { data: invoice, isPending, isError } = useInvoice(id)
   const update = useUpdateInvoice(id!)
 
-  if (isPending) return <div className="text-muted-foreground">Loading…</div>
+  if (isPending) return <div className="text-muted-foreground">{t('invoiceEdit.loading')}</div>
   if (isError || !invoice)
     return (
       <div className="rounded-lg border border-border bg-card p-8 text-center">
-        <p className="text-muted-foreground">Invoice not found.</p>
+        <p className="text-muted-foreground">{t('invoiceEdit.notFound')}</p>
         <Button variant="outline" className="mt-3" asChild>
-          <Link to="/invoices">Back to invoices</Link>
+          <Link to="/invoices">{t('invoiceEdit.backToInvoices')}</Link>
         </Button>
       </div>
     )
@@ -47,7 +49,7 @@ export default function InvoiceEdit() {
     update.error instanceof ApiError
       ? update.error.message
       : update.error
-        ? 'Something went wrong'
+        ? t('invoiceEdit.genericError')
         : null
 
   const handleSubmit = (values: CreateInvoiceInput) =>
@@ -61,10 +63,10 @@ export default function InvoiceEdit() {
         to={`/invoices/${invoice.id}`}
         className="text-sm text-muted-foreground hover:text-foreground"
       >
-        ← Back to invoice
+        {t('invoiceEdit.backToInvoice')}
       </Link>
       <h1 className="mt-2 mb-6 text-2xl font-bold text-foreground">
-        Edit invoice {invoice.invoiceNumber}
+        {t('invoiceEdit.title', { number: invoice.invoiceNumber })}
       </h1>
 
       <InvoiceForm
@@ -72,7 +74,7 @@ export default function InvoiceEdit() {
         defaultValues={toDefaults(invoice)}
         isSubmitting={update.isPending}
         serverError={serverError}
-        submitLabel="Save changes"
+        submitLabel={t('invoiceEdit.saveChanges')}
       />
     </div>
   )

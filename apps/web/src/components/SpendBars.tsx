@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { formatMoney } from '@/lib/format'
 
 export type SpendBarRow = { key: string; label: string; amount: string; count: number }
@@ -7,11 +8,12 @@ export type SpendBarRow = { key: string; label: string; amount: string; count: n
  * to the largest row. Each row shows the amount and invoice count.
  */
 export function SpendBars({ rows }: { rows: SpendBarRow[] }) {
+  const { t } = useTranslation()
   const values = rows.map((r) => parseFloat(r.amount))
   const max = Math.max(1, ...values)
 
   if (rows.length === 0) {
-    return <p className="text-sm text-muted-foreground">Nothing to show yet.</p>
+    return <p className="text-sm text-muted-foreground">{t('spendBars.empty')}</p>
   }
 
   return (

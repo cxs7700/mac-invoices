@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   useInvoiceImageUrl,
   useAttachInvoiceImage,
@@ -13,6 +14,7 @@ import { Button } from './ui/button'
  * An expired signed URL is refreshed once before giving up.
  */
 export function InvoicePhoto({ invoiceId }: { invoiceId: string }) {
+  const { t } = useTranslation()
   const { data, isError, refetch } = useInvoiceImageUrl(invoiceId)
   const attach = useAttachInvoiceImage(invoiceId)
   const remove = useRemoveInvoiceImage(invoiceId)
@@ -24,18 +26,18 @@ export function InvoicePhoto({ invoiceId }: { invoiceId: string }) {
 
   return (
     <div className="rounded-lg border border-border bg-card p-5">
-      <h2 className="mb-3 text-sm font-semibold text-foreground">Photo</h2>
+      <h2 className="mb-3 text-sm font-semibold text-foreground">{t('invoicePhoto.heading')}</h2>
       {hasPhoto ? (
         <div className="space-y-3">
           <button
             type="button"
             className="block w-full"
             onClick={() => setLightbox(true)}
-            aria-label="View full-size photo"
+            aria-label={t('invoicePhoto.viewFullSize')}
           >
             <img
               src={url}
-              alt="Invoice photo"
+              alt={t('invoicePhoto.alt')}
               className="max-h-48 w-full rounded-md border border-border object-cover"
               onError={() => {
                 if (!refreshed) {
@@ -55,7 +57,7 @@ export function InvoicePhoto({ invoiceId }: { invoiceId: string }) {
               disabled={remove.isPending}
               onClick={() => remove.mutate()}
             >
-              Remove
+              {t('invoicePhoto.remove')}
             </Button>
           </div>
         </div>
@@ -67,11 +69,11 @@ export function InvoicePhoto({ invoiceId }: { invoiceId: string }) {
         <div
           role="dialog"
           aria-modal="true"
-          aria-label="Invoice photo full size"
+          aria-label={t('invoicePhoto.fullSize')}
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
           onClick={() => setLightbox(false)}
         >
-          <img src={url} alt="Invoice photo full size" className="max-h-full max-w-full rounded-md" />
+          <img src={url} alt={t('invoicePhoto.fullSize')} className="max-h-full max-w-full rounded-md" />
         </div>
       )}
     </div>

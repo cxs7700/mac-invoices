@@ -2,6 +2,7 @@ import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Link } from 'react-router'
+import { useTranslation } from 'react-i18next'
 import { CreateInvoiceSchema, InvoiceCategory, type CreateInvoiceInput } from '@mac-invoices/shared'
 import { Button } from '@/components/ui/button'
 import { useProperties } from '@/hooks/useProperties'
@@ -32,8 +33,9 @@ export function InvoiceForm({
   defaultValues,
   isSubmitting,
   serverError,
-  submitLabel = 'Create invoice',
+  submitLabel,
 }: Props) {
+  const { t } = useTranslation()
   const { data: propData, isPending: propsLoading, isError: propsError } = useProperties()
   const properties = propData?.data ?? []
   const noProperties = !propsLoading && !propsError && properties.length === 0
@@ -57,7 +59,7 @@ export function InvoiceForm({
     >
       <div>
         <label htmlFor="vendorName" className="block text-sm font-medium mb-1">
-          Vendor
+          {t('invoiceForm.vendor')}
         </label>
         <input id="vendorName" className={fieldClass} {...register('vendorName')} />
         {errors.vendorName && (
@@ -67,7 +69,7 @@ export function InvoiceForm({
 
       <div>
         <label htmlFor="description" className="block text-sm font-medium mb-1">
-          Description
+          {t('invoiceForm.description')}
         </label>
         <input id="description" className={fieldClass} {...register('description')} />
         {errors.description && (
@@ -78,7 +80,7 @@ export function InvoiceForm({
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label htmlFor="amount" className="block text-sm font-medium mb-1">
-            Amount
+            {t('invoiceForm.amount')}
           </label>
           <input
             id="amount"
@@ -94,12 +96,12 @@ export function InvoiceForm({
 
         <div>
           <label htmlFor="category" className="block text-sm font-medium mb-1">
-            Category
+            {t('invoiceForm.category')}
           </label>
           <select id="category" className={fieldClass} {...register('category')}>
             {CATEGORIES.map((c) => (
               <option key={c} value={c}>
-                {c}
+                {t(`category.${c}`)}
               </option>
             ))}
           </select>
@@ -108,7 +110,7 @@ export function InvoiceForm({
 
       <div>
         <label htmlFor="invoiceDate" className="block text-sm font-medium mb-1">
-          Invoice date
+          {t('invoiceForm.invoiceDate')}
         </label>
         <input id="invoiceDate" type="date" className={fieldClass} {...register('invoiceDate')} />
         {errors.invoiceDate && (
@@ -118,7 +120,7 @@ export function InvoiceForm({
 
       <div>
         <label htmlFor="propertyId" className="block text-sm font-medium mb-1">
-          Property
+          {t('invoiceForm.property')}
         </label>
         <select
           id="propertyId"
@@ -126,29 +128,33 @@ export function InvoiceForm({
           disabled={propsLoading || propsError}
           {...register('propertyId', { setValueAs: (v) => v || undefined })}
         >
-          <option value="">— None —</option>
+          <option value="">{t('invoiceForm.none')}</option>
           {properties.map((p) => (
             <option key={p.id} value={p.id}>
               {p.name}
             </option>
           ))}
         </select>
-        {propsLoading && <p className="mt-1 text-sm text-muted-foreground">Loading properties…</p>}
-        {propsError && <p className="mt-1 text-sm text-muted-foreground">Couldn't load properties.</p>}
+        {propsLoading && (
+          <p className="mt-1 text-sm text-muted-foreground">{t('invoiceForm.loadingProperties')}</p>
+        )}
+        {propsError && (
+          <p className="mt-1 text-sm text-muted-foreground">{t('invoiceForm.loadPropertiesError')}</p>
+        )}
         {noProperties && (
           <p className="mt-1 text-sm text-muted-foreground">
-            No properties yet.{' '}
+            {t('invoiceForm.noProperties')}{' '}
             <Link to="/properties" className="underline">
-              Add one
+              {t('invoiceForm.addOne')}
             </Link>{' '}
-            to assign and to approve.
+            {t('invoiceForm.toAssignAndApprove')}
           </p>
         )}
       </div>
 
       <div>
         <label htmlFor="notes" className="block text-sm font-medium mb-1">
-          Notes
+          {t('invoiceForm.notes')}
         </label>
         <input id="notes" className={fieldClass} {...register('notes')} />
       </div>
@@ -156,7 +162,7 @@ export function InvoiceForm({
       {serverError && <p className="text-sm text-destructive">{serverError}</p>}
 
       <Button type="submit" disabled={isSubmitting}>
-        {isSubmitting ? 'Saving…' : submitLabel}
+        {isSubmitting ? t('invoiceForm.saving') : (submitLabel ?? t('invoiceForm.createInvoice'))}
       </Button>
     </form>
   )

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ApiError } from '@/lib/apiClient'
 import { ContractorLinkCard } from '@/components/ContractorLinkCard'
 import { Button } from '@/components/ui/button'
@@ -10,6 +11,7 @@ import {
 } from '@/hooks/useContractors'
 
 export default function Contractors() {
+  const { t } = useTranslation()
   const { data, isPending, isError } = useContractors()
   const create = useCreateContractor()
   const revoke = useRevokeLink()
@@ -49,16 +51,14 @@ export default function Contractors() {
 
   return (
     <div className="max-w-2xl">
-      <h1 className="mb-1 text-2xl font-bold text-foreground">Contractors</h1>
-      <p className="mb-6 text-sm text-muted-foreground">
-        Add a contractor and share their link — they submit invoices from their phone, no login.
-      </p>
+      <h1 className="mb-1 text-2xl font-bold text-foreground">{t('contractors.title')}</h1>
+      <p className="mb-6 text-sm text-muted-foreground">{t('contractors.subtitle')}</p>
 
       <form onSubmit={onCreate} className="mb-6 rounded-lg border border-border bg-card p-4">
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <label htmlFor="name" className="text-sm font-medium text-foreground">
-              Name
+              {t('contractors.nameLabel')}
             </label>
             <input
               id="name"
@@ -69,7 +69,7 @@ export default function Contractors() {
           </div>
           <div>
             <label htmlFor="contact" className="text-sm font-medium text-foreground">
-              Contact (phone or email)
+              {t('contractors.contactLabel')}
             </label>
             <input
               id="contact"
@@ -89,16 +89,16 @@ export default function Contractors() {
           className="mt-3"
           disabled={create.isPending || !name.trim() || !contact.trim()}
         >
-          {create.isPending ? 'Adding…' : 'Add contractor'}
+          {create.isPending ? t('contractors.adding') : t('contractors.addButton')}
         </Button>
       </form>
 
       {isError ? (
-        <p className="text-sm text-destructive">Couldn't load contractors.</p>
+        <p className="text-sm text-destructive">{t('contractors.loadError')}</p>
       ) : isPending ? (
-        <p className="text-sm text-muted-foreground">Loading…</p>
+        <p className="text-sm text-muted-foreground">{t('contractors.loading')}</p>
       ) : contractors.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No contractors yet. Add one to get started.</p>
+        <p className="text-sm text-muted-foreground">{t('contractors.empty')}</p>
       ) : (
         <ul className="space-y-3">
           {contractors.map((c) => (
