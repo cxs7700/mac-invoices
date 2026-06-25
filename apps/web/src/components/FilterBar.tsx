@@ -6,6 +6,7 @@ import {
   hasActiveFilters,
   type ListFilters,
 } from '@/lib/listParams'
+import { useProperties } from '@/hooks/useProperties'
 
 const field =
   'rounded-md border border-input bg-card px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring'
@@ -29,6 +30,8 @@ type Props = {
  * debounced so typing doesn't issue a request per keystroke.
  */
 export function FilterBar({ filters, onChange, onClear }: Props) {
+  const { data: propData } = useProperties()
+  const properties = propData?.data ?? []
   // Local mirrors of the free-text inputs so we can debounce before lifting up.
   const [vendor, setVendor] = useState(filters.vendor)
   const [search, setSearch] = useState(filters.search)
@@ -39,7 +42,7 @@ export function FilterBar({ filters, onChange, onClear }: Props) {
   // committed vendor/search), resync the inputs to the URL value and cancel a
   // pending debounce — otherwise an uncommitted keystroke could resurrect a
   // just-cleared value. Keyed on the full signature, adjusting state in render.
-  const sig = `${filters.status}|${filters.from}|${filters.to}|${filters.vendor}|${filters.search}|${filters.sort}|${filters.order}|${filters.page}`
+  const sig = `${filters.status}|${filters.from}|${filters.to}|${filters.vendor}|${filters.search}|${filters.propertyId}|${filters.sort}|${filters.order}|${filters.page}`
   const [syncedSig, setSyncedSig] = useState(sig)
   if (sig !== syncedSig) {
     setSyncedSig(sig)
@@ -98,6 +101,24 @@ export function FilterBar({ filters, onChange, onClear }: Props) {
           {STATUS_OPTIONS.map((s) => (
             <option key={s} value={s}>
               {s}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+        Property
+        <select
+          aria-label="Filter by property"
+          className={field}
+          value={filters.propertyId}
+          onChange={(e) => onChange({ propertyId: e.target.value })}
+        >
+          <option value="">All properties</option>
+          <option value="none">Unassigned</option>
+          {properties.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
             </option>
           ))}
         </select>

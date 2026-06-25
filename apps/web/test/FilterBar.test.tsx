@@ -3,11 +3,17 @@ import { render, screen, fireEvent, act } from '@testing-library/react'
 import { FilterBar } from '@/components/FilterBar'
 import type { ListFilters } from '@/lib/listParams'
 
+vi.mock('@/hooks/useProperties', () => ({
+  useProperties: () => ({ data: { data: [] }, isPending: false, isError: false }),
+}))
+
 const base: ListFilters = {
   status: '',
   from: '',
   to: '',
   vendor: '',
+  search: '',
+  propertyId: '',
   sort: 'invoiceDate',
   order: 'desc',
   page: 1,

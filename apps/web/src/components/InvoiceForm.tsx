@@ -1,8 +1,10 @@
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
+import { Link } from 'react-router'
 import { CreateInvoiceSchema, InvoiceCategory, type CreateInvoiceInput } from '@mac-invoices/shared'
 import { Button } from '@/components/ui/button'
+import { useProperties } from '@/hooks/useProperties'
 
 // Derived from the shared enum so the options stay in sync with the schema.
 const CATEGORIES = InvoiceCategory.options
@@ -32,6 +34,10 @@ export function InvoiceForm({
   serverError,
   submitLabel = 'Create invoice',
 }: Props) {
+  const { data: propData, isPending: propsLoading, isError: propsError } = useProperties()
+  const properties = propData?.data ?? []
+  const noProperties = !propsLoading && !propsError && properties.length === 0
+
   const {
     register,
     handleSubmit,
@@ -107,6 +113,36 @@ export function InvoiceForm({
         <input id="invoiceDate" type="date" className={fieldClass} {...register('invoiceDate')} />
         {errors.invoiceDate && (
           <p className="mt-1 text-sm text-destructive">{errors.invoiceDate.message}</p>
+        )}
+      </div>
+
+      <div>
+        <label htmlFor="propertyId" className="block text-sm font-medium mb-1">
+          Property
+        </label>
+        <select
+          id="propertyId"
+          className={fieldClass}
+          disabled={propsLoading || propsError}
+          {...register('propertyId', { setValueAs: (v) => v || undefined })}
+        >
+          <option value="">— None —</option>
+          {properties.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+            </option>
+          ))}
+        </select>
+        {propsLoading && <p className="mt-1 text-sm text-muted-foreground">Loading properties…</p>}
+        {propsError && <p className="mt-1 text-sm text-muted-foreground">Couldn't load properties.</p>}
+        {noProperties && (
+          <p className="mt-1 text-sm text-muted-foreground">
+            No properties yet.{' '}
+            <Link to="/properties" className="underline">
+              Add one
+            </Link>{' '}
+            to assign and to approve.
+          </p>
         )}
       </div>
 

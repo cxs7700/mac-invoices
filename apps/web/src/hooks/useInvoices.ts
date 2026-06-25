@@ -28,6 +28,7 @@ export type InvoiceListParams = {
   to?: string
   vendor?: string
   search?: string
+  propertyId?: string
   sort?: string
   order?: string
   limit?: number
@@ -42,6 +43,7 @@ export function useInvoices(params: InvoiceListParams) {
   if (params.to) qs.set('to', params.to)
   if (params.vendor) qs.set('vendor', params.vendor)
   if (params.search) qs.set('search', params.search)
+  if (params.propertyId) qs.set('propertyId', params.propertyId)
   if (params.sort) qs.set('sort', params.sort)
   if (params.order) qs.set('order', params.order)
   qs.set('limit', String(params.limit ?? 20))
