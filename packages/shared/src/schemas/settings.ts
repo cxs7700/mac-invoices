@@ -7,6 +7,15 @@ export const UpdateProfileSchema = z.object({
 })
 export type UpdateProfileInput = z.infer<typeof UpdateProfileSchema>
 
+// Change password: the current password is required (re-auth), the new one must
+// clear a real minimum. Login accepts min(1) to attempt any credential, but a
+// *new* password deserves a real floor — 8 chars.
+export const ChangePasswordSchema = z.object({
+  currentPassword: z.string().min(1),
+  newPassword: z.string().min(8).max(200),
+})
+export type ChangePasswordInput = z.infer<typeof ChangePasswordSchema>
+
 // The account shape the settings UI reads (never the password hash).
 export const AccountSchema = z.object({
   id: z.string(),
