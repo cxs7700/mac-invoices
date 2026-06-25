@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 import type { NotificationItem } from '@mac-invoices/shared'
 import { useNotifications, useMarkNotificationsSeen } from '@/hooks/useNotifications'
@@ -8,6 +9,7 @@ import { formatDate } from '@/lib/format'
  * the panel marks the feed seen (clears the badge); each item links to its
  * invoice. */
 export function NotificationsBell() {
+  const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const feed = useNotifications()
   const markSeen = useMarkNotificationsSeen()
@@ -26,7 +28,9 @@ export function NotificationsBell() {
       <button
         type="button"
         onClick={toggle}
-        aria-label={unread > 0 ? `Notifications (${unread} unread)` : 'Notifications'}
+        aria-label={
+          unread > 0 ? t('notifications.unreadAria', { count: unread }) : t('notifications.title')
+        }
         aria-expanded={open}
         className="relative rounded-md p-1.5 text-foreground hover:bg-accent"
       >
@@ -49,15 +53,15 @@ export function NotificationsBell() {
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} aria-hidden />
           <div
             role="dialog"
-            aria-label="Notifications"
+            aria-label={t('notifications.title')}
             className="absolute right-0 z-50 mt-2 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-md border border-border bg-card shadow-lg"
           >
             <div className="border-b border-border px-4 py-2 text-sm font-semibold text-foreground">
-              Notifications
+              {t('notifications.title')}
             </div>
             {items.length === 0 ? (
               <p className="px-4 py-6 text-center text-sm text-muted-foreground">
-                No contractor activity yet.
+                {t('notifications.empty')}
               </p>
             ) : (
               <ul className="max-h-96 divide-y divide-border overflow-auto">
@@ -74,6 +78,7 @@ export function NotificationsBell() {
 }
 
 function NotificationRow({ item, onNavigate }: { item: NotificationItem; onNavigate: () => void }) {
+  const { t } = useTranslation()
   return (
     <li className={item.unread ? 'bg-accent/40' : undefined}>
       <Link
@@ -82,7 +87,10 @@ function NotificationRow({ item, onNavigate }: { item: NotificationItem; onNavig
         className="block px-4 py-3 text-sm hover:bg-accent"
       >
         <span className="text-foreground">
-          <span className="font-medium">{item.contractorName ?? 'A contractor'}</span> {item.summary}
+          <span className="font-medium">
+            {item.contractorName ?? t('notifications.fallbackContractor')}
+          </span>{' '}
+          {item.summary}
         </span>
         <span className="mt-0.5 block text-xs text-muted-foreground">{formatDate(item.createdAt)}</span>
       </Link>

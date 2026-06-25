@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { Contractor } from '@mac-invoices/shared'
 import { Button } from '@/components/ui/button'
 
@@ -21,6 +22,7 @@ export function ContractorLinkCard({
   onRevoke,
   busy,
 }: Props) {
+  const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
 
   const copy = (text: string) => {
@@ -43,37 +45,37 @@ export function ContractorLinkCard({
               : 'bg-status-overdue text-status-overdue-foreground'
           }`}
         >
-          {contractor.linkActive ? 'Link active' : 'Link revoked'}
+          {contractor.linkActive ? t('contractorCard.linkActive') : t('contractorCard.linkRevoked')}
         </span>
       </div>
 
       {revealedLink ? (
         <div className="mt-3 space-y-2 rounded-md border border-primary/30 bg-accent/40 p-3">
-          <p className="text-xs font-medium text-foreground">
-            Copy this link now — it won't be shown again.
-          </p>
+          <p className="text-xs font-medium text-foreground">{t('contractorCard.copyNow')}</p>
           <code className="block break-all rounded bg-background px-2 py-1 text-xs">{revealedLink}</code>
           <div className="flex gap-2">
             <Button size="sm" onClick={() => copy(revealedLink)}>
-              {copied ? 'Copied!' : 'Copy link'}
+              {copied ? t('contractorCard.copied') : t('contractorCard.copyLink')}
             </Button>
             <Button size="sm" variant="outline" onClick={onDismissReveal}>
-              Done — I copied it
+              {t('contractorCard.doneCopied')}
             </Button>
           </div>
         </div>
       ) : (
         <div className="mt-3 flex flex-wrap gap-2">
           <Button size="sm" variant="outline" disabled={busy} onClick={onRegenerate}>
-            {contractor.linkActive ? 'Regenerate link' : 'Re-issue link'}
+            {contractor.linkActive
+              ? t('contractorCard.regenerateLink')
+              : t('contractorCard.reissueLink')}
           </Button>
           {contractor.linkActive && (
             <Button size="sm" variant="outline" className="text-destructive" disabled={busy} onClick={onRevoke}>
-              Revoke
+              {t('contractorCard.revoke')}
             </Button>
           )}
           <span className="self-center text-xs text-muted-foreground">
-            The link is shown only when created or regenerated.
+            {t('contractorCard.linkShownHint')}
           </span>
         </div>
       )}

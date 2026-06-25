@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
+import { useTranslation } from 'react-i18next'
 import { ApiError } from '@/lib/apiClient'
 import { Button } from '@/components/ui/button'
 import { useProperties, useCreateProperty, useDeleteProperty } from '@/hooks/useProperties'
 
 export default function Properties() {
+  const { t } = useTranslation()
   const { data, isPending, isError } = useProperties()
   const create = useCreateProperty()
   const del = useDeleteProperty()
@@ -36,7 +38,7 @@ export default function Properties() {
       onError: (err) =>
         setDelErrors((m) => ({
           ...m,
-          [id]: err instanceof ApiError ? err.message : 'Could not delete property.',
+          [id]: err instanceof ApiError ? err.message : t('properties.deleteFailed'),
         })),
     })
 
@@ -44,28 +46,26 @@ export default function Properties() {
 
   return (
     <div className="max-w-2xl">
-      <h1 className="mb-1 text-2xl font-bold text-foreground">Properties</h1>
-      <p className="mb-6 text-sm text-muted-foreground">
-        Organize invoices and spend by property. Assign a property when you approve an invoice.
-      </p>
+      <h1 className="mb-1 text-2xl font-bold text-foreground">{t('properties.title')}</h1>
+      <p className="mb-6 text-sm text-muted-foreground">{t('properties.subtitle')}</p>
 
       <form onSubmit={onCreate} className="mb-6 rounded-lg border border-border bg-card p-4">
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <label htmlFor="name" className="text-sm font-medium text-foreground">
-              Name
+              {t('properties.name')}
             </label>
             <input
               id="name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="123 Main St or Maple Duplex"
+              placeholder={t('properties.namePlaceholder')}
               className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
             />
           </div>
           <div>
             <label htmlFor="address" className="text-sm font-medium text-foreground">
-              Address
+              {t('properties.address')}
             </label>
             <input
               id="address"
@@ -77,7 +77,7 @@ export default function Properties() {
         </div>
         <div className="mt-3">
           <label htmlFor="notes" className="text-sm font-medium text-foreground">
-            Notes (optional)
+            {t('properties.notesOptional')}
           </label>
           <input
             id="notes"
@@ -92,16 +92,16 @@ export default function Properties() {
           </p>
         )}
         <Button type="submit" className="mt-3" disabled={create.isPending || !name.trim() || !address.trim()}>
-          {create.isPending ? 'Adding…' : 'Add property'}
+          {create.isPending ? t('properties.adding') : t('properties.addProperty')}
         </Button>
       </form>
 
       {isError ? (
-        <p className="text-sm text-destructive">Couldn't load properties.</p>
+        <p className="text-sm text-destructive">{t('properties.loadError')}</p>
       ) : isPending ? (
-        <p className="text-sm text-muted-foreground">Loading…</p>
+        <p className="text-sm text-muted-foreground">{t('properties.loading')}</p>
       ) : properties.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No properties yet. Add one to get started.</p>
+        <p className="text-sm text-muted-foreground">{t('properties.empty')}</p>
       ) : (
         <ul className="space-y-3">
           {properties.map((p) => (
@@ -115,7 +115,7 @@ export default function Properties() {
                 </div>
                 <div className="flex shrink-0 items-center gap-3 text-sm">
                   <Link to={`/properties/${p.id}/edit`} className="text-muted-foreground hover:text-foreground">
-                    Edit
+                    {t('properties.edit')}
                   </Link>
                   <button
                     type="button"
@@ -123,7 +123,7 @@ export default function Properties() {
                     disabled={del.isPending}
                     className="text-destructive hover:underline"
                   >
-                    Delete
+                    {t('properties.delete')}
                   </button>
                 </div>
               </div>
@@ -131,7 +131,7 @@ export default function Properties() {
                 <p className="mt-2 text-sm text-destructive" role="alert">
                   {delErrors[p.id]}{' '}
                   <Link to={`/invoices?propertyId=${p.id}`} className="underline">
-                    View its invoices
+                    {t('properties.viewItsInvoices')}
                   </Link>
                 </p>
               )}

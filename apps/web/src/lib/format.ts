@@ -1,14 +1,7 @@
 import { localeTag } from './i18n'
 
-/** Display labels for invoice statuses — the single source for status text. */
-export const STATUS_LABEL: Record<string, string> = {
-  PENDING: 'Pending',
-  APPROVED: 'Approved',
-  PAID: 'Paid',
-  REJECTED: 'Rejected',
-  CANCELLED: 'Cancelled',
-  SUBMITTED: 'Submitted',
-}
+// Invoice status / sync labels now live in the i18n catalogs (status.* / sync.*)
+// and render via t() in StatusBadge / SyncBadge — no hardcoded label maps here.
 
 /** Format an invoice amount (a string from the API, per CONV-013) for display.
  * Currency stays USD; only the grouping/format localizes by the active locale. */
@@ -40,12 +33,6 @@ export function isOverdue(status: string, dueDate: string | Date | null | undefi
 }
 
 export type SyncState = 'not-exported' | 'exported' | 'drifted'
-
-export const SYNC_LABEL: Record<SyncState, string> = {
-  'not-exported': 'Not exported',
-  exported: 'Exported',
-  drifted: 'Drifted',
-}
 
 // The Sheets export stamp also bumps the row's updatedAt (~the same instant), so
 // only treat an invoice as "drifted" once it was edited more than this long

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 import { InvoiceCategory } from '@mac-invoices/shared'
 import { Button } from '@/components/ui/button'
@@ -10,9 +11,6 @@ type Props = {
   isPending: boolean
 }
 
-/** Title-case an enum value for display (REPAIRS → Repairs). */
-const titleCase = (s: string) => s.charAt(0) + s.slice(1).toLowerCase()
-
 /**
  * Landlord review actions for a SUBMITTED contractor submission. Approve opens a
  * required category picker (the API blocks APPROVED until a category is set, so
@@ -20,6 +18,7 @@ const titleCase = (s: string) => s.charAt(0) + s.slice(1).toLowerCase()
  * back to the contractor). Mirrors the detail page's two-step confirm pattern.
  */
 export function ReviewActions({ onApprove, onReject, isPending }: Props) {
+  const { t } = useTranslation()
   const [mode, setMode] = useState<'idle' | 'approve' | 'reject'>('idle')
   const [category, setCategory] = useState('')
   const [propertyId, setPropertyId] = useState('')
@@ -31,7 +30,7 @@ export function ReviewActions({ onApprove, onReject, isPending }: Props) {
     return (
       <div className="space-y-2 rounded-md border border-border p-3">
         <label htmlFor="approve-category" className="text-xs font-medium text-foreground">
-          Set a category and property to approve
+          {t('review.setCategoryAndProperty')}
         </label>
         <select
           id="approve-category"
@@ -39,21 +38,21 @@ export function ReviewActions({ onApprove, onReject, isPending }: Props) {
           onChange={(e) => setCategory(e.target.value)}
           className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
         >
-          <option value="">Select a category…</option>
+          <option value="">{t('review.selectCategory')}</option>
           {InvoiceCategory.options.map((c) => (
             <option key={c} value={c}>
-              {titleCase(c)}
+              {t(`category.${c}`)}
             </option>
           ))}
         </select>
         <select
           id="approve-property"
-          aria-label="Property"
+          aria-label={t('review.property')}
           value={propertyId}
           onChange={(e) => setPropertyId(e.target.value)}
           className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
         >
-          <option value="">Select a property…</option>
+          <option value="">{t('review.selectProperty')}</option>
           {properties.map((p) => (
             <option key={p.id} value={p.id}>
               {p.name}
@@ -62,11 +61,11 @@ export function ReviewActions({ onApprove, onReject, isPending }: Props) {
         </select>
         {properties.length === 0 && (
           <p className="text-xs text-muted-foreground">
-            No properties yet.{' '}
+            {t('review.noProperties')}{' '}
             <Link to="/properties" className="underline">
-              Add one
+              {t('review.addOne')}
             </Link>{' '}
-            before approving.
+            {t('review.beforeApproving')}
           </p>
         )}
         <div className="flex gap-2">
@@ -75,10 +74,10 @@ export function ReviewActions({ onApprove, onReject, isPending }: Props) {
             disabled={!category || !propertyId || isPending}
             onClick={() => onApprove(category, propertyId)}
           >
-            Confirm approve
+            {t('review.confirmApprove')}
           </Button>
           <Button variant="outline" className="flex-1" onClick={() => setMode('idle')}>
-            Cancel
+            {t('review.cancel')}
           </Button>
         </div>
       </div>
@@ -89,7 +88,7 @@ export function ReviewActions({ onApprove, onReject, isPending }: Props) {
     return (
       <div className="space-y-2 rounded-md border border-border p-3">
         <label htmlFor="reject-reason" className="text-xs font-medium text-foreground">
-          Reason (shown to the contractor)
+          {t('review.reasonLabel')}
         </label>
         <textarea
           id="reject-reason"
@@ -97,7 +96,7 @@ export function ReviewActions({ onApprove, onReject, isPending }: Props) {
           onChange={(e) => setReason(e.target.value)}
           rows={3}
           className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
-          placeholder="e.g. Amount doesn't match the receipt"
+          placeholder={t('review.reasonPlaceholder')}
         />
         <div className="flex gap-2">
           <Button
@@ -106,10 +105,10 @@ export function ReviewActions({ onApprove, onReject, isPending }: Props) {
             disabled={!reason.trim() || isPending}
             onClick={() => onReject(reason.trim())}
           >
-            Confirm reject
+            {t('review.confirmReject')}
           </Button>
           <Button variant="outline" className="flex-1" onClick={() => setMode('idle')}>
-            Cancel
+            {t('review.cancel')}
           </Button>
         </div>
       </div>
@@ -119,7 +118,7 @@ export function ReviewActions({ onApprove, onReject, isPending }: Props) {
   return (
     <div className="space-y-2">
       <Button className="w-full" disabled={isPending} onClick={() => setMode('approve')}>
-        Approve
+        {t('review.approve')}
       </Button>
       <Button
         variant="outline"
@@ -127,7 +126,7 @@ export function ReviewActions({ onApprove, onReject, isPending }: Props) {
         disabled={isPending}
         onClick={() => setMode('reject')}
       >
-        Reject
+        {t('review.reject')}
       </Button>
     </div>
   )

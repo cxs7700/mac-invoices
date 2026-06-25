@@ -1,22 +1,24 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
+import { useTranslation } from 'react-i18next'
 import { ApiError } from '@/lib/apiClient'
 import { Button } from '@/components/ui/button'
 import { useProperty, useUpdateProperty } from '@/hooks/useProperties'
 
 export default function PropertyEdit() {
+  const { t } = useTranslation()
   const { id } = useParams()
   const navigate = useNavigate()
   const { data: property, isPending, isError } = useProperty(id!)
   const update = useUpdateProperty(id!)
 
-  if (isPending) return <div className="text-muted-foreground">Loading…</div>
+  if (isPending) return <div className="text-muted-foreground">{t('propertyEdit.loading')}</div>
   if (isError || !property)
     return (
       <div className="rounded-lg border border-border bg-card p-8 text-center">
-        <p className="text-muted-foreground">Property not found.</p>
+        <p className="text-muted-foreground">{t('propertyEdit.notFound')}</p>
         <Button variant="outline" className="mt-3" asChild>
-          <Link to="/properties">Back to properties</Link>
+          <Link to="/properties">{t('propertyEdit.backToProperties')}</Link>
         </Button>
       </div>
     )
@@ -34,6 +36,7 @@ function EditForm({
   onSaved: () => void
   update: ReturnType<typeof useUpdateProperty>
 }) {
+  const { t } = useTranslation()
   const [name, setName] = useState(initial.name)
   const [address, setAddress] = useState(initial.address)
   const [notes, setNotes] = useState(initial.notes ?? '')
@@ -50,15 +53,15 @@ function EditForm({
   return (
     <div className="max-w-2xl">
       <Link to="/properties" className="text-sm text-muted-foreground hover:text-foreground">
-        ← Back to properties
+        ← {t('propertyEdit.backToProperties')}
       </Link>
-      <h1 className="mt-2 mb-6 text-2xl font-bold text-foreground">Edit property</h1>
+      <h1 className="mt-2 mb-6 text-2xl font-bold text-foreground">{t('propertyEdit.title')}</h1>
 
       <form onSubmit={onSubmit} className="rounded-lg border border-border bg-card p-4">
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <label htmlFor="name" className="text-sm font-medium text-foreground">
-              Name
+              {t('propertyEdit.name')}
             </label>
             <input
               id="name"
@@ -69,7 +72,7 @@ function EditForm({
           </div>
           <div>
             <label htmlFor="address" className="text-sm font-medium text-foreground">
-              Address
+              {t('propertyEdit.address')}
             </label>
             <input
               id="address"
@@ -81,7 +84,7 @@ function EditForm({
         </div>
         <div className="mt-3">
           <label htmlFor="notes" className="text-sm font-medium text-foreground">
-            Notes (optional)
+            {t('propertyEdit.notesOptional')}
           </label>
           <input
             id="notes"
@@ -96,7 +99,7 @@ function EditForm({
           </p>
         )}
         <Button type="submit" className="mt-3" disabled={update.isPending || !name.trim() || !address.trim()}>
-          {update.isPending ? 'Saving…' : 'Save changes'}
+          {update.isPending ? t('propertyEdit.saving') : t('propertyEdit.saveChanges')}
         </Button>
       </form>
     </div>

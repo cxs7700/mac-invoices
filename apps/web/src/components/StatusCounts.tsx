@@ -1,5 +1,5 @@
+import { useTranslation } from 'react-i18next'
 import { useInvoiceStats } from '@/hooks/useInvoiceStats'
-import { STATUS_LABEL } from '@/lib/format'
 import { STATUS_OPTIONS } from '@/lib/listParams'
 
 // Small colored dot keys each chip to its status without full-intensity fills
@@ -23,6 +23,7 @@ type Props = {
  * Secondary visual weight; the active chip is a toggle (re-click clears).
  */
 export function StatusCounts({ activeStatus, onSelect }: Props) {
+  const { t } = useTranslation()
   const { data, isPending, isError } = useInvoiceStats()
 
   if (isError) return null
@@ -39,7 +40,7 @@ export function StatusCounts({ activeStatus, onSelect }: Props) {
 
   return (
     <div className="mb-4 flex flex-wrap items-center gap-2">
-      <span className="text-xs text-muted-foreground">{data.total} total</span>
+      <span className="text-xs text-muted-foreground">{t('statusCounts.total', { count: data.total })}</span>
       {STATUS_OPTIONS.map((s) => {
         const active = activeStatus === s
         return (
@@ -47,7 +48,7 @@ export function StatusCounts({ activeStatus, onSelect }: Props) {
             key={s}
             type="button"
             aria-pressed={active}
-            aria-label={`Filter by ${STATUS_LABEL[s]}, ${data.counts[s]} invoices${active ? ', active' : ''}`}
+            aria-label={`${t('statusCounts.filterBy', { status: t(`status.${s}`), count: data.counts[s] })}${active ? t('statusCounts.activeSuffix') : ''}`}
             onClick={() => onSelect(active ? '' : s)}
             className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs ${
               active
@@ -56,7 +57,7 @@ export function StatusCounts({ activeStatus, onSelect }: Props) {
             }`}
           >
             <span className={`inline-block h-2 w-2 rounded-full ${DOT[s]}`} aria-hidden />
-            {STATUS_LABEL[s]}
+            {t(`status.${s}`)}
             <span className="font-medium tabular-nums text-foreground">{data.counts[s]}</span>
           </button>
         )
