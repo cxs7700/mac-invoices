@@ -14,7 +14,7 @@ export function Sidebar() {
   return (
     <aside
       data-rnav
-      className="hidden md:flex w-56 shrink-0 flex-col bg-sidebar border-r border-sidebar-border"
+      className="hidden md:flex w-56 shrink-0 flex-col overflow-y-auto bg-sidebar border-r border-sidebar-border"
     >
       <div className="flex items-center justify-between px-4 py-4">
         <span className="text-lg font-bold text-foreground">{t('app.name')}</span>
