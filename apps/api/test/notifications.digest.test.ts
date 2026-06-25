@@ -111,4 +111,17 @@ describe('digest flush', () => {
     expect(calls[b.email]).toMatch(/Bob/)
     expect(calls[b.email]).not.toMatch(/Alice/)
   })
+
+  it('HTML-escapes contractor names in the digest (no raw markup injected)', async () => {
+    const l = await makeLandlord()
+    const c = await makeContractor(l.id, '<img src=x onerror=alert(1)>')
+    await ev(l.id, c.id, 'CREATED')
+
+    await runDigestFlush(app.prisma)
+    const myCall = sendEmail.mock.calls.find((c) => c[0].to === l.email)
+    expect(myCall).toBeDefined()
+    const html = myCall![0].html as string
+    expect(html).not.toContain('<img src=x')
+    expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;')
+  })
 })

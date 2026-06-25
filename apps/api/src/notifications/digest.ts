@@ -11,6 +11,16 @@ import { sendEmail } from '../integrations/email'
 
 const CONTRACTOR = 'contractor:'
 
+/** Escape a value before interpolating it into the digest email HTML. Contractor
+ * names are landlord-authored today, but escaping keeps the email a safe sink if
+ * a contractor-controlled naming flow is ever added (defense in depth). */
+function escapeHtml(s: string): string {
+  return s.replace(
+    /[&<>"']/g,
+    (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!,
+  )
+}
+
 type Eligible = {
   id: string
   ownerUserId: string
@@ -86,7 +96,8 @@ async function buildDigest(prisma: PrismaClient, landlordId: string, group: Elig
     select: { id: true, name: true },
   })
   const nameById = new Map(contractors.map((c) => [c.id, c.name]))
-  const nameOf = (e: Eligible) => nameById.get(e.actorId.slice(CONTRACTOR.length)) ?? 'A contractor'
+  const nameOf = (e: Eligible) =>
+    escapeHtml(nameById.get(e.actorId.slice(CONTRACTOR.length)) ?? 'A contractor')
 
   const submissions = group.filter((e) => e.type === 'CREATED')
   const withdrawals = group.filter(isWithdrawal)
