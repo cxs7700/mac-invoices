@@ -7,6 +7,7 @@ import '@fontsource/public-sans/500.css'
 import '@fontsource/public-sans/600.css'
 import '@fontsource/public-sans/700.css'
 import './index.css'
+import './lib/i18n' // initialize i18next once, before the first render
 import App from './App.tsx'
 import { AuthGuard } from './components/AuthGuard.tsx'
 import { queryClient } from './lib/queryClient'

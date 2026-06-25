@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { LoginInput } from '@mac-invoices/shared'
 import { apiClient } from '@/lib/apiClient'
 
-export type AuthUser = { id: string; email: string; name: string | null; role: string }
+export type AuthUser = { id: string; email: string; name: string | null; role: string; locale: string }
 
 /** The current session user, or an error (401) when not logged in. */
 export function useMe() {

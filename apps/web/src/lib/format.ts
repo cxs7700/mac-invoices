@@ -1,4 +1,4 @@
-const money = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' })
+import { localeTag } from './i18n'
 
 /** Display labels for invoice statuses — the single source for status text. */
 export const STATUS_LABEL: Record<string, string> = {
@@ -10,19 +10,21 @@ export const STATUS_LABEL: Record<string, string> = {
   SUBMITTED: 'Submitted',
 }
 
-/** Format an invoice amount (a string from the API, per CONV-013) for display. */
+/** Format an invoice amount (a string from the API, per CONV-013) for display.
+ * Currency stays USD; only the grouping/format localizes by the active locale. */
 export function formatMoney(amount: string | number): string {
   const n = typeof amount === 'string' ? parseFloat(amount) : amount
-  return Number.isNaN(n) ? '—' : money.format(n)
+  if (Number.isNaN(n)) return '—'
+  return new Intl.NumberFormat(localeTag(), { style: 'currency', currency: 'USD' }).format(n)
 }
 
-/** Format a date (ISO string or Date) as e.g. "Jan 15, 2026" (UTC, date-only stable). */
+/** Format a date (ISO string or Date), localized by the active locale (UTC, date-only stable). */
 export function formatDate(value: string | Date | null | undefined): string {
   if (!value) return '—'
   const d = typeof value === 'string' ? new Date(value) : value
   return Number.isNaN(d.getTime())
     ? '—'
-    : d.toLocaleDateString('en-US', {
+    : d.toLocaleDateString(localeTag(), {
         year: 'numeric',
         month: 'short',
         day: 'numeric',

@@ -1,0 +1,46 @@
+{
+  "app": { "name": "Rent Ops" },
+  "nav": {
+    "dashboard": "Dashboard",
+    "invoices": "Invoices",
+    "properties": "Properties",
+    "contractors": "Contractors",
+    "settings": "Settings",
+    "soon": "Soon"
+  },
+  "common": {
+    "logOut": "Log out",
+    "loading": "Loading…",
+    "save": "Save changes",
+    "cancel": "Cancel",
+    "saving": "Saving…",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu",
+    "menu": "Menu",
+    "retry": "Retry"
+  },
+  "auth": {
+    "loading": "Loading Rent Ops…",
+    "serverError": "Couldn't reach the server."
+  },
+  "settings": {
+    "title": "Settings",
+    "language": { "title": "Language" },
+    "profile": { "title": "Profile", "name": "Name", "email": "Email", "emailReadOnly": "Email can't be changed yet.", "saved": "Profile saved.", "save": "Save" },
+    "security": { "title": "Security" },
+    "sheets": { "title": "Google Sheets connection" }
+  },
+  "login": {
+    "welcome": "Welcome back — sign in to continue.",
+    "logIn": "Log in",
+    "signUp": "Sign up",
+    "signUpSoon": "Sign up — coming soon",
+    "google": "Continue with Google",
+    "googleAria": "Continue with Google (coming soon)",
+    "or": "or",
+    "email": "Email",
+    "password": "Password",
+    "serverError": "Could not reach the server",
+    "signingIn": "Signing in…"
+  }
+}

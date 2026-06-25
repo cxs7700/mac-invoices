@@ -1,7 +1,9 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ApiError } from '@/lib/apiClient'
 import { Button } from '@/components/ui/button'
 import { useMe } from '@/hooks/useAuth'
+import { SUPPORTED_LOCALES, type Locale } from '@/lib/i18n'
 import {
   useUpdateProfile,
   useChangePassword,
@@ -23,27 +25,28 @@ const inputClass = 'mt-1 w-full rounded-md border border-input bg-background px-
 const errOf = (e: unknown) => (e instanceof ApiError ? e.message : e ? 'Something went wrong' : null)
 
 function ProfileSection() {
+  const { t } = useTranslation()
   const { data: me } = useMe()
   const update = useUpdateProfile()
   const [name, setName] = useState<string | null>(null)
   const value = name ?? me?.name ?? ''
 
   return (
-    <Section title="Profile">
+    <Section title={t('settings.profile.title')}>
       <div className="space-y-3">
         <div>
-          <label htmlFor="name" className="text-sm font-medium text-foreground">Name</label>
+          <label htmlFor="name" className="text-sm font-medium text-foreground">{t('settings.profile.name')}</label>
           <input id="name" value={value} onChange={(e) => setName(e.target.value)} className={inputClass} />
         </div>
         <div>
-          <label htmlFor="email" className="text-sm font-medium text-foreground">Email</label>
+          <label htmlFor="email" className="text-sm font-medium text-foreground">{t('settings.profile.email')}</label>
           <input id="email" value={me?.email ?? ''} readOnly disabled className={`${inputClass} text-muted-foreground`} />
-          <p className="mt-1 text-xs text-muted-foreground">Email can't be changed yet.</p>
+          <p className="mt-1 text-xs text-muted-foreground">{t('settings.profile.emailReadOnly')}</p>
         </div>
-        {update.isSuccess && <p className="text-sm text-status-paid-foreground">Profile saved.</p>}
+        {update.isSuccess && <p className="text-sm text-status-paid-foreground">{t('settings.profile.saved')}</p>}
         {errOf(update.error) && <p className="text-sm text-destructive" role="alert">{errOf(update.error)}</p>}
         <Button disabled={update.isPending || !value.trim()} onClick={() => update.mutate({ name: value.trim() })}>
-          {update.isPending ? 'Saving…' : 'Save'}
+          {update.isPending ? t('common.saving') : t('settings.profile.save')}
         </Button>
       </div>
     </Section>
@@ -146,11 +149,51 @@ function SheetsSection() {
   )
 }
 
+// Autonyms — a language is always labelled in its own script, regardless of the
+// current UI language.
+const LOCALE_LABEL: Record<Locale, string> = { en: 'English', zh: '中文' }
+
+function LanguageSection() {
+  const { t, i18n } = useTranslation()
+  const update = useUpdateProfile()
+  const current: Locale = i18n.language === 'zh' ? 'zh' : 'en'
+
+  const choose = (next: Locale) => {
+    if (next === current) return
+    i18n.changeLanguage(next) // instant UI; the detector caches to localStorage
+    update.mutate({ locale: next }) // persist server-side (source of truth)
+  }
+
+  return (
+    <Section title={t('settings.language.title')}>
+      <div className="flex gap-2">
+        {SUPPORTED_LOCALES.map((loc) => (
+          <button
+            key={loc}
+            type="button"
+            aria-pressed={current === loc}
+            onClick={() => choose(loc)}
+            className={`rounded-md border px-3 py-1.5 text-sm ${
+              current === loc
+                ? 'border-primary bg-accent text-accent-foreground'
+                : 'border-input text-foreground hover:bg-accent'
+            }`}
+          >
+            {LOCALE_LABEL[loc]}
+          </button>
+        ))}
+      </div>
+    </Section>
+  )
+}
+
 export default function Settings() {
+  const { t } = useTranslation()
   return (
     <div className="max-w-2xl space-y-6">
-      <h1 className="text-2xl font-bold text-foreground">Settings</h1>
+      <h1 className="text-2xl font-bold text-foreground">{t('settings.title')}</h1>
       <ProfileSection />
+      <LanguageSection />
       <SecuritySection />
       <SheetsSection />
     </div>
