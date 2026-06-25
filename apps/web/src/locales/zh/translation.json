@@ -1,0 +1,20 @@
+{
+  "app": { "name": "租务管理" },
+  "nav": {
+    "dashboard": "仪表板",
+    "invoices": "发票",
+    "properties": "房产",
+    "contractors": "承包商",
+    "settings": "设置",
+    "soon": "即将推出"
+  },
+  "common": {
+    "logOut": "退出登录",
+    "loading": "加载中…",
+    "save": "保存更改",
+    "cancel": "取消",
+    "saving": "保存中…",
+    "openMenu": "打开菜单",
+    "closeMenu": "关闭菜单"
+  }
+}

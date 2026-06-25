@@ -1,0 +1,20 @@
+{
+  "app": { "name": "Rent Ops" },
+  "nav": {
+    "dashboard": "Dashboard",
+    "invoices": "Invoices",
+    "properties": "Properties",
+    "contractors": "Contractors",
+    "settings": "Settings",
+    "soon": "Soon"
+  },
+  "common": {
+    "logOut": "Log out",
+    "loading": "Loading…",
+    "save": "Save changes",
+    "cancel": "Cancel",
+    "saving": "Saving…",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu"
+  }
+}
