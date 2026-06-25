@@ -19,6 +19,7 @@ import InvoiceEdit from './pages/InvoiceEdit.tsx'
 import ContractorSubmit from './pages/ContractorSubmit.tsx'
 import Contractors from './pages/Contractors.tsx'
 import Properties from './pages/Properties.tsx'
+import PropertyDetail from './pages/PropertyDetail.tsx'
 import PropertyEdit from './pages/PropertyEdit.tsx'
 import Settings from './pages/Settings.tsx'
 
@@ -42,6 +43,7 @@ const router = createBrowserRouter([
           { path: 'invoices/:id/edit', element: <InvoiceEdit /> },
           { path: 'contractors', element: <Contractors /> },
           { path: 'properties', element: <Properties /> },
+          { path: 'properties/:id', element: <PropertyDetail /> },
           { path: 'properties/:id/edit', element: <PropertyEdit /> },
           { path: 'settings', element: <Settings /> },
         ],
