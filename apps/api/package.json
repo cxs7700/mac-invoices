@@ -33,6 +33,7 @@
     "fastify-plugin": "^5.1.0",
     "googleapis": "^173.0.0",
     "pg": "^8.16.3",
+    "resend": "^6.14.0",
     "zod": "^4.3.5"
   },
   "devDependencies": {
