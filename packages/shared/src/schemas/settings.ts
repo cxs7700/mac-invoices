@@ -24,3 +24,18 @@ export const AccountSchema = z.object({
   role: z.string(),
 })
 export type Account = z.infer<typeof AccountSchema>
+
+// Save a per-landlord Google Sheets target.
+export const SaveSheetSchema = z.object({
+  spreadsheetId: z.string().trim().min(1).max(200),
+})
+export type SaveSheetInput = z.infer<typeof SaveSheetSchema>
+
+// The Sheets connection status surfaced in Settings. Never includes the key.
+export const SheetsStatusSchema = z.object({
+  configured: z.boolean(),
+  serviceAccountEmail: z.string().nullable(),
+  targetSpreadsheetId: z.string().nullable(),
+  reachable: z.boolean(),
+})
+export type SheetsStatus = z.infer<typeof SheetsStatusSchema>

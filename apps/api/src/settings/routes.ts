@@ -25,6 +25,9 @@ async function settingsRoutes(fastify: FastifyInstance) {
     { preHandler: requireAuth, config: { rateLimit: { max: pwMax, timeWindow: '15 minutes' } } },
     handlers.changePassword,
   )
+  fastify.get('/api/settings/sheets', auth, handlers.getSheets)
+  fastify.patch('/api/settings/sheets', auth, handlers.saveSheet)
+  fastify.post('/api/settings/sheets/test', auth, handlers.testSheet)
 }
 
 //ESM

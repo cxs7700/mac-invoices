@@ -1,10 +1,11 @@
 import type { FastifyRequest, FastifyReply } from 'fastify'
-import { UpdateProfileSchema, ChangePasswordSchema } from '@mac-invoices/shared'
+import { UpdateProfileSchema, ChangePasswordSchema, SaveSheetSchema } from '@mac-invoices/shared'
 import { parseBody } from '../lib/validate'
 import { AppError } from '../middleware/errorHandler'
 import { hashPassword, verifyPassword } from '../auth/password'
 import { sessionIdFromToken } from '../auth/session'
 import { SESSION_COOKIE } from '../auth/requireAuth'
+import { serviceAccountEmail, checkAccess } from '../integrations/sheets'
 
 // Landlord self-serve settings, all scoped to the session user. Responses never
 // include the password hash or any secret (DEC-019 / R10).
@@ -58,4 +59,58 @@ export async function changePassword(request: FastifyRequest, reply: FastifyRepl
     }),
   ])
   return reply.code(204).send()
+}
+
+/** The landlord's effective Sheets target: their saved id, else the env default. */
+async function effectiveTarget(request: FastifyRequest): Promise<string | null> {
+  const user = await request.server.prisma.user.findUniqueOrThrow({
+    where: { id: request.user.id },
+    select: { sheetSpreadsheetId: true },
+  })
+  return user.sheetSpreadsheetId ?? process.env.GOOGLE_SHEET_ID ?? null
+}
+
+/**
+ * GET /api/settings/sheets — connection status: whether credentials are
+ * configured, the service-account email to share with, the effective target,
+ * and whether the service account can actually reach it. Never returns the key.
+ */
+export async function getSheets(request: FastifyRequest, reply: FastifyReply) {
+  let configured = true
+  let email: string | null = null
+  try {
+    email = serviceAccountEmail()
+  } catch {
+    configured = false // credentials unset/malformed → report cleanly, don't crash
+  }
+  const targetSpreadsheetId = await effectiveTarget(request)
+  let reachable = false
+  if (configured && targetSpreadsheetId) {
+    reachable = await checkAccess(targetSpreadsheetId).then(() => true).catch(() => false)
+  }
+  return reply.send({ configured, serviceAccountEmail: email, targetSpreadsheetId, reachable })
+}
+
+/** PATCH /api/settings/sheets — save the per-landlord target spreadsheet id. */
+export async function saveSheet(request: FastifyRequest, reply: FastifyReply) {
+  const { spreadsheetId } = parseBody(SaveSheetSchema, request.body)
+  await request.server.prisma.user.update({
+    where: { id: request.user.id },
+    data: { sheetSpreadsheetId: spreadsheetId },
+  })
+  return getSheets(request, reply)
+}
+
+/**
+ * POST /api/settings/sheets/test — verify the service account can reach the
+ * effective target (a metadata read, no write). Propagates the sanitized
+ * share-as-Editor error on failure (never a raw provider error).
+ */
+export async function testSheet(request: FastifyRequest, reply: FastifyReply) {
+  const target = await effectiveTarget(request)
+  if (!target) {
+    throw new AppError('VALIDATION_ERROR', 'No target spreadsheet set', 400)
+  }
+  await checkAccess(target) // throws the sanitized AppError on failure
+  return reply.send({ ok: true })
 }
