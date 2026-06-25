@@ -200,7 +200,7 @@ export async function createInvoice(
         dueDate: input.dueDate ?? null,
         notes: input.notes ?? null,
         attachmentUrl: input.attachmentUrl ?? null,
-        user: { connect: { id: actorId } },
+        userId: actorId,
       },
       include: { user: userSelect },
     })
