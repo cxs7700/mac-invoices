@@ -13,6 +13,7 @@ import {
 } from '@mac-invoices/shared'
 import { AppError } from '../middleware/errorHandler'
 import { parseBody } from '../lib/validate'
+import { money } from '../lib/money'
 import { appendRows } from '../integrations/sheets'
 import { issueUploadToken, signedReadUrl } from '../integrations/storage'
 import * as writeService from './writeService'
@@ -135,7 +136,6 @@ export async function invoiceStats(request: FastifyRequest, reply: FastifyReply)
  */
 export async function invoiceSummary(request: FastifyRequest, reply: FastifyReply) {
   const prisma = request.server.prisma
-  const money = (d: { toFixed: (n: number) => string } | null) => (d ? d.toFixed(2) : '0.00')
   // "Spend" is real committed money: PENDING / APPROVED / PAID. SUBMITTED
   // (un-vetted), REJECTED (declined) and CANCELLED (withdrawn) are excluded from
   // the grand total and the per-category breakdown — these are exactly the

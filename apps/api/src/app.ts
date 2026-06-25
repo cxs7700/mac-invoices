@@ -9,6 +9,7 @@ import authRoutes from './auth/routes'
 import healthRoutes from './routes/health'
 import invoiceRoutes from './invoices/routes'
 import contractorRoutes from './contractors/routes'
+import propertyRoutes from './properties/routes'
 import submissionRoutes from './submissions/routes'
 import settingsRoutes from './settings/routes'
 import notificationRoutes from './notifications/routes'
@@ -112,6 +113,7 @@ export function buildApp() {
   app.register(authRoutes)
   app.register(invoiceRoutes)
   app.register(contractorRoutes)
+  app.register(propertyRoutes)
   app.register(submissionRoutes)
   app.register(settingsRoutes)
   app.register(notificationRoutes)
