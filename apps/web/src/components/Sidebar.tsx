@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router'
+import { useTranslation } from 'react-i18next'
 import { NavLinks } from './NavLinks'
 import { NotificationsBell } from './NotificationsBell'
 import { useMe, useLogout } from '@/hooks/useAuth'
@@ -7,6 +8,7 @@ export function Sidebar() {
   const me = useMe()
   const logout = useLogout()
   const navigate = useNavigate()
+  const { t } = useTranslation()
 
   return (
     <aside
@@ -14,7 +16,7 @@ export function Sidebar() {
       className="hidden md:flex w-56 shrink-0 flex-col bg-sidebar border-r border-sidebar-border"
     >
       <div className="flex items-center justify-between px-4 py-4">
-        <span className="text-lg font-bold text-foreground">Rent Ops</span>
+        <span className="text-lg font-bold text-foreground">{t('app.name')}</span>
         <NotificationsBell />
       </div>
 
@@ -29,7 +31,7 @@ export function Sidebar() {
           }
           className="mt-1 text-xs text-muted-foreground hover:text-foreground"
         >
-          Log out
+          {t('common.logOut')}
         </button>
       </div>
     </aside>

@@ -1,13 +1,14 @@
 import { Link, useLocation } from 'react-router'
+import { useTranslation } from 'react-i18next'
 
-type NavItem = { label: string; to?: string; match?: (path: string) => boolean }
+type NavItem = { key: string; to?: string; match?: (path: string) => boolean }
 
 const NAV: NavItem[] = [
-  { label: 'Dashboard', to: '/dashboard', match: (p) => p === '/' || p.startsWith('/dashboard') },
-  { label: 'Invoices', to: '/invoices', match: (p) => p.startsWith('/invoices') },
-  { label: 'Properties', to: '/properties', match: (p) => p.startsWith('/properties') },
-  { label: 'Contractors', to: '/contractors', match: (p) => p.startsWith('/contractors') },
-  { label: 'Settings', to: '/settings', match: (p) => p.startsWith('/settings') },
+  { key: 'dashboard', to: '/dashboard', match: (p) => p === '/' || p.startsWith('/dashboard') },
+  { key: 'invoices', to: '/invoices', match: (p) => p.startsWith('/invoices') },
+  { key: 'properties', to: '/properties', match: (p) => p.startsWith('/properties') },
+  { key: 'contractors', to: '/contractors', match: (p) => p.startsWith('/contractors') },
+  { key: 'settings', to: '/settings', match: (p) => p.startsWith('/settings') },
 ]
 
 /** The app's primary nav, shared by the desktop sidebar and the mobile drawer.
@@ -15,12 +16,13 @@ const NAV: NavItem[] = [
  * `to` render as disabled "Soon" stubs. */
 export function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
   const { pathname } = useLocation()
+  const { t } = useTranslation()
   return (
     <nav className="flex-1 space-y-1 px-2">
       {NAV.map((item) =>
         item.to ? (
           <Link
-            key={item.label}
+            key={item.key}
             to={item.to}
             onClick={onNavigate}
             className={`flex items-center rounded-md px-3 py-2 text-sm font-medium ${
@@ -29,17 +31,17 @@ export function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
                 : 'text-sidebar-foreground hover:bg-accent'
             }`}
           >
-            {item.label}
+            {t(`nav.${item.key}`)}
           </Link>
         ) : (
           <span
-            key={item.label}
+            key={item.key}
             aria-disabled="true"
             tabIndex={-1}
             className="flex items-center justify-between rounded-md px-3 py-2 text-sm text-muted-foreground/60"
           >
-            {item.label}
-            <span className="text-[10px] uppercase tracking-wide">Soon</span>
+            {t(`nav.${item.key}`)}
+            <span className="text-[10px] uppercase tracking-wide">{t('nav.soon')}</span>
           </span>
         ),
       )}
