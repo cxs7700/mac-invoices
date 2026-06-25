@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next'
 import { ApiError } from '@/lib/apiClient'
 import { Button } from '@/components/ui/button'
 import { useMe } from '@/hooks/useAuth'
-import { SUPPORTED_LOCALES, type Locale } from '@/lib/i18n'
 import {
   useUpdateProfile,
   useChangePassword,
@@ -149,51 +148,12 @@ function SheetsSection() {
   )
 }
 
-// Autonyms — a language is always labelled in its own script, regardless of the
-// current UI language.
-const LOCALE_LABEL: Record<Locale, string> = { en: 'English', zh: '中文' }
-
-function LanguageSection() {
-  const { t, i18n } = useTranslation()
-  const update = useUpdateProfile()
-  const current: Locale = i18n.language === 'zh' ? 'zh' : 'en'
-
-  const choose = (next: Locale) => {
-    if (next === current) return
-    i18n.changeLanguage(next) // instant UI; the detector caches to localStorage
-    update.mutate({ locale: next }) // persist server-side (source of truth)
-  }
-
-  return (
-    <Section title={t('settings.language.title')}>
-      <div className="flex gap-2">
-        {SUPPORTED_LOCALES.map((loc) => (
-          <button
-            key={loc}
-            type="button"
-            aria-pressed={current === loc}
-            onClick={() => choose(loc)}
-            className={`rounded-md border px-3 py-1.5 text-sm ${
-              current === loc
-                ? 'border-primary bg-accent text-accent-foreground'
-                : 'border-input text-foreground hover:bg-accent'
-            }`}
-          >
-            {LOCALE_LABEL[loc]}
-          </button>
-        ))}
-      </div>
-    </Section>
-  )
-}
-
 export default function Settings() {
   const { t } = useTranslation()
   return (
     <div className="max-w-2xl space-y-6">
       <h1 className="text-2xl font-bold text-foreground">{t('settings.title')}</h1>
       <ProfileSection />
-      <LanguageSection />
       <SecuritySection />
       <SheetsSection />
     </div>

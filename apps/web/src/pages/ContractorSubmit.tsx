@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { useParams } from 'react-router'
+import { useTranslation } from 'react-i18next'
 import { ApiError } from '@/lib/apiClient'
 import { StatusBadge } from '@/components/StatusBadge'
 import { PhotoAttach } from '@/components/PhotoAttach'
+import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 import { Button } from '@/components/ui/button'
 import { formatMoney, formatDate } from '@/lib/format'
 import {
@@ -14,10 +16,15 @@ import {
 import type { SubmissionStatus } from '@mac-invoices/shared'
 
 function Shell({ children }: { children: React.ReactNode }) {
+  const { t } = useTranslation()
   return (
     <div className="min-h-screen bg-background px-4 py-8">
       <div className="mx-auto w-full max-w-md space-y-6">
-        <h1 className="text-xl font-bold text-foreground">Submit an invoice</h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-xl font-bold text-foreground">{t('contractorSubmit.title')}</h1>
+          {/* Public page: no session, so the toggle persists locally only. */}
+          <LanguageSwitcher />
+        </div>
         {children}
       </div>
     </div>
@@ -26,6 +33,7 @@ function Shell({ children }: { children: React.ReactNode }) {
 
 export default function ContractorSubmit() {
   const { token } = useParams()
+  const { t } = useTranslation()
   const status = useSubmissionStatus(token!)
   const submit = useSubmit(token!)
   const withdraw = useWithdraw(token!)
@@ -39,7 +47,7 @@ export default function ContractorSubmit() {
   if (status.isPending) {
     return (
       <Shell>
-        <p className="text-muted-foreground">Loading…</p>
+        <p className="text-muted-foreground">{t('contractorSubmit.loading')}</p>
       </Shell>
     )
   }
@@ -48,10 +56,8 @@ export default function ContractorSubmit() {
     return (
       <Shell>
         <div className="rounded-lg border border-border bg-card p-6 text-center">
-          <p className="font-medium text-foreground">This link is no longer active</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Ask whoever sent it for an up-to-date link.
-          </p>
+          <p className="font-medium text-foreground">{t('contractorSubmit.inactiveTitle')}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{t('contractorSubmit.inactiveBody')}</p>
         </div>
       </Shell>
     )
@@ -63,10 +69,10 @@ export default function ContractorSubmit() {
   const submitError =
     submit.error instanceof ApiError
       ? submit.error.status === 429
-        ? "You've submitted too many times — please wait a few minutes and try again."
+        ? t('contractorSubmit.rateLimited')
         : submit.error.message
       : submit.error
-        ? 'Something went wrong — please try again.'
+        ? t('contractorSubmit.genericError')
         : null
 
   const resetForm = () => {
@@ -104,19 +110,17 @@ export default function ContractorSubmit() {
     <Shell>
       {justSubmitted ? (
         <div className="rounded-lg border border-status-paid bg-status-paid/30 p-5 text-center">
-          <p className="font-medium text-foreground">Your invoice has been submitted</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            We'll let you know once it's been reviewed.
-          </p>
+          <p className="font-medium text-foreground">{t('contractorSubmit.submittedTitle')}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{t('contractorSubmit.submittedBody')}</p>
           <Button className="mt-4" onClick={startNew}>
-            Submit another invoice
+            {t('contractorSubmit.submitAnother')}
           </Button>
         </div>
       ) : (
         <form onSubmit={onSubmit} className="space-y-4 rounded-lg border border-border bg-card p-5">
           <div>
             <label htmlFor="amount" className="text-sm font-medium text-foreground">
-              Amount
+              {t('contractorSubmit.amount')}
             </label>
             <input
               id="amount"
@@ -131,7 +135,7 @@ export default function ContractorSubmit() {
           </div>
           <div>
             <label htmlFor="invoiceDate" className="text-sm font-medium text-foreground">
-              Date
+              {t('contractorSubmit.date')}
             </label>
             <input
               id="invoiceDate"
@@ -143,7 +147,7 @@ export default function ContractorSubmit() {
           </div>
           <div>
             <label htmlFor="description" className="text-sm font-medium text-foreground">
-              Description
+              {t('contractorSubmit.description')}
             </label>
             <textarea
               id="description"
@@ -154,16 +158,18 @@ export default function ContractorSubmit() {
             />
           </div>
           <div>
-            <span className="text-sm font-medium text-foreground">Photo of the invoice</span>
+            <span className="text-sm font-medium text-foreground">{t('contractorSubmit.photoLabel')}</span>
             <div className="mt-1">
               <PhotoAttach
                 onUploaded={setPhotoUrl}
                 upload={(file, onProgress) => uploadSubmissionPhoto(token!, file, onProgress)}
               />
             </div>
-            {photoUrl && <p className="mt-1 text-xs text-status-paid-foreground">Photo attached ✓</p>}
+            {photoUrl && (
+              <p className="mt-1 text-xs text-status-paid-foreground">{t('contractorSubmit.photoAttached')}</p>
+            )}
             {!photoUrl && (
-              <p className="mt-1 text-xs text-muted-foreground">A photo of the invoice is required.</p>
+              <p className="mt-1 text-xs text-muted-foreground">{t('contractorSubmit.photoRequired')}</p>
             )}
           </div>
           {submitError && (
@@ -172,17 +178,15 @@ export default function ContractorSubmit() {
             </p>
           )}
           <Button type="submit" className="w-full" disabled={!canSubmit || submit.isPending}>
-            {submit.isPending ? 'Submitting…' : 'Submit'}
+            {submit.isPending ? t('contractorSubmit.submitting') : t('contractorSubmit.submit')}
           </Button>
         </form>
       )}
 
       <div>
-        <h2 className="mb-2 text-sm font-semibold text-foreground">Your submissions</h2>
+        <h2 className="mb-2 text-sm font-semibold text-foreground">{t('contractorSubmit.yourSubmissions')}</h2>
         {submissions.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            No submissions yet — submit your first invoice above.
-          </p>
+          <p className="text-sm text-muted-foreground">{t('contractorSubmit.noSubmissions')}</p>
         ) : (
           <ul className="space-y-2">
             {submissions.map((s) => (
@@ -212,6 +216,7 @@ function SubmissionRow({
   onResubmit: () => void
   withdrawing: boolean
 }) {
+  const { t } = useTranslation()
   return (
     <li className="rounded-md border border-border bg-card p-3">
       <div className="flex items-center justify-between">
@@ -223,9 +228,13 @@ function SubmissionRow({
       </p>
       {s.status === 'REJECTED' && (
         <div className="mt-2 text-xs">
-          {s.rejectionReason && <p className="text-destructive">Rejected: {s.rejectionReason}</p>}
+          {s.rejectionReason && (
+            <p className="text-destructive">
+              {t('contractorSubmit.rejectedPrefix')} {s.rejectionReason}
+            </p>
+          )}
           <button type="button" onClick={onResubmit} className="mt-1 font-medium text-primary underline">
-            Submit a new invoice to resubmit
+            {t('contractorSubmit.resubmit')}
           </button>
         </div>
       )}
@@ -237,7 +246,7 @@ function SubmissionRow({
           disabled={withdrawing}
           onClick={onWithdraw}
         >
-          Withdraw
+          {t('contractorSubmit.withdraw')}
         </Button>
       )}
     </li>

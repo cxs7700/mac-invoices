@@ -332,5 +332,29 @@
     "unreadAria": "Notifications ({{count}} unread)",
     "empty": "No contractor activity yet.",
     "fallbackContractor": "A contractor"
+  },
+  "contractorSubmit": {
+    "title": "Submit an invoice",
+    "loading": "Loading…",
+    "inactiveTitle": "This link is no longer active",
+    "inactiveBody": "Ask whoever sent it for an up-to-date link.",
+    "rateLimited": "You've submitted too many times — please wait a few minutes and try again.",
+    "genericError": "Something went wrong — please try again.",
+    "submittedTitle": "Your invoice has been submitted",
+    "submittedBody": "We'll let you know once it's been reviewed.",
+    "submitAnother": "Submit another invoice",
+    "amount": "Amount",
+    "date": "Date",
+    "description": "Description",
+    "photoLabel": "Photo of the invoice",
+    "photoAttached": "Photo attached ✓",
+    "photoRequired": "A photo of the invoice is required.",
+    "submitting": "Submitting…",
+    "submit": "Submit",
+    "yourSubmissions": "Your submissions",
+    "noSubmissions": "No submissions yet — submit your first invoice above.",
+    "rejectedPrefix": "Rejected:",
+    "resubmit": "Submit a new invoice to resubmit",
+    "withdraw": "Withdraw"
   }
 }
