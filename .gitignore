@@ -36,3 +36,5 @@ dist-ssr
 .vercel
 # esbuild bundle output for the serverless API (regenerated via `npm run build:api`)
 /api/index.js
+.env*
+docker-compose.override.yml

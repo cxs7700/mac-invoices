@@ -97,8 +97,8 @@ export default function InvoiceDetail() {
               {invoice.status === 'SUBMITTED' ? (
                 <ReviewActions
                   isPending={update.isPending}
-                  onApprove={(category) =>
-                    update.mutate({ status: 'APPROVED', category: category as InvoiceCategory })
+                  onApprove={(category, propertyId) =>
+                    update.mutate({ status: 'APPROVED', category: category as InvoiceCategory, propertyId })
                   }
                   onReject={(reason) => update.mutate({ status: 'REJECTED', rejectionReason: reason })}
                 />

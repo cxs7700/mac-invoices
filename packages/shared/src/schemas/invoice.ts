@@ -85,6 +85,9 @@ export const ListInvoicesQuerySchema = z.object({
   vendor: z.string().trim().min(1).optional(),
   // Free-text search over the job description (case-insensitive contains).
   search: z.string().trim().min(1).optional(),
+  // Filter by assigned property: a property id, or the literal "none" for the
+  // unassigned (null-property) bucket.
+  propertyId: z.string().trim().min(1).optional(),
   sort: InvoiceSortField.default('invoiceDate'),
   order: SortOrder.default('desc'),
   limit: z.coerce.number().int().min(1).max(100).default(50),

@@ -2,6 +2,14 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { InvoiceForm } from '@/components/InvoiceForm'
 
+vi.mock('@/hooks/useProperties', () => ({
+  useProperties: () => ({
+    data: { data: [{ id: 'p1', name: 'Maple', address: 'A', notes: null, createdAt: '2026-06-01' }] },
+    isPending: false,
+    isError: false,
+  }),
+}))
+
 function fill(label: string, value: string) {
   fireEvent.change(screen.getByLabelText(label), { target: { value } })
 }
@@ -44,5 +52,30 @@ describe('InvoiceForm', () => {
   it('renders a server error when provided', () => {
     render(<InvoiceForm onSubmit={vi.fn()} serverError="Invoice with this number already exists" />)
     expect(screen.getByText(/already exists/i)).toBeDefined()
+  })
+
+  it('submits the chosen property', async () => {
+    const onSubmit = vi.fn()
+    render(<InvoiceForm onSubmit={onSubmit} />)
+    fill('Vendor', 'Acme')
+    fill('Description', 'Work')
+    fill('Amount', '100')
+    fill('Invoice date', '2026-01-15')
+    fill('Property', 'p1')
+    fireEvent.click(screen.getByRole('button', { name: /create invoice/i }))
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
+    expect(onSubmit.mock.calls[0][0].propertyId).toBe('p1')
+  })
+
+  it('omits propertyId when the property is left as None', async () => {
+    const onSubmit = vi.fn()
+    render(<InvoiceForm onSubmit={onSubmit} />)
+    fill('Vendor', 'Acme')
+    fill('Description', 'Work')
+    fill('Amount', '100')
+    fill('Invoice date', '2026-01-15')
+    fireEvent.click(screen.getByRole('button', { name: /create invoice/i }))
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
+    expect(onSubmit.mock.calls[0][0].propertyId).toBeUndefined()
   })
 })

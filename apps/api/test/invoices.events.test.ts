@@ -7,6 +7,7 @@ import { loginCookie, createSecondUser } from './helpers/auth'
 const app = buildApp()
 const PREFIX = 'TEST-EVT-'
 let cookie: string
+let propId: string // required-on-approval: assigned when approving
 const createdIds: string[] = []
 
 const body = (n: string, over: Record<string, unknown> = {}) => ({
@@ -34,10 +35,13 @@ beforeAll(async () => {
   await app.ready()
   cookie = await loginCookie(app)
   await app.prisma.invoice.deleteMany({ where: { invoiceNumber: { startsWith: PREFIX } } })
+  const lid = (await app.inject({ method: 'GET', url: '/api/auth/me', headers: { cookie } })).json().id
+  propId = (await app.prisma.property.create({ data: { landlordId: lid, name: 'P-EVT', address: 'A' } })).id
 })
 afterAll(async () => {
   if (createdIds.length) await app.prisma.invoiceEvent.deleteMany({ where: { invoiceId: { in: createdIds } } })
   await app.prisma.invoice.deleteMany({ where: { invoiceNumber: { startsWith: PREFIX } } })
+  await app.prisma.property.delete({ where: { id: propId } }).catch(() => {})
   await app.close()
 })
 
@@ -56,7 +60,7 @@ describe('create records a CREATED event', () => {
 describe('update records events', () => {
   it('AE1: a PENDING -> APPROVED transition records one STATUS_CHANGED {from,to}', async () => {
     const inv = await createOwn('status')
-    const res = await app.inject({ method: 'PATCH', url: `/api/invoices/${inv.id}`, payload: { status: 'APPROVED' }, headers: { cookie } })
+    const res = await app.inject({ method: 'PATCH', url: `/api/invoices/${inv.id}`, payload: { status: 'APPROVED', propertyId: propId }, headers: { cookie } })
     expect(res.statusCode).toBe(200)
     const events = await eventsFor(inv.id)
     const changed = events.filter((e) => e.type === 'STATUS_CHANGED')

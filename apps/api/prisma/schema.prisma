@@ -24,6 +24,7 @@ model User {
   invoices     Invoice[]
   sessions     Session[]
   contractors  Contractor[]
+  properties   Property[]
 
   @@map("users")
 }
@@ -75,7 +76,12 @@ model Invoice {
   // Nullable: a contractor submission carries no category — the landlord sets
   // it on review (APPROVED is blocked until it is set).
   category               InvoiceCategory?
+  // The property this invoice is assigned to, if any. Optional at create/submit,
+  // required to APPROVE (enforced in writeService, not the DB). Restrict so a
+  // property with invoices can't be deleted out from under its spend history —
+  // the API pre-checks and returns a friendly count first.
   propertyId             String?
+  property               Property?        @relation(fields: [propertyId], references: [id], onDelete: Restrict)
   status                 InvoiceStatus    @default(PENDING)
   invoiceDate            DateTime
   dueDate                DateTime?
@@ -98,7 +104,25 @@ model Invoice {
   @@index([userId, status])
   @@index([userId, invoiceDate])
   @@index([submittedByContractorId])
+  @@index([propertyId])
   @@map("invoices")
+}
+
+// A landlord's rental property. Invoices are assigned to a property to organize
+// spend. Per-landlord (landlordId); mirrors the Contractor entity.
+model Property {
+  id         String   @id @default(cuid())
+  landlordId String
+  landlord   User     @relation(fields: [landlordId], references: [id], onDelete: Cascade)
+  name       String
+  address    String
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  invoices   Invoice[]
+
+  @@index([landlordId])
+  @@map("properties")
 }
 
 // Photos associated with an invoice (e.g. cash, parts, or check). The actual

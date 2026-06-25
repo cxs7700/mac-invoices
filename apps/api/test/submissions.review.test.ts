@@ -16,6 +16,7 @@ import { createSecondUser } from './helpers/auth'
 // resolved in the timeline + detail, the SUBMITTED queue + count.
 const app = buildApp()
 let landlord: Awaited<ReturnType<typeof createSecondUser>>
+let propId: string // required-on-approval: the landlord assigns this when approving
 const cookie = () => landlord.cookie
 const tokenOf = (link: string) => link.split('/submit/')[1]
 
@@ -47,6 +48,7 @@ const patch = (id: string, payload: object) =>
 beforeAll(async () => {
   await app.ready()
   landlord = await createSecondUser(app)
+  propId = (await app.prisma.property.create({ data: { landlordId: landlord.user.id, name: 'P', address: 'A' } })).id
 })
 afterAll(async () => {
   await app.prisma.invoice.deleteMany({ where: { userId: landlord.user.id } })
@@ -59,7 +61,7 @@ describe('U9 landlord review', () => {
     const c = await makeContractor()
     const id = await submit(c.id, c.token)
     expect((await app.prisma.invoice.findUniqueOrThrow({ where: { id } })).invoiceNumber).toBeNull()
-    const res = await patch(id, { status: 'APPROVED', category: 'LABOR' })
+    const res = await patch(id, { status: 'APPROVED', category: 'LABOR', propertyId: propId })
     expect(res.statusCode).toBe(200)
     expect(res.json().invoiceNumber).not.toBeNull()
   })

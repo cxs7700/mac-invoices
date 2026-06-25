@@ -14,6 +14,7 @@ import { createSecondUser } from './helpers/auth'
 
 const app = buildApp()
 let landlord: Awaited<ReturnType<typeof createSecondUser>>
+let propId: string // required-on-approval: the landlord assigns this when approving
 const tokenOf = (link: string) => link.split('/submit/')[1]
 
 async function makeContractor(name = 'Joe') {
@@ -45,13 +46,14 @@ const approve = (id: string) =>
   app.inject({
     method: 'PATCH',
     url: `/api/invoices/${id}`,
-    payload: { status: 'APPROVED', category: 'LABOR' },
+    payload: { status: 'APPROVED', category: 'LABOR', propertyId: propId },
     headers: { cookie: landlord.cookie },
   })
 
 beforeAll(async () => {
   await app.ready()
   landlord = await createSecondUser(app)
+  propId = (await app.prisma.property.create({ data: { landlordId: landlord.user.id, name: 'P', address: 'A' } })).id
 })
 afterAll(async () => {
   await app.prisma.invoice.deleteMany({ where: { userId: landlord.user.id } })

@@ -1,9 +1,11 @@
 import { useState } from 'react'
+import { Link } from 'react-router'
 import { InvoiceCategory } from '@mac-invoices/shared'
 import { Button } from '@/components/ui/button'
+import { useProperties } from '@/hooks/useProperties'
 
 type Props = {
-  onApprove: (category: string) => void
+  onApprove: (category: string, propertyId: string) => void
   onReject: (reason: string) => void
   isPending: boolean
 }
@@ -20,13 +22,16 @@ const titleCase = (s: string) => s.charAt(0) + s.slice(1).toLowerCase()
 export function ReviewActions({ onApprove, onReject, isPending }: Props) {
   const [mode, setMode] = useState<'idle' | 'approve' | 'reject'>('idle')
   const [category, setCategory] = useState('')
+  const [propertyId, setPropertyId] = useState('')
   const [reason, setReason] = useState('')
+  const { data: propData } = useProperties()
+  const properties = propData?.data ?? []
 
   if (mode === 'approve') {
     return (
       <div className="space-y-2 rounded-md border border-border p-3">
         <label htmlFor="approve-category" className="text-xs font-medium text-foreground">
-          Set a category to approve
+          Set a category and property to approve
         </label>
         <select
           id="approve-category"
@@ -41,11 +46,34 @@ export function ReviewActions({ onApprove, onReject, isPending }: Props) {
             </option>
           ))}
         </select>
+        <select
+          id="approve-property"
+          aria-label="Property"
+          value={propertyId}
+          onChange={(e) => setPropertyId(e.target.value)}
+          className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm"
+        >
+          <option value="">Select a property…</option>
+          {properties.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+            </option>
+          ))}
+        </select>
+        {properties.length === 0 && (
+          <p className="text-xs text-muted-foreground">
+            No properties yet.{' '}
+            <Link to="/properties" className="underline">
+              Add one
+            </Link>{' '}
+            before approving.
+          </p>
+        )}
         <div className="flex gap-2">
           <Button
             className="flex-1"
-            disabled={!category || isPending}
-            onClick={() => onApprove(category)}
+            disabled={!category || !propertyId || isPending}
+            onClick={() => onApprove(category, propertyId)}
           >
             Confirm approve
           </Button>

@@ -20,6 +20,7 @@ export type ListFilters = {
   to: string
   vendor: string
   search: string // free-text over job description
+  propertyId: string // a property id, or "none" for the unassigned bucket
   sort: string
   order: string
   page: number // 1-based
@@ -44,6 +45,8 @@ export function parseListParams(sp: URLSearchParams): ListFilters {
     to: DATE_RE.test(to) ? to : '',
     vendor: (sp.get('vendor') ?? '').trim(),
     search: (sp.get('search') ?? '').trim(),
+    // A property id is dynamic (not an allowlist); "none" is the unassigned bucket.
+    propertyId: (sp.get('propertyId') ?? '').trim(),
     sort: oneOf(sp.get('sort') ?? '', SORT_OPTIONS, 'invoiceDate'),
     order: oneOf(sp.get('order') ?? '', ORDER_OPTIONS, 'desc'),
     page: Number.isFinite(pageRaw) && pageRaw > 0 ? pageRaw : 1,
@@ -58,6 +61,7 @@ export function toQueryParams(f: ListFilters): InvoiceListParams {
     to: f.to || undefined,
     vendor: f.vendor || undefined,
     search: f.search || undefined,
+    propertyId: f.propertyId || undefined,
     // Omit defaults so the query string / cache key stays minimal.
     sort: f.sort !== 'invoiceDate' ? f.sort : undefined,
     order: f.order !== 'desc' ? f.order : undefined,
@@ -74,6 +78,7 @@ export function toSearchParams(f: ListFilters): URLSearchParams {
   if (f.to) sp.set('to', f.to)
   if (f.vendor) sp.set('vendor', f.vendor)
   if (f.search) sp.set('search', f.search)
+  if (f.propertyId) sp.set('propertyId', f.propertyId)
   if (f.sort !== 'invoiceDate') sp.set('sort', f.sort)
   if (f.order !== 'desc') sp.set('order', f.order)
   if (f.page > 1) sp.set('page', String(f.page))
@@ -81,5 +86,5 @@ export function toSearchParams(f: ListFilters): URLSearchParams {
 }
 
 export function hasActiveFilters(f: ListFilters): boolean {
-  return Boolean(f.status || f.from || f.to || f.vendor || f.search)
+  return Boolean(f.status || f.from || f.to || f.vendor || f.search || f.propertyId)
 }
