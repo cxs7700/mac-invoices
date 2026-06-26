@@ -212,3 +212,38 @@ describe('GET /api/invoices — filter + sort', () => {
     }
   })
 })
+
+describe('GET /api/invoices — imageCount (U4)', () => {
+  it('reports imageCount on the list and the detail (0 and many)', async () => {
+    // Resolve the landlord id from an existing invoice's detail (no /me dependency).
+    const anyId = (await listMine()).json().data[0].id
+    const uid = (await app.inject({ method: 'GET', url: `/api/invoices/${anyId}`, headers: { cookie } })).json().user.id
+    const ownUrl = (n: string) => `https://blob.test/owners/${uid}/${n}`
+
+    const withImgs = await app.inject({
+      method: 'POST',
+      url: '/api/invoices',
+      headers: { cookie },
+      payload: {
+        invoiceNumber: `${NONCE}IMG2`,
+        vendorName: `${NONCE}WithImgs`,
+        description: 'Work',
+        amount: 50,
+        category: 'OTHER',
+        invoiceDate: '2026-04-01',
+        images: [{ url: ownUrl('a') }, { url: ownUrl('b') }],
+      },
+    })
+    expect(withImgs.statusCode).toBe(201)
+    const imgId = withImgs.json().id as string
+
+    const detail = (await app.inject({ method: 'GET', url: `/api/invoices/${imgId}`, headers: { cookie } })).json()
+    expect(detail.imageCount).toBe(2)
+    const zeroDetail = (await app.inject({ method: 'GET', url: `/api/invoices/${anyId}`, headers: { cookie } })).json()
+    expect(zeroDetail.imageCount).toBe(0)
+
+    const list = (await listMine()).json().data as { id: string; imageCount: number }[]
+    expect(list.find((i) => i.id === imgId)!.imageCount).toBe(2)
+    expect(list.find((i) => i.id === anyId)!.imageCount).toBe(0)
+  })
+})

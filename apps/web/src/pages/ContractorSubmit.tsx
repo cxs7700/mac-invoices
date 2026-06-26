@@ -13,7 +13,8 @@ import {
   useWithdraw,
   uploadSubmissionPhoto,
 } from '@/hooks/useSubmission'
-import type { SubmissionStatus } from '@mac-invoices/shared'
+import { MAX_INVOICE_IMAGES, ImageType } from '@mac-invoices/shared'
+import type { SubmissionStatus, ImageType as ImageTypeT } from '@mac-invoices/shared'
 
 function Shell({ children }: { children: React.ReactNode }) {
   const { t } = useTranslation()
@@ -41,7 +42,7 @@ export default function ContractorSubmit() {
   const [amount, setAmount] = useState('')
   const [invoiceDate, setInvoiceDate] = useState('')
   const [description, setDescription] = useState('')
-  const [photoUrl, setPhotoUrl] = useState<string | null>(null)
+  const [photos, setPhotos] = useState<{ url: string; type: ImageTypeT }[]>([])
   const [justSubmitted, setJustSubmitted] = useState(false)
 
   if (status.isPending) {
@@ -64,7 +65,9 @@ export default function ContractorSubmit() {
   }
 
   const submissions = status.data.data
-  const canSubmit = !!photoUrl && Number(amount) > 0 && !!invoiceDate && description.trim().length > 0
+  const atCap = photos.length >= MAX_INVOICE_IMAGES
+  const canSubmit =
+    photos.length > 0 && Number(amount) > 0 && !!invoiceDate && description.trim().length > 0
 
   const submitError =
     submit.error instanceof ApiError
@@ -79,18 +82,24 @@ export default function ContractorSubmit() {
     setAmount('')
     setInvoiceDate('')
     setDescription('')
-    setPhotoUrl(null)
+    setPhotos([])
   }
+
+  const addPhoto = (url: string) =>
+    setPhotos((prev) => (prev.length >= MAX_INVOICE_IMAGES ? prev : [...prev, { url, type: 'OTHER' }]))
+  const removePhoto = (url: string) => setPhotos((prev) => prev.filter((p) => p.url !== url))
+  const setPhotoType = (url: string, type: ImageTypeT) =>
+    setPhotos((prev) => prev.map((p) => (p.url === url ? { ...p, type } : p)))
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!canSubmit || !photoUrl) return
+    if (!canSubmit) return
     submit.mutate(
       {
         amount: Number(amount),
         description: description.trim(),
         invoiceDate,
-        image: { url: photoUrl, type: 'OTHER' },
+        images: photos,
       },
       {
         onSuccess: () => {
@@ -158,18 +167,59 @@ export default function ContractorSubmit() {
             />
           </div>
           <div>
-            <span className="text-sm font-medium text-foreground">{t('contractorSubmit.photoLabel')}</span>
-            <div className="mt-1">
+            <span className="text-sm font-medium text-foreground">{t('contractorSubmit.photosLabel')}</span>
+            {photos.length > 0 && (
+              <ul className="mt-2 space-y-2">
+                {photos.map((p, i) => (
+                  <li
+                    key={p.url}
+                    className="flex items-center justify-between gap-2 rounded-md border border-border bg-background px-3 py-2"
+                  >
+                    <span className="text-sm text-foreground">
+                      {t('contractorSubmit.photoN', { n: i + 1 })}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <select
+                        aria-label={t('contractorSubmit.photoTypeLabel', { n: i + 1 })}
+                        value={p.type}
+                        onChange={(e) => setPhotoType(p.url, e.target.value as ImageTypeT)}
+                        className="rounded-md border border-input bg-background px-2 py-1 text-xs"
+                      >
+                        {ImageType.options.map((opt) => (
+                          <option key={opt} value={opt}>
+                            {t(`imageType.${opt}`)}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => removePhoto(p.url)}
+                        className="text-xs font-medium text-destructive underline"
+                      >
+                        {t('contractorSubmit.removePhoto')}
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className="mt-2">
               <PhotoAttach
-                onUploaded={setPhotoUrl}
+                onUploaded={addPhoto}
+                disabled={atCap}
                 upload={(file, onProgress) => uploadSubmissionPhoto(token!, file, onProgress)}
               />
             </div>
-            {photoUrl && (
-              <p className="mt-1 text-xs text-status-paid-foreground">{t('contractorSubmit.photoAttached')}</p>
-            )}
-            {!photoUrl && (
+            {atCap ? (
+              <p className="mt-1 text-xs text-muted-foreground">
+                {t('contractorSubmit.photosAtCap', { max: MAX_INVOICE_IMAGES })}
+              </p>
+            ) : photos.length === 0 ? (
               <p className="mt-1 text-xs text-muted-foreground">{t('contractorSubmit.photoRequired')}</p>
+            ) : (
+              <p className="mt-1 text-xs text-muted-foreground">
+                {t('contractorSubmit.photosCount', { count: photos.length, max: MAX_INVOICE_IMAGES })}
+              </p>
             )}
           </div>
           {submitError && (

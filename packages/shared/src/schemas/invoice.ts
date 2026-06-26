@@ -35,6 +35,32 @@ export const InvoiceImageInputSchema = z.object({
 export type ImageType = z.infer<typeof ImageType>
 export type InvoiceImageInput = z.infer<typeof InvoiceImageInputSchema>
 
+// At most this many photos per invoice (bounds payload + memory). Enforced
+// server-side in-transaction (KTD-3) and mirrored by the UI's disable-at-cap.
+export const MAX_INVOICE_IMAGES = 5
+
+// Body for appending one photo to an invoice's gallery. Same shape as the
+// create/submit image input; aliased so the attach endpoint has a named contract.
+export const AttachImageSchema = InvoiceImageInputSchema
+export type AttachImageInput = z.infer<typeof AttachImageSchema>
+
+// Body for changing an existing photo's type (landlord gallery, KTD-5).
+export const SetImageTypeSchema = z.object({ type: ImageType })
+export type SetImageTypeInput = z.infer<typeof SetImageTypeSchema>
+
+// One photo as returned by the API. `url` is a freshly-signed read URL the API
+// mints at read time (not the stored blob path); `caption` is unused in v1.
+export const InvoiceImageSchema = z.object({
+  id: z.string(),
+  url: z.string(),
+  type: ImageType,
+  caption: z.string().nullable(),
+  createdAt: z.coerce.date(),
+})
+export const InvoiceImagesResponseSchema = z.object({ data: z.array(InvoiceImageSchema) })
+export type InvoiceImage = z.infer<typeof InvoiceImageSchema>
+export type InvoiceImagesResponse = z.infer<typeof InvoiceImagesResponseSchema>
+
 // Body for requesting a direct-upload token (the client uploads browser→storage).
 export const ImageUploadTokenSchema = z.object({ contentType: z.string().min(1) })
 export type ImageUploadTokenInput = z.infer<typeof ImageUploadTokenSchema>
@@ -55,11 +81,11 @@ export const CreateInvoiceSchema = z.object({
   invoiceDate: z.coerce.date(),
   dueDate: z.coerce.date().optional(),
   notes: z.string().max(1000).optional(),
-  // Legacy single-attachment URL. The per-invoice photo feature uses the
-  // InvoiceImage relation instead.
-  attachmentUrl: z.string().url().optional(),
-  // Optional photo to attach at create time (uploaded to storage first).
-  image: InvoiceImageInputSchema.optional(),
+  // Optional photos to attach at create time (each uploaded to storage first).
+  // 0 is valid (create now, photograph later); capped at MAX_INVOICE_IMAGES.
+  // `images[]` is the single source of truth — the legacy `attachmentUrl` column
+  // is no longer an input (it is backfilled into image rows and never written).
+  images: z.array(InvoiceImageInputSchema).max(MAX_INVOICE_IMAGES).optional(),
 })
 
 export const UpdateInvoiceSchema = CreateInvoiceSchema.partial().extend({

@@ -3,7 +3,7 @@ import rateLimit from '@fastify/rate-limit'
 import { requireAuth } from '../auth/requireAuth'
 import { AppError } from '../middleware/errorHandler'
 import * as handlers from './handlers'
-import type { GetInvoiceParams, ListInvoicesQuery } from './types.ts'
+import type { GetInvoiceParams, ImageParams, ListInvoicesQuery } from './types.ts'
 
 /**
  * Invoice routes plugin. Every route requires auth and is scoped to the session
@@ -34,9 +34,11 @@ async function invoiceRoutes(fastify: FastifyInstance) {
   fastify.post('/api/invoices/image-upload-token', auth, handlers.createImageUploadToken)
   fastify.get<{ Params: GetInvoiceParams }>('/api/invoices/:id', auth, handlers.getInvoice)
   fastify.get<{ Params: GetInvoiceParams }>('/api/invoices/:id/events', auth, handlers.listInvoiceEvents)
-  fastify.get<{ Params: GetInvoiceParams }>('/api/invoices/:id/image-url', auth, handlers.getInvoiceImageUrl)
-  fastify.post<{ Params: GetInvoiceParams }>('/api/invoices/:id/image', auth, handlers.attachInvoiceImage)
-  fastify.delete<{ Params: GetInvoiceParams }>('/api/invoices/:id/image', auth, handlers.removeInvoiceImage)
+  // Image gallery collection (landlord-only, own-invoice scoped — a contractor 404s).
+  fastify.get<{ Params: GetInvoiceParams }>('/api/invoices/:id/images', auth, handlers.listInvoiceImages)
+  fastify.post<{ Params: GetInvoiceParams }>('/api/invoices/:id/images', auth, handlers.addInvoiceImage)
+  fastify.delete<{ Params: ImageParams }>('/api/invoices/:id/images/:imageId', auth, handlers.removeInvoiceImage)
+  fastify.patch<{ Params: ImageParams }>('/api/invoices/:id/images/:imageId', auth, handlers.setInvoiceImageType)
   fastify.patch<{ Params: GetInvoiceParams }>('/api/invoices/:id', auth, handlers.updateInvoice)
   fastify.delete<{ Params: GetInvoiceParams }>('/api/invoices/:id', auth, handlers.deleteInvoice)
 }

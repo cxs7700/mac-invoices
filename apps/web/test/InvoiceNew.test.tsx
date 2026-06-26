@@ -36,21 +36,21 @@ describe('InvoiceNew photo attach', () => {
     expect(screen.getByText(/Invoice photo/i)).toBeDefined()
   })
 
-  it('submitting after attaching a photo sends the image url', () => {
+  it('submitting after attaching a photo sends an images[] array', () => {
     renderNew()
     fireEvent.click(screen.getByText('do-attach'))
     fireEvent.click(screen.getByText('submit-form'))
     expect(mutate).toHaveBeenCalledWith(
-      expect.objectContaining({ image: { url: 'https://blob/url', type: 'OTHER' } }),
+      expect.objectContaining({ images: [{ url: 'https://blob/url', type: 'OTHER' }] }),
       expect.anything(),
     )
   })
 
-  it('submitting without a photo sends no image', () => {
+  it('submitting without a photo sends no images', () => {
     renderNew()
     fireEvent.click(screen.getByText('submit-form'))
     expect(mutate).toHaveBeenCalledWith(
-      expect.objectContaining({ image: undefined }),
+      expect.objectContaining({ images: undefined }),
       expect.anything(),
     )
   })

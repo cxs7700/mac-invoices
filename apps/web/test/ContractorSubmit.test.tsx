@@ -1,19 +1,20 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router'
 import ContractorSubmit from '@/pages/ContractorSubmit'
 import { ApiError } from '@/lib/apiClient'
 
-const { useSubmissionStatus, useSubmit, useWithdraw } = vi.hoisted(() => ({
+const { useSubmissionStatus, useSubmit, useWithdraw, uploadSubmissionPhoto } = vi.hoisted(() => ({
   useSubmissionStatus: vi.fn(),
   useSubmit: vi.fn(),
   useWithdraw: vi.fn(),
+  uploadSubmissionPhoto: vi.fn(),
 }))
 vi.mock('@/hooks/useSubmission', () => ({
   useSubmissionStatus,
   useSubmit,
   useWithdraw,
-  uploadSubmissionPhoto: vi.fn(),
+  uploadSubmissionPhoto,
 }))
 // The language switcher in the header uses the profile mutation; stub it so this
 // public-page test needs no QueryClientProvider.
@@ -78,6 +79,60 @@ describe('ContractorSubmit', () => {
     expect(screen.getByRole('button', { name: /submit a new invoice to resubmit/i })).toBeDefined()
     // SUBMITTED rows offer withdraw.
     expect(screen.getByRole('button', { name: 'Withdraw' })).toBeDefined()
+  })
+
+  it('enables submit after a photo is added and sends an images[] payload', async () => {
+    useSubmissionStatus.mockReturnValue({ isPending: false, isError: false, data: { data: [] } })
+    uploadSubmissionPhoto.mockResolvedValue('https://blob.example/owners/c/p.jpg')
+    const { container } = renderPage()
+
+    fireEvent.change(screen.getByLabelText('Amount'), { target: { value: '120' } })
+    fireEvent.change(screen.getByLabelText('Date'), { target: { value: '2026-06-01' } })
+    fireEvent.change(screen.getByLabelText('Description'), { target: { value: 'Fixed a leak' } })
+
+    // Upload a photo via the hidden file input (the second one — camera, then file).
+    const fileInput = container.querySelectorAll('input[type="file"]')[1] as HTMLInputElement
+    const file = new File(['x'], 'p.png', { type: 'image/png' })
+    fireEvent.change(fileInput, { target: { files: [file] } })
+
+    await waitFor(() =>
+      expect((screen.getByRole('button', { name: 'Submit' }) as HTMLButtonElement).disabled).toBe(false),
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
+    expect(submitMock.mutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        amount: 120,
+        description: 'Fixed a leak',
+        invoiceDate: '2026-06-01',
+        images: [{ url: 'https://blob.example/owners/c/p.jpg', type: 'OTHER' }],
+      }),
+      expect.anything(),
+    )
+  })
+
+  it('lets the contractor retype a photo and submits the chosen type', async () => {
+    useSubmissionStatus.mockReturnValue({ isPending: false, isError: false, data: { data: [] } })
+    uploadSubmissionPhoto.mockResolvedValue('https://blob.example/owners/c/p.jpg')
+    const { container } = renderPage()
+
+    fireEvent.change(screen.getByLabelText('Amount'), { target: { value: '120' } })
+    fireEvent.change(screen.getByLabelText('Date'), { target: { value: '2026-06-01' } })
+    fireEvent.change(screen.getByLabelText('Description'), { target: { value: 'Fixed a leak' } })
+    const fileInput = container.querySelectorAll('input[type="file"]')[1] as HTMLInputElement
+    fireEvent.change(fileInput, { target: { files: [new File(['x'], 'p.png', { type: 'image/png' })] } })
+
+    // Once uploaded, a per-photo type select appears; retype it to PARTS.
+    await waitFor(() => expect(screen.getByLabelText('Type for photo 1')).toBeDefined())
+    fireEvent.change(screen.getByLabelText('Type for photo 1'), { target: { value: 'PARTS' } })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
+    expect(submitMock.mutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        images: [{ url: 'https://blob.example/owners/c/p.jpg', type: 'PARTS' }],
+      }),
+      expect.anything(),
+    )
   })
 
   it('shows a distinct rate-limit message on a 429', () => {

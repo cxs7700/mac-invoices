@@ -1,6 +1,6 @@
 import { put } from '@vercel/blob/client'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { SubmissionStatus } from '@mac-invoices/shared'
+import type { SubmissionStatus, ImageType } from '@mac-invoices/shared'
 import { apiClient } from '@/lib/apiClient'
 
 // Public (no-session) hooks for the contractor link page. Authorization is the
@@ -43,7 +43,7 @@ export type SubmitBody = {
   amount: number
   description: string
   invoiceDate: string
-  image: { url: string; type: 'OTHER' }
+  images: { url: string; type: ImageType }[]
 }
 
 export function useSubmit(token: string) {

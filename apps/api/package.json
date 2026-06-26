@@ -14,7 +14,8 @@
     "db:deploy": "prisma migrate deploy",
     "db:reset": "prisma migrate reset --force",
     "db:seed": "prisma db seed",
-    "db:backfill-events": "tsx prisma/backfill-events.ts"
+    "db:backfill-events": "tsx prisma/backfill-events.ts",
+    "db:backfill-images": "tsx prisma/backfill-invoice-images.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^11.0.2",

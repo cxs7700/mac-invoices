@@ -44,7 +44,7 @@ const submitBody = (over: Record<string, unknown> = {}, blobOwner = 'c_x') => ({
   amount: 120.5,
   description: 'Fixed a leak',
   invoiceDate: '2026-06-01',
-  image: { url: `https://blob.example/owners/${blobOwner}/photo.jpg`, type: 'OTHER' },
+  images: [{ url: `https://blob.example/owners/${blobOwner}/photo.jpg`, type: 'OTHER' }],
   ...over,
 })
 
@@ -90,10 +90,38 @@ describe('POST /api/submissions/:token', () => {
     expect(res.statusCode).toBe(403)
   })
 
-  it('requires a photo (422 with no image)', async () => {
+  it('requires at least one photo (400 with none / empty array) — AE2', async () => {
     const c = await makeContractor()
-    const res = await submit(c.token, { amount: 10, description: 'x', invoiceDate: '2026-06-01' })
-    expect(res.statusCode).toBe(400) // schema validation (image required)
+    const none = await submit(c.token, { amount: 10, description: 'x', invoiceDate: '2026-06-01' })
+    expect(none.statusCode).toBe(400) // schema: images required
+    const empty = await submit(c.token, submitBody({ images: [] }, c.blobOwner))
+    expect(empty.statusCode).toBe(400) // schema: images.min(1)
+  })
+
+  it('accepts up to the cap, persisting every image; a 6th is rejected — AE2', async () => {
+    const c = await makeContractor()
+    const five = Array.from({ length: 5 }, (_, i) => ({
+      url: `https://blob.example/owners/${c.blobOwner}/p${i}.jpg`,
+      type: 'OTHER',
+    }))
+    const ok = await submit(c.token, submitBody({ images: five }, c.blobOwner))
+    expect(ok.statusCode).toBe(201)
+    const rows = await app.prisma.invoiceImage.findMany({ where: { invoiceId: ok.json().id } })
+    expect(rows).toHaveLength(5)
+
+    const six = [...five, { url: `https://blob.example/owners/${c.blobOwner}/p5.jpg`, type: 'OTHER' }]
+    expect((await submit(c.token, submitBody({ images: six }, c.blobOwner))).statusCode).toBe(400)
+  })
+
+  it('rejects the whole submission if any one photo is outside the contractor’s prefix (gate)', async () => {
+    const c = await makeContractor()
+    const mixed = [
+      { url: `https://blob.example/owners/${c.blobOwner}/ok.jpg`, type: 'OTHER' },
+      { url: `https://blob.example/owners/${landlord.user.id}/evil.jpg`, type: 'OTHER' },
+    ]
+    const res = await submit(c.token, submitBody({ images: mixed }, c.blobOwner))
+    expect(res.statusCode).toBe(403)
+    expect(await app.prisma.invoice.count({ where: { submittedByContractorId: c.id } })).toBe(0)
   })
 
   it('rejects a future or too-old invoiceDate', async () => {

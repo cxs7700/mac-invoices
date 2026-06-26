@@ -7,7 +7,7 @@ export function useCreateInvoice() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (input: CreateInvoiceInput) =>
-      apiClient('/api/invoices', { method: 'POST', body: JSON.stringify(input) }),
+      apiClient<{ id: string }>('/api/invoices', { method: 'POST', body: JSON.stringify(input) }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['invoices'] }),
   })
 }

@@ -5,6 +5,7 @@ import type {
   InvoiceImageInput,
   InvoiceStatus,
 } from '@mac-invoices/shared'
+import { MAX_INVOICE_IMAGES } from '@mac-invoices/shared'
 import { AppError } from '../middleware/errorHandler'
 import { isOwnedBy, deleteBlob } from '../integrations/storage'
 
@@ -181,17 +182,20 @@ async function writeImageAttachment(
 
 /**
  * Create an invoice and its CREATED event in one transaction. The invoice number
- * is the client-supplied one, or the next sequential number computed on `tx`. When
- * an `image` is supplied (owner-gated), its InvoiceImage row + IMAGE_ATTACHED event
- * are written in the same transaction. Throws P2002 on a number collision — the
- * handler retries auto-numbered creates in a fresh transaction.
+ * is the client-supplied one, or the next sequential number computed on `tx`. Any
+ * supplied `images[]` (each owner-gated) are written as InvoiceImage rows +
+ * IMAGE_ATTACHED events in the same transaction; 0 images is valid (create now,
+ * photograph later). The legacy `attachmentUrl` is no longer written — `images[]`
+ * is the single source of truth. Throws P2002 on a number collision — the handler
+ * retries auto-numbered creates in a fresh transaction.
  */
 export async function createInvoice(
   prisma: PrismaClient,
   actorId: string,
   input: CreateInvoiceInput,
 ) {
-  if (input.image) gateImageRef(input.image.url, actorId)
+  const images = input.images ?? []
+  for (const image of images) gateImageRef(image.url, actorId)
   return prisma.$transaction(async (tx) => {
     // A property assigned at create must belong to the acting landlord (404, not
     // 403, so another landlord's property existence never leaks).
@@ -213,7 +217,6 @@ export async function createInvoice(
         invoiceDate: input.invoiceDate,
         dueDate: input.dueDate ?? null,
         notes: input.notes ?? null,
-        attachmentUrl: input.attachmentUrl ?? null,
         userId: actorId,
       },
       include: { user: userSelect },
@@ -227,7 +230,9 @@ export async function createInvoice(
         detail: {},
       },
     })
-    if (input.image) await writeImageAttachment(tx, invoice.id, actorId, invoice.userId, input.image)
+    for (const image of images) {
+      await writeImageAttachment(tx, invoice.id, actorId, invoice.userId, image)
+    }
     return invoice
   })
 }
@@ -238,16 +243,18 @@ export async function createInvoice(
  * distinct (KTD-7/8): `ownerUserId` is the landlord (`user.connect` + the event's
  * ownerUserId), the event `actorId` is `contractor:<id>`, and the image gate uses
  * the contractor's blob prefix `c_<id>` (the uploader). The row lands SUBMITTED,
- * uncategorized, and unnumbered (a number is assigned on approval — KTD-11). The
- * photo is required (the proof) and gated to the contractor's own uploads.
+ * uncategorized, and unnumbered (a number is assigned on approval — KTD-11). At
+ * least one photo is required (the proof) up to the cap; EACH is gated to the
+ * contractor's own uploads — a single foreign URL rejects the whole submission.
  */
 export async function createSubmission(
   prisma: PrismaClient,
   args: { ownerUserId: string; contractorId: string; vendorName: string },
-  input: { amount: number; description: string; invoiceDate: Date; image: InvoiceImageInput },
+  input: { amount: number; description: string; invoiceDate: Date; images: InvoiceImageInput[] },
 ) {
   const actorId = contractorActorId(args.contractorId)
-  gateImageRef(input.image.url, contractorBlobOwner(args.contractorId))
+  const blobOwner = contractorBlobOwner(args.contractorId)
+  for (const image of input.images) gateImageRef(image.url, blobOwner)
   return prisma.$transaction(async (tx) => {
     const invoice = await tx.invoice.create({
       data: {
@@ -266,7 +273,9 @@ export async function createSubmission(
     await tx.invoiceEvent.create({
       data: { invoiceId: invoice.id, actorId, ownerUserId: invoice.userId, type: 'CREATED', detail: {} },
     })
-    await writeImageAttachment(tx, invoice.id, actorId, invoice.userId, input.image)
+    for (const image of input.images) {
+      await writeImageAttachment(tx, invoice.id, actorId, invoice.userId, image)
+    }
     return invoice
   })
 }
@@ -364,7 +373,6 @@ export async function updateInvoice(
     if (input.invoiceDate !== undefined) data.invoiceDate = input.invoiceDate
     if (input.dueDate !== undefined) data.dueDate = input.dueDate
     if (input.notes !== undefined) data.notes = input.notes
-    if (input.attachmentUrl !== undefined) data.attachmentUrl = input.attachmentUrl
 
     const events: Prisma.InvoiceEventCreateManyInput[] = []
     const base = { invoiceId: id, actorId, ownerUserId: before.userId }
@@ -432,79 +440,113 @@ export async function updateInvoice(
  * the row. The event's non-cascading `invoiceId` lets it outlive the invoice.
  */
 export async function deleteInvoice(prisma: PrismaClient, actorId: string, id: string) {
-  const imageUrl = await prisma.$transaction(async (tx) => {
+  const imageUrls = await prisma.$transaction(async (tx) => {
     const before = await tx.invoice.findFirst({
       where: { id, userId: actorId },
       include: { images: true },
     })
     if (!before) throw new AppError('NOT_FOUND', 'Invoice not found', 404)
 
-    // Snapshot the scalar invoice plus the image url, so the archive is complete
-    // even though the cascade drops the InvoiceImage row with the invoice.
+    // Snapshot the scalar invoice plus EVERY image url, so the archive is complete
+    // even though the cascade drops all InvoiceImage rows with the invoice.
     const { images, user: _user, ...scalar } = before as Record<string, unknown> & {
       images: { url: string }[]
     }
-    const url = images[0]?.url ?? null
+    const urls = images.map((img) => img.url)
     await tx.invoiceEvent.create({
       data: {
         invoiceId: id,
         actorId,
         ownerUserId: before.userId,
         type: 'DELETED',
-        detail: { snapshot: { ...serializeInvoice(scalar), imageUrl: url } },
+        detail: { snapshot: { ...serializeInvoice(scalar), imageUrls: urls } },
       },
     })
     await tx.invoice.deleteMany({ where: { id, userId: actorId } })
-    return url
+    return urls
   })
-  // Reclaim the blob after the row is gone (best-effort — never fail the delete).
-  if (imageUrl) await deleteBlob(imageUrl).catch(() => {})
+  // Reclaim every blob after the row is gone (best-effort — never fail the delete).
+  for (const url of imageUrls) await deleteBlob(url).catch(() => {})
 }
 
 /**
- * Attach (or replace) an invoice's photo. Gates the blob ref by owner (KTD-5),
- * verifies invoice ownership, then in one transaction removes any existing image
- * row and writes the new one + an IMAGE_ATTACHED event. The replaced blob is
- * reclaimed best-effort after commit.
+ * Append one photo to an invoice's gallery. Gates the blob ref by owner (KTD-2b),
+ * then in one transaction takes a row lock on the invoice (`SELECT … FOR UPDATE`),
+ * counts existing rows, and throws IMAGE_LIMIT (422) at the cap (KTD-3) before
+ * writing the row + an IMAGE_ATTACHED event. The lock serializes concurrent
+ * appends on the same invoice: under Read Committed a bare count-then-insert is a
+ * TOCTOU (two requests both read 4 and both insert → 6), so the parent-row lock
+ * forces the second transaction to wait and re-count against the committed insert.
  */
-export async function attachImage(
+export async function addImage(
   prisma: PrismaClient,
   actorId: string,
   invoiceId: string,
   image: InvoiceImageInput,
 ) {
   gateImageRef(image.url, actorId)
-  const priorUrl = await prisma.$transaction(async (tx) => {
-    const invoice = await tx.invoice.findFirst({ where: { id: invoiceId, userId: actorId } })
-    if (!invoice) throw new AppError('NOT_FOUND', 'Invoice not found', 404)
-    const existing = await tx.invoiceImage.findFirst({ where: { invoiceId } })
-    if (existing) await tx.invoiceImage.deleteMany({ where: { invoiceId } })
-    await writeImageAttachment(tx, invoiceId, actorId, invoice.userId, image)
-    return existing?.url ?? null
+  await prisma.$transaction(async (tx) => {
+    // Lock the invoice row (own-scoped) so concurrent appends serialize on it.
+    // A non-owned/absent invoice locks nothing → 404 (no existence leak).
+    const locked = await tx.$queryRaw<{ userId: string }[]>`
+      SELECT "userId" FROM "invoices" WHERE id = ${invoiceId} AND "userId" = ${actorId} FOR UPDATE`
+    if (locked.length === 0) throw new AppError('NOT_FOUND', 'Invoice not found', 404)
+    const count = await tx.invoiceImage.count({ where: { invoiceId } })
+    if (count >= MAX_INVOICE_IMAGES) {
+      throw new AppError('IMAGE_LIMIT', `An invoice can have at most ${MAX_INVOICE_IMAGES} photos`, 422)
+    }
+    await writeImageAttachment(tx, invoiceId, actorId, locked[0].userId, image)
   })
-  if (priorUrl && priorUrl !== image.url) await deleteBlob(priorUrl).catch(() => {})
 }
 
-/** Remove an invoice's photo: delete the row + blob and emit IMAGE_REMOVED. */
-export async function removeImage(prisma: PrismaClient, actorId: string, invoiceId: string) {
+/**
+ * Remove one photo by id: delete the row + blob and emit IMAGE_REMOVED. The image
+ * is resolved with a SINGLE ownership-joined query (KTD-2a) so a landlord can't
+ * delete another invoice's image by guessing an id — a non-owned/foreign id 404s.
+ */
+export async function removeImage(
+  prisma: PrismaClient,
+  actorId: string,
+  invoiceId: string,
+  imageId: string,
+) {
   const removedUrl = await prisma.$transaction(async (tx) => {
-    const invoice = await tx.invoice.findFirst({ where: { id: invoiceId, userId: actorId } })
-    if (!invoice) throw new AppError('NOT_FOUND', 'Invoice not found', 404)
-    const existing = await tx.invoiceImage.findFirst({ where: { invoiceId } })
-    if (!existing) throw new AppError('NOT_FOUND', 'No photo on this invoice', 404)
-    await tx.invoiceImage.deleteMany({ where: { invoiceId } })
+    const image = await tx.invoiceImage.findFirst({
+      where: { id: imageId, invoiceId, invoice: { userId: actorId } },
+    })
+    if (!image) throw new AppError('NOT_FOUND', 'Photo not found', 404)
+    await tx.invoiceImage.delete({ where: { id: imageId } })
     await tx.invoiceEvent.create({
       data: {
         invoiceId,
         actorId,
-        ownerUserId: invoice.userId,
+        ownerUserId: actorId,
         type: 'IMAGE_REMOVED',
-        detail: { url: existing.url },
+        detail: { url: image.url },
       },
     })
-    return existing.url
+    return image.url
   })
   await deleteBlob(removedUrl).catch(() => {})
+}
+
+/**
+ * Change one photo's type (landlord gallery, KTD-5). Resolved with the same
+ * single ownership-joined query as removeImage (KTD-2a) — a non-owned/foreign
+ * imageId 404s. No event (a type retag is not a financially-material change).
+ */
+export async function setImageType(
+  prisma: PrismaClient,
+  actorId: string,
+  invoiceId: string,
+  imageId: string,
+  type: InvoiceImageInput['type'],
+) {
+  const image = await prisma.invoiceImage.findFirst({
+    where: { id: imageId, invoiceId, invoice: { userId: actorId } },
+  })
+  if (!image) throw new AppError('NOT_FOUND', 'Photo not found', 404)
+  await prisma.invoiceImage.update({ where: { id: imageId }, data: { type } })
 }
 
 /**
