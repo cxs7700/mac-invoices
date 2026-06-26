@@ -8,6 +8,8 @@ import { StatusBadge } from '@/components/StatusBadge'
 import { SyncBadge } from '@/components/SyncBadge'
 import { ReviewActions } from '@/components/ReviewActions'
 import { InvoiceImageGallery } from '@/components/InvoiceImageGallery'
+import { AddPhotoIndicator } from '@/components/AddPhotoIndicator'
+import { needsPhoto } from '@/lib/needsPhoto'
 import { InvoiceTimeline } from '@/components/InvoiceTimeline'
 import { formatMoney, formatDate } from '@/lib/format'
 import { Button } from '@/components/ui/button'
@@ -178,6 +180,10 @@ export default function InvoiceDetail() {
               </Button>
             </div>
           </div>
+
+          {needsPhoto(invoice.status, invoice.imageCount) && (
+            <AddPhotoIndicator invoiceId={invoice.id} variant="cta" />
+          )}
 
           <InvoiceImageGallery invoiceId={invoice.id} />
 

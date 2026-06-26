@@ -19,7 +19,7 @@ const invoice = {
   dueDate: null,
   paidDate: null,
   notes: 'left key under mat',
-  attachmentUrl: null,
+  imageCount: 0,
   createdAt: '2026-01-10',
   updatedAt: '2026-01-10',
 }
@@ -105,6 +105,13 @@ describe('InvoiceDetail', () => {
   it('shows a not-found state on 404', async () => {
     setup(404)
     await waitFor(() => expect(screen.getByText(/invoice not found/i)).toBeDefined())
+  })
+
+  it('shows the add-photo CTA for an active invoice with no photos (AE3)', async () => {
+    setup() // fixture: PENDING, imageCount 0
+    await waitFor(() => expect(screen.getByText('Invoice INV-1')).toBeDefined())
+    const cta = screen.getByRole('link', { name: /add one to document this invoice/i })
+    expect(cta.getAttribute('href')).toBe('/invoices/a')
   })
 
   it('deletes via the confirm modal, then navigates to the list', async () => {

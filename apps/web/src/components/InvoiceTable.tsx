@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next'
 import type { InvoiceListItem } from '@/hooks/useInvoices'
 import { StatusBadge } from './StatusBadge'
 import { SyncBadge } from './SyncBadge'
+import { AddPhotoIndicator } from './AddPhotoIndicator'
+import { needsPhoto } from '@/lib/needsPhoto'
 import { formatMoney, formatDate } from '@/lib/format'
 
 const th = 'px-4 py-2 font-medium'
@@ -39,7 +41,10 @@ export function InvoiceTable({ invoices }: { invoices: InvoiceListItem[] }) {
               <td className={td}>{inv.dueDate ? formatDate(inv.dueDate) : '—'}</td>
               <td className={`${td} text-right tabular-nums`}>{formatMoney(inv.amount)}</td>
               <td className={td}>
-                <StatusBadge status={inv.status} dueDate={inv.dueDate} />
+                <div className="flex items-center gap-2">
+                  <StatusBadge status={inv.status} dueDate={inv.dueDate} />
+                  {needsPhoto(inv.status, inv.imageCount) && <AddPhotoIndicator invoiceId={inv.id} />}
+                </div>
               </td>
               <td className={td}>
                 <SyncBadge sheetsSyncedAt={inv.sheetsSyncedAt} updatedAt={inv.updatedAt} />

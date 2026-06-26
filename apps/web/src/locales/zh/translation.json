@@ -67,6 +67,11 @@
     "CHECK": "支票",
     "OTHER": "其他"
   },
+  "addPhoto": {
+    "badge": "添加照片",
+    "ariaList": "为此发票添加照片",
+    "cta": "尚无照片 — 添加一张以留存此发票凭证。"
+  },
   "sync": {
     "label": { "not-exported": "未导出", "exported": "已导出", "drifted": "已变更" },
     "hint": {

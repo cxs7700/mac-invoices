@@ -67,6 +67,11 @@
     "CHECK": "Check",
     "OTHER": "Other"
   },
+  "addPhoto": {
+    "badge": "Add a photo",
+    "ariaList": "Add a photo to this invoice",
+    "cta": "No photo yet — add one to document this invoice."
+  },
   "sync": {
     "label": { "not-exported": "Not exported", "exported": "Exported", "drifted": "Drifted" },
     "hint": {
