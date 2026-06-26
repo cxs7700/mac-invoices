@@ -269,7 +269,6 @@
   "properties": {
     "title": "Properties",
     "subtitle": "Organize invoices and spend by property. Assign a property when you approve an invoice.",
-    "name": "Name",
     "nameOptional": "Name (optional)",
     "namePlaceholder": "Maple Duplex (optional — address is used if blank)",
     "address": "Address",
@@ -304,7 +303,6 @@
     "notFound": "Property not found.",
     "backToProperties": "Back to properties",
     "title": "Edit property",
-    "name": "Name",
     "nameOptional": "Name (optional)",
     "address": "Address",
     "notesOptional": "Notes (optional)",

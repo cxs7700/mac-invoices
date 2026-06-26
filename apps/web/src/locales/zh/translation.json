@@ -269,7 +269,6 @@
   "properties": {
     "title": "房产",
     "subtitle": "按房产管理发票与支出。批准发票时分配房产。",
-    "name": "名称",
     "nameOptional": "名称（可选）",
     "namePlaceholder": "如：枫叶公寓（可选 — 留空则使用地址）",
     "address": "地址",
@@ -304,7 +303,6 @@
     "notFound": "未找到房产",
     "backToProperties": "返回房产列表",
     "title": "编辑房产",
-    "name": "名称",
     "nameOptional": "名称（可选）",
     "address": "地址",
     "notesOptional": "备注（可选）",

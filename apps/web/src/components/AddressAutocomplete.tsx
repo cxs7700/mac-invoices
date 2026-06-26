@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { searchAddresses, type AddressSuggestion } from '@/lib/geocode'
 
@@ -28,15 +28,17 @@ export function AddressAutocomplete({
   const [results, setResults] = useState<AddressSuggestion[]>([])
   const [active, setActive] = useState(-1)
   const containerRef = useRef<HTMLDivElement>(null)
-  // Suppress the lookup triggered by programmatically setting `value` on select.
-  const skipNextLookup = useRef(false)
+  // The value last filled in by selecting a suggestion. We skip the lookup while
+  // `value` equals it, so the auto-filled address doesn't re-trigger a search.
+  // A ref (not a one-shot flag) so it stays correct even when selecting a value
+  // equal to what's already typed (which fires no `value` change / effect run).
+  const selectedValue = useRef<string | null>(null)
+  const listboxId = useId()
+  const optionId = (i: number) => `${listboxId}-opt-${i}`
 
   // Debounced lookup whenever the typed value changes.
   useEffect(() => {
-    if (skipNextLookup.current) {
-      skipNextLookup.current = false
-      return
-    }
+    if (selectedValue.current === value) return
 
     const tooShort = value.trim().length < 3
     const controller = new AbortController()
@@ -49,6 +51,8 @@ export function AddressAutocomplete({
       setLoading(true)
       searchAddresses(value, controller.signal)
         .then((found) => {
+          // Drop a response whose request was superseded (value already moved on).
+          if (controller.signal.aborted) return
           setResults(found)
           setActive(-1)
           setOpen(true)
@@ -79,7 +83,7 @@ export function AddressAutocomplete({
   }, [])
 
   const select = (s: AddressSuggestion) => {
-    skipNextLookup.current = true
+    selectedValue.current = s.value
     onChange(s.value)
     setResults([])
     setOpen(false)
@@ -103,6 +107,10 @@ export function AddressAutocomplete({
   }
 
   const showPanel = open && value.trim().length >= 3
+  // The actual options list is only rendered when there are results; ARIA state
+  // reflects that (not the loading/no-results status message) so what assistive
+  // tech announces matches what's navigable.
+  const listboxOpen = showPanel && results.length > 0
 
   return (
     <div ref={containerRef} className="relative">
@@ -115,7 +123,9 @@ export function AddressAutocomplete({
         placeholder={placeholder}
         autoComplete="off"
         role="combobox"
-        aria-expanded={showPanel}
+        aria-expanded={listboxOpen}
+        aria-controls={listboxOpen ? listboxId : undefined}
+        aria-activedescendant={listboxOpen && active >= 0 ? optionId(active) : undefined}
         aria-autocomplete="list"
         className={className}
       />
@@ -130,9 +140,9 @@ export function AddressAutocomplete({
               {t('addressAutocomplete.noResults')}
             </p>
           ) : (
-            <ul role="listbox">
+            <ul role="listbox" id={listboxId}>
               {results.map((s, i) => (
-                <li key={s.id} role="option" aria-selected={i === active}>
+                <li key={s.id} id={optionId(i)} role="option" aria-selected={i === active}>
                   <button
                     type="button"
                     onMouseDown={(e) => e.preventDefault()}

@@ -80,7 +80,7 @@ export async function updateProperty(
   const p = await request.server.prisma.property.update({
     where: { id: request.params.id },
     data: {
-      ...(input.name !== undefined && { name: input.name ?? '' }),
+      ...(input.name !== undefined && { name: input.name }),
       ...(input.address !== undefined && { address: input.address }),
       ...(input.notes !== undefined && { notes: input.notes }),
     },
