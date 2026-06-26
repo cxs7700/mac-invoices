@@ -46,8 +46,10 @@ export default function InvoiceNew() {
       <InvoiceForm
         onSubmit={(values) =>
           mutate(
-            { ...values, image: photoUrl ? { url: photoUrl, type: 'OTHER' } : undefined },
-            { onSuccess: () => navigate('/invoices') },
+            { ...values, images: photoUrl ? [{ url: photoUrl, type: 'OTHER' }] : undefined },
+            // Land on the new invoice's detail so the gallery + add-photo affordance
+            // are right there (the "create now, photograph later" loop — F1).
+            { onSuccess: (created) => navigate(`/invoices/${created.id}`) },
           )
         }
         isSubmitting={isPending}

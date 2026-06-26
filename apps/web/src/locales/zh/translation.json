@@ -265,11 +265,20 @@
     "uploading": "上传中… {{progress}}%",
     "uploadFailed": "上传失败 — 请重试。"
   },
-  "invoicePhoto": {
+  "invoiceGallery": {
     "heading": "照片",
+    "loading": "正在加载照片…",
+    "loadError": "无法加载照片。",
+    "empty": "暂无照片。",
     "viewFullSize": "查看完整尺寸照片",
     "alt": "发票照片",
+    "typeLabel": "照片类型",
     "remove": "移除",
+    "confirmRemoveYes": "移除",
+    "confirmRemoveNo": "取消",
+    "count": "{{count}} / {{max}} 张照片",
+    "atCap": "已达到 {{max}} 张照片上限 — 移除一张后才能继续添加。",
+    "capError": "每张发票最多 {{max}} 张照片。",
     "fullSize": "发票照片完整尺寸"
   },
   "properties": {

@@ -265,11 +265,20 @@
     "uploading": "Uploading… {{progress}}%",
     "uploadFailed": "Upload failed — please try again."
   },
-  "invoicePhoto": {
-    "heading": "Photo",
+  "invoiceGallery": {
+    "heading": "Photos",
+    "loading": "Loading photos…",
+    "loadError": "Couldn't load photos.",
+    "empty": "No photos yet.",
     "viewFullSize": "View full-size photo",
     "alt": "Invoice photo",
+    "typeLabel": "Photo type",
     "remove": "Remove",
+    "confirmRemoveYes": "Remove",
+    "confirmRemoveNo": "Cancel",
+    "count": "{{count}} of {{max}} photos",
+    "atCap": "Maximum of {{max}} photos reached — remove one to add another.",
+    "capError": "An invoice can have at most {{max}} photos.",
     "fullSize": "Invoice photo full size"
   },
   "properties": {

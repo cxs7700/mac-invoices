@@ -7,7 +7,7 @@ import { useInvoiceEvents } from '@/hooks/useInvoiceEvents'
 import { StatusBadge } from '@/components/StatusBadge'
 import { SyncBadge } from '@/components/SyncBadge'
 import { ReviewActions } from '@/components/ReviewActions'
-import { InvoicePhoto } from '@/components/InvoicePhoto'
+import { InvoiceImageGallery } from '@/components/InvoiceImageGallery'
 import { InvoiceTimeline } from '@/components/InvoiceTimeline'
 import { formatMoney, formatDate } from '@/lib/format'
 import { Button } from '@/components/ui/button'
@@ -179,7 +179,7 @@ export default function InvoiceDetail() {
             </div>
           </div>
 
-          <InvoicePhoto invoiceId={invoice.id} />
+          <InvoiceImageGallery invoiceId={invoice.id} />
 
           <div className="rounded-lg border border-border bg-card p-5">
             <h2 className="mb-3 text-sm font-semibold text-foreground">{t('invoiceDetail.timeline')}</h2>

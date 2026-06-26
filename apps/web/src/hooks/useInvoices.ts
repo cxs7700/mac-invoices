@@ -15,6 +15,9 @@ export type InvoiceListItem = {
   dueDate: string | null
   updatedAt: string
   sheetsSyncedAt: string | null
+  // Number of attached photos (from the API _count) — drives the add-photo
+  // indicator without fetching the image rows.
+  imageCount: number
 }
 
 export type InvoiceListResponse = {
