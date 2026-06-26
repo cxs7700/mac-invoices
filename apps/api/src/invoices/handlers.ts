@@ -5,7 +5,8 @@ import {
   UpdateInvoiceSchema,
   ListInvoicesQuerySchema,
   ExportInvoicesSchema,
-  InvoiceImageInputSchema,
+  AttachImageSchema,
+  SetImageTypeSchema,
   ImageUploadTokenSchema,
   InvoiceStatus,
   InvoiceCategory,
@@ -17,7 +18,7 @@ import { money } from '../lib/money'
 import { appendRows } from '../integrations/sheets'
 import { issueUploadToken, signedReadUrl } from '../integrations/storage'
 import * as writeService from './writeService'
-import type { GetInvoiceParams, ListInvoicesQuery } from './types.ts'
+import type { GetInvoiceParams, ImageParams, ListInvoicesQuery } from './types.ts'
 
 const userSelect = { select: { id: true, name: true, email: true } }
 
@@ -98,7 +99,7 @@ export async function listInvoices(
   const [invoices, total] = await Promise.all([
     request.server.prisma.invoice.findMany({
       where,
-      include: { user: userSelect },
+      include: { user: userSelect, _count: { select: { images: true } } },
       take: q.limit,
       skip: q.offset,
       orderBy,
@@ -106,7 +107,10 @@ export async function listInvoices(
     request.server.prisma.invoice.count({ where }),
   ])
 
-  return reply.send({ data: invoices, pagination: { total, limit: q.limit, offset: q.offset } })
+  // Expose imageCount (cheap _count, no N+1) so the list can render the add-photo
+  // indicator without fetching each invoice's image rows. Drop the raw _count.
+  const data = invoices.map(({ _count, ...inv }) => ({ ...inv, imageCount: _count.images }))
+  return reply.send({ data, pagination: { total, limit: q.limit, offset: q.offset } })
 }
 
 /**
@@ -181,7 +185,11 @@ export async function getInvoice(
 ) {
   const invoice = await request.server.prisma.invoice.findFirst({
     where: { id: request.params.id, userId: request.user.id },
-    include: { user: userSelect, submittedByContractor: { select: { name: true } } },
+    include: {
+      user: userSelect,
+      submittedByContractor: { select: { name: true } },
+      _count: { select: { images: true } },
+    },
   })
 
   if (!invoice) {
@@ -189,9 +197,14 @@ export async function getInvoice(
   }
 
   // Surface the submitter's name on the detail (R11 — "by whom"); strip the
-  // joined relation object in favour of a flat field.
-  const { submittedByContractor, ...rest } = invoice
-  return reply.send({ ...rest, submitterName: submittedByContractor?.name ?? null })
+  // joined relation object in favour of a flat field. imageCount drives the
+  // add-photo indicator + gallery presence without embedding the image rows here.
+  const { submittedByContractor, _count, ...rest } = invoice
+  return reply.send({
+    ...rest,
+    submitterName: submittedByContractor?.name ?? null,
+    imageCount: _count.images,
+  })
 }
 
 /**
@@ -299,38 +312,68 @@ export async function createImageUploadToken(request: FastifyRequest, reply: Fas
   return reply.send(result)
 }
 
-/** POST /api/invoices/:id/image — attach/replace the invoice's photo (ledger-recorded). */
-export async function attachInvoiceImage(
-  request: FastifyRequest<{ Params: GetInvoiceParams }>,
-  reply: FastifyReply,
-) {
-  const image = parseBody(InvoiceImageInputSchema, request.body)
-  await writeService.attachImage(request.server.prisma, request.user.id, request.params.id, image)
-  return reply.code(204).send()
-}
-
-/** DELETE /api/invoices/:id/image — remove the invoice's photo (ledger-recorded). */
-export async function removeInvoiceImage(
-  request: FastifyRequest<{ Params: GetInvoiceParams }>,
-  reply: FastifyReply,
-) {
-  await writeService.removeImage(request.server.prisma, request.user.id, request.params.id)
-  return reply.code(204).send()
-}
-
-/** GET /api/invoices/:id/image-url — an owner-scoped signed view URL for the photo. */
-export async function getInvoiceImageUrl(
+/**
+ * GET /api/invoices/:id/images — the invoice's photo gallery, ownership-scoped
+ * (404 for a non-owned/absent invoice). Each row carries a freshly-signed read
+ * URL minted at read time (the stored value is the private blob path).
+ */
+export async function listInvoiceImages(
   request: FastifyRequest<{ Params: GetInvoiceParams }>,
   reply: FastifyReply,
 ) {
   const invoice = await request.server.prisma.invoice.findFirst({
     where: { id: request.params.id, userId: request.user.id },
-    include: { images: true },
+    include: { images: { orderBy: { createdAt: 'asc' } } },
   })
   if (!invoice) throw new AppError('NOT_FOUND', 'Invoice not found', 404)
-  const image = invoice.images[0]
-  if (!image) throw new AppError('NOT_FOUND', 'No photo on this invoice', 404)
-  return reply.send({ url: signedReadUrl(image.url) })
+  const data = invoice.images.map((img) => ({
+    id: img.id,
+    url: signedReadUrl(img.url),
+    type: img.type,
+    caption: img.caption,
+    createdAt: img.createdAt,
+  }))
+  return reply.send({ data })
+}
+
+/** POST /api/invoices/:id/images — append a photo to the gallery (ledger-recorded). */
+export async function addInvoiceImage(
+  request: FastifyRequest<{ Params: GetInvoiceParams }>,
+  reply: FastifyReply,
+) {
+  const image = parseBody(AttachImageSchema, request.body)
+  await writeService.addImage(request.server.prisma, request.user.id, request.params.id, image)
+  return reply.code(204).send()
+}
+
+/** DELETE /api/invoices/:id/images/:imageId — remove one photo by id (ledger-recorded). */
+export async function removeInvoiceImage(
+  request: FastifyRequest<{ Params: ImageParams }>,
+  reply: FastifyReply,
+) {
+  await writeService.removeImage(
+    request.server.prisma,
+    request.user.id,
+    request.params.id,
+    request.params.imageId,
+  )
+  return reply.code(204).send()
+}
+
+/** PATCH /api/invoices/:id/images/:imageId — change one photo's type. */
+export async function setInvoiceImageType(
+  request: FastifyRequest<{ Params: ImageParams }>,
+  reply: FastifyReply,
+) {
+  const { type } = parseBody(SetImageTypeSchema, request.body)
+  await writeService.setImageType(
+    request.server.prisma,
+    request.user.id,
+    request.params.id,
+    request.params.imageId,
+    type,
+  )
+  return reply.code(204).send()
 }
 
 // Read per-call so tests can shrink it via EXPORT_CHUNK_SIZE; clamp to [1, 500]

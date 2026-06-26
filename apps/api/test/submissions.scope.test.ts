@@ -36,7 +36,7 @@ async function submit(contractorId: string, token: string) {
       amount: 100,
       description: 'work',
       invoiceDate: '2026-06-01',
-      image: { url: `https://blob/owners/c_${contractorId}/p.jpg`, type: 'OTHER' },
+      images: [{ url: `https://blob/owners/c_${contractorId}/p.jpg`, type: 'OTHER' }],
     },
   })
   return r.json().id as string

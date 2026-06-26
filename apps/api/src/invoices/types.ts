@@ -7,6 +7,12 @@ export interface GetInvoiceParams {
   id: string
 }
 
+// Path params for the per-image gallery routes (`/:id/images/:imageId`).
+export interface ImageParams {
+  id: string
+  imageId: string
+}
+
 // The raw query is just strings; the shape is validated by ListInvoicesQuerySchema
 // (shared) in the handler via parseBody — no need to mirror every param here.
 export type ListInvoicesQuery = Record<string, string | undefined>
