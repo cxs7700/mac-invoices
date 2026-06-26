@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { del, getDownloadUrl } from '@vercel/blob'
+import { del, getDownloadUrl, list } from '@vercel/blob'
 import { generateClientTokenFromReadWriteToken } from '@vercel/blob/client'
 import { AppError } from '../middleware/errorHandler'
 
@@ -24,7 +24,7 @@ function readWriteToken(): string {
 }
 
 /** Reduce a blob URL or pathname to its pathname (strip origin + query). */
-function toPathname(urlOrPathname: string): string {
+export function toPathname(urlOrPathname: string): string {
   try {
     return new URL(urlOrPathname).pathname.replace(/^\/+/, '')
   } catch {
@@ -102,4 +102,30 @@ export async function deleteBlob(urlOrPathname: string): Promise<void> {
   } catch (err) {
     throw sanitize(err)
   }
+}
+
+/** One stored blob, as the orphan sweep needs it. */
+export type StoredBlob = { url: string; pathname: string; uploadedAt: Date }
+
+/**
+ * Every blob under `prefix` (paginated). Used by the orphan-blob sweep to find
+ * uploads that were never attached to an invoice. Read-only; the caller decides
+ * what to reclaim.
+ */
+export async function listAllBlobs(prefix = 'owners/'): Promise<StoredBlob[]> {
+  const token = readWriteToken()
+  const out: StoredBlob[] = []
+  let cursor: string | undefined
+  try {
+    do {
+      const page = await list({ token, prefix, cursor, limit: 1000 })
+      for (const b of page.blobs) {
+        out.push({ url: b.url, pathname: b.pathname, uploadedAt: b.uploadedAt })
+      }
+      cursor = page.hasMore ? page.cursor : undefined
+    } while (cursor)
+  } catch (err) {
+    throw sanitize(err)
+  }
+  return out
 }

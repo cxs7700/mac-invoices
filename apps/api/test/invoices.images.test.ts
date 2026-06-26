@@ -22,7 +22,6 @@ vi.mock('../src/integrations/storage', () => storage)
 
 import { MAX_INVOICE_IMAGES } from '@mac-invoices/shared'
 import { buildApp } from '../src/app'
-import { backfillInvoiceImages } from '../prisma/backfill-invoice-images'
 import { loginCookie, createSecondUser } from './helpers/auth'
 
 const app = buildApp()
@@ -244,37 +243,6 @@ describe('delete invoice — reclaims every blob (KTD-6)', () => {
     const urls = (tomb!.detail as { snapshot: { imageUrls: string[] } }).snapshot.imageUrls
     expect(urls.sort()).toEqual([ownUrl('d1'), ownUrl('d2'), ownUrl('d3')].sort())
     expect(storage.deleteBlob).toHaveBeenCalledTimes(3)
-  })
-})
-
-describe('attachmentUrl backfill (AE4, U3)', () => {
-  it('folds a legacy attachmentUrl into one image row; idempotent re-run adds nothing', async () => {
-    // Seed an invoice that has only the legacy column, no image rows.
-    const legacy = await app.prisma.invoice.create({
-      data: {
-        invoiceNumber: `${PREFIX}legacy`,
-        vendorName: 'Vendor',
-        description: 'Work',
-        amount: 100,
-        category: 'OTHER',
-        invoiceDate: new Date('2026-02-01'),
-        userId: landlordId,
-        attachmentUrl: ownUrl('legacy'),
-      },
-    })
-    createdIds.push(legacy.id)
-    expect(await imagesFor(legacy.id)).toHaveLength(0)
-
-    const first = await backfillInvoiceImages(app.prisma)
-    expect(first.imagesCreated).toBeGreaterThanOrEqual(1)
-    const rows = await imagesFor(legacy.id)
-    expect(rows).toHaveLength(1)
-    expect(rows[0].url).toBe(ownUrl('legacy'))
-    expect(rows[0].type).toBe('OTHER')
-
-    // Idempotent: a second run creates nothing for this invoice.
-    await backfillInvoiceImages(app.prisma)
-    expect(await imagesFor(legacy.id)).toHaveLength(1)
   })
 })
 
