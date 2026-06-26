@@ -61,6 +61,12 @@
     "LABOR": "人工",
     "OTHER": "其他"
   },
+  "imageType": {
+    "CASH": "现金",
+    "PARTS": "配件",
+    "CHECK": "支票",
+    "OTHER": "其他"
+  },
   "sync": {
     "label": { "not-exported": "未导出", "exported": "已导出", "drifted": "已变更" },
     "hint": {
@@ -351,9 +357,13 @@
     "amount": "金额",
     "date": "日期",
     "description": "说明",
-    "photoLabel": "发票照片",
-    "photoAttached": "已附加照片 ✓",
-    "photoRequired": "必须提供发票照片。",
+    "photosLabel": "发票照片",
+    "photoN": "照片 {{n}}",
+    "photoTypeLabel": "照片 {{n}} 的类型",
+    "removePhoto": "移除",
+    "photoRequired": "至少需要提供一张发票照片。",
+    "photosCount": "已附加 {{count}} / {{max}} 张照片",
+    "photosAtCap": "最多可添加 {{max}} 张照片。",
     "submitting": "提交中…",
     "submit": "提交",
     "yourSubmissions": "您的提交记录",

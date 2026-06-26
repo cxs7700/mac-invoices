@@ -61,6 +61,12 @@
     "LABOR": "Labor",
     "OTHER": "Other"
   },
+  "imageType": {
+    "CASH": "Cash",
+    "PARTS": "Parts",
+    "CHECK": "Check",
+    "OTHER": "Other"
+  },
   "sync": {
     "label": { "not-exported": "Not exported", "exported": "Exported", "drifted": "Drifted" },
     "hint": {
@@ -351,9 +357,13 @@
     "amount": "Amount",
     "date": "Date",
     "description": "Description",
-    "photoLabel": "Photo of the invoice",
-    "photoAttached": "Photo attached ✓",
-    "photoRequired": "A photo of the invoice is required.",
+    "photosLabel": "Photos of the invoice",
+    "photoN": "Photo {{n}}",
+    "photoTypeLabel": "Type for photo {{n}}",
+    "removePhoto": "Remove",
+    "photoRequired": "At least one photo of the invoice is required.",
+    "photosCount": "{{count}} of {{max}} photos attached",
+    "photosAtCap": "Maximum of {{max}} photos reached.",
     "submitting": "Submitting…",
     "submit": "Submit",
     "yourSubmissions": "Your submissions",
