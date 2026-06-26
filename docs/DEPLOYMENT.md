@@ -50,6 +50,18 @@ DATABASE_URL="<prisma-postgres-url>" npm run db:deploy
 
 (The current schema is already migrated on the Prisma Postgres DB — only needed for a fresh DB or new migrations.)
 
+> **Destructive migrations (`DROP COLUMN` / `DROP TABLE`) invert this order.** The
+> migrate-first rule above is correct only for *additive* changes (the old code
+> tolerates a new column). A drop is **not** backward-compatible: the
+> currently-deployed Prisma client still `SELECT`s the column by name, so dropping
+> it *before* the new code is live throws `column "…" does not exist` on every read.
+> For a drop: **deploy the new code first, confirm it's serving, then run `db:deploy`.**
+> Re-verify the column is empty immediately before dropping, e.g. for
+> `20260626000000_drop_invoice_attachment_url`:
+> ```sql
+> SELECT COUNT(*) FROM "invoices" WHERE "attachmentUrl" IS NOT NULL;  -- must be 0
+> ```
+
 ## 4. Seed the landlord (one-off, strong password)
 
 The seed upserts the landlord login and **fails closed** if `LANDLORD_PASSWORD` is unset, and

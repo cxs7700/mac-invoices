@@ -28,6 +28,9 @@ export async function uploadInvoicePhoto(
     '/api/invoices/image-upload-token',
     { method: 'POST', body: JSON.stringify({ contentType: file.type }) },
   )
+  // The blob lands at exactly the server-issued pathname (the token pins it with
+  // addRandomSuffix:false), so the owner-prefix gate and the orphan-blob sweep can
+  // match the stored URL's pathname to what they expect.
   const result = await put(pathname, file, {
     access: 'private',
     token,

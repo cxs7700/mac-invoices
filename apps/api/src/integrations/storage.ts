@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { del, getDownloadUrl } from '@vercel/blob'
+import { del, getDownloadUrl, list } from '@vercel/blob'
 import { generateClientTokenFromReadWriteToken } from '@vercel/blob/client'
 import { AppError } from '../middleware/errorHandler'
 
@@ -23,8 +23,15 @@ function readWriteToken(): string {
   return token
 }
 
-/** Reduce a blob URL or pathname to its pathname (strip origin + query). */
-function toPathname(urlOrPathname: string): string {
+/**
+ * Reduce a blob URL or pathname to its pathname (strip origin + query). This is
+ * the canonicalization boundary the owner-prefix gate AND the orphan-blob sweep
+ * both rely on: a stored `InvoiceImage.url` (full URL) and a `list()` blob
+ * pathname (bare path) must reduce to the same string. Holds because uploads pin
+ * the pathname to `owners/<id>/<uuid>` with `addRandomSuffix: false` (see the web
+ * upload hooks) — keep it that way or the sweep could misjudge a referenced blob.
+ */
+export function toPathname(urlOrPathname: string): string {
   try {
     return new URL(urlOrPathname).pathname.replace(/^\/+/, '')
   } catch {
@@ -71,6 +78,10 @@ export async function issueUploadToken(
     const token = await generateClientTokenFromReadWriteToken({
       token: readWriteToken(),
       pathname,
+      // Pin the stored object to exactly this pathname — no random suffix — so the
+      // owner-prefix gate and the orphan-blob sweep can match a stored URL's
+      // pathname to what they issued. Load-bearing for the sweep (see toPathname).
+      addRandomSuffix: false,
       allowedContentTypes: [contentType],
       maximumSizeInBytes: MAX_UPLOAD_BYTES,
       validUntil: Date.now() + UPLOAD_TOKEN_TTL_MS,
@@ -102,4 +113,30 @@ export async function deleteBlob(urlOrPathname: string): Promise<void> {
   } catch (err) {
     throw sanitize(err)
   }
+}
+
+/** One stored blob, as the orphan sweep needs it. */
+export type StoredBlob = { url: string; pathname: string; uploadedAt: Date }
+
+/**
+ * Every blob under `prefix` (paginated). Used by the orphan-blob sweep to find
+ * uploads that were never attached to an invoice. Read-only; the caller decides
+ * what to reclaim.
+ */
+export async function listAllBlobs(prefix = 'owners/'): Promise<StoredBlob[]> {
+  const token = readWriteToken()
+  const out: StoredBlob[] = []
+  let cursor: string | undefined
+  try {
+    do {
+      const page = await list({ token, prefix, cursor, limit: 1000 })
+      for (const b of page.blobs) {
+        out.push({ url: b.url, pathname: b.pathname, uploadedAt: b.uploadedAt })
+      }
+      cursor = page.hasMore ? page.cursor : undefined
+    } while (cursor)
+  } catch (err) {
+    throw sanitize(err)
+  }
+  return out
 }

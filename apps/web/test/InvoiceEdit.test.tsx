@@ -19,7 +19,6 @@ const invoice = {
   dueDate: null,
   paidDate: null,
   notes: 'left key under mat',
-  attachmentUrl: null,
   createdAt: '2026-01-10',
   updatedAt: '2026-01-10',
 }
