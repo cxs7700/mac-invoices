@@ -111,6 +111,30 @@ describe('ContractorSubmit', () => {
     )
   })
 
+  it('lets the contractor retype a photo and submits the chosen type', async () => {
+    useSubmissionStatus.mockReturnValue({ isPending: false, isError: false, data: { data: [] } })
+    uploadSubmissionPhoto.mockResolvedValue('https://blob.example/owners/c/p.jpg')
+    const { container } = renderPage()
+
+    fireEvent.change(screen.getByLabelText('Amount'), { target: { value: '120' } })
+    fireEvent.change(screen.getByLabelText('Date'), { target: { value: '2026-06-01' } })
+    fireEvent.change(screen.getByLabelText('Description'), { target: { value: 'Fixed a leak' } })
+    const fileInput = container.querySelectorAll('input[type="file"]')[1] as HTMLInputElement
+    fireEvent.change(fileInput, { target: { files: [new File(['x'], 'p.png', { type: 'image/png' })] } })
+
+    // Once uploaded, a per-photo type select appears; retype it to PARTS.
+    await waitFor(() => expect(screen.getByLabelText('Type for photo 1')).toBeDefined())
+    fireEvent.change(screen.getByLabelText('Type for photo 1'), { target: { value: 'PARTS' } })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
+    expect(submitMock.mutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        images: [{ url: 'https://blob.example/owners/c/p.jpg', type: 'PARTS' }],
+      }),
+      expect.anything(),
+    )
+  })
+
   it('shows a distinct rate-limit message on a 429', () => {
     useSubmissionStatus.mockReturnValue({ isPending: false, isError: false, data: { data: [] } })
     submitMock.error = new ApiError('TOO_MANY_REQUESTS', 'Too many requests', 429)

@@ -16,6 +16,13 @@ vi.mock('@/hooks/useInvoiceImages', () => ({
   useRemoveInvoiceImage,
   useSetInvoiceImageType,
 }))
+// Stub PhotoAttach: a button that reports an uploaded url (the real one would
+// hit the upload endpoint). Lets us exercise the gallery's add wiring directly.
+vi.mock('@/components/PhotoAttach', () => ({
+  PhotoAttach: ({ onUploaded }: { onUploaded: (u: string) => void }) => (
+    <button onClick={() => onUploaded('https://blob/new')}>do-attach</button>
+  ),
+}))
 
 const add = { mutate: vi.fn(), isPending: false, error: null as unknown }
 const remove = { mutate: vi.fn(), isPending: false }
@@ -95,7 +102,24 @@ describe('InvoiceImageGallery', () => {
     renderGallery()
     expect(screen.getByText(/Maximum of 5 photos reached/i)).toBeDefined()
     // The upload affordance is gone at the cap.
-    expect(screen.queryByRole('button', { name: /Take photo/i })).toBeNull()
+    expect(screen.queryByText('do-attach')).toBeNull()
+  })
+
+  it('wires the add control to the add mutation', () => {
+    useInvoiceImages.mockReturnValue({
+      isPending: false,
+      isError: false,
+      data: { data: [image('a')] },
+    })
+    renderGallery()
+    fireEvent.click(screen.getByText('do-attach'))
+    expect(add.mutate).toHaveBeenCalledWith('https://blob/new')
+  })
+
+  it('shows a load-error state', () => {
+    useInvoiceImages.mockReturnValue({ isPending: false, isError: true })
+    renderGallery()
+    expect(screen.getByText(/Couldn't load photos/i)).toBeDefined()
   })
 
   it('surfaces a cap-422 message from a failed add', () => {

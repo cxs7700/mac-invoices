@@ -471,9 +471,12 @@ export async function deleteInvoice(prisma: PrismaClient, actorId: string, id: s
 
 /**
  * Append one photo to an invoice's gallery. Gates the blob ref by owner (KTD-2b),
- * verifies invoice ownership, then in one transaction counts existing rows and
- * throws IMAGE_LIMIT (422) at the cap (KTD-3, so concurrent uploads can't exceed
- * it) before writing the row + an IMAGE_ATTACHED event.
+ * then in one transaction takes a row lock on the invoice (`SELECT … FOR UPDATE`),
+ * counts existing rows, and throws IMAGE_LIMIT (422) at the cap (KTD-3) before
+ * writing the row + an IMAGE_ATTACHED event. The lock serializes concurrent
+ * appends on the same invoice: under Read Committed a bare count-then-insert is a
+ * TOCTOU (two requests both read 4 and both insert → 6), so the parent-row lock
+ * forces the second transaction to wait and re-count against the committed insert.
  */
 export async function addImage(
   prisma: PrismaClient,
@@ -483,13 +486,16 @@ export async function addImage(
 ) {
   gateImageRef(image.url, actorId)
   await prisma.$transaction(async (tx) => {
-    const invoice = await tx.invoice.findFirst({ where: { id: invoiceId, userId: actorId } })
-    if (!invoice) throw new AppError('NOT_FOUND', 'Invoice not found', 404)
+    // Lock the invoice row (own-scoped) so concurrent appends serialize on it.
+    // A non-owned/absent invoice locks nothing → 404 (no existence leak).
+    const locked = await tx.$queryRaw<{ userId: string }[]>`
+      SELECT "userId" FROM "invoices" WHERE id = ${invoiceId} AND "userId" = ${actorId} FOR UPDATE`
+    if (locked.length === 0) throw new AppError('NOT_FOUND', 'Invoice not found', 404)
     const count = await tx.invoiceImage.count({ where: { invoiceId } })
     if (count >= MAX_INVOICE_IMAGES) {
       throw new AppError('IMAGE_LIMIT', `An invoice can have at most ${MAX_INVOICE_IMAGES} photos`, 422)
     }
-    await writeImageAttachment(tx, invoiceId, actorId, invoice.userId, image)
+    await writeImageAttachment(tx, invoiceId, actorId, locked[0].userId, image)
   })
 }
 

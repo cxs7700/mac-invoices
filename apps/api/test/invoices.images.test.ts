@@ -20,6 +20,7 @@ const storage = vi.hoisted(() => {
 })
 vi.mock('../src/integrations/storage', () => storage)
 
+import { MAX_INVOICE_IMAGES } from '@mac-invoices/shared'
 import { buildApp } from '../src/app'
 import { backfillInvoiceImages } from '../prisma/backfill-invoice-images'
 import { loginCookie, createSecondUser } from './helpers/auth'
@@ -135,6 +136,21 @@ describe('POST /:id/images — append + cap', () => {
     expect(res.statusCode).toBe(403)
     expect(await imagesFor(inv.id)).toHaveLength(0)
   })
+
+  it('enforces the cap under concurrent appends (no TOCTOU, KTD-3)', async () => {
+    // Start at 3 photos, then fire 6 appends at once. The invoice-row lock
+    // serializes them, so exactly 2 commit (→ 5) and the rest 422 — never 6+.
+    const inv = await createOwn('concurrent', {
+      images: Array.from({ length: 3 }, (_, i) => ({ url: ownUrl(`cc${i}`) })),
+    })
+    const results = await Promise.all(
+      Array.from({ length: 6 }, (_, i) => addImage(inv.id, ownUrl(`conc${i}`))),
+    )
+    const codes = results.map((r) => r.statusCode)
+    expect(codes.filter((c) => c === 204)).toHaveLength(2)
+    expect(codes.filter((c) => c === 422)).toHaveLength(4)
+    expect(await imagesFor(inv.id)).toHaveLength(MAX_INVOICE_IMAGES)
+  })
 })
 
 describe('PATCH /:id/images/:imageId — set type', () => {
@@ -149,6 +165,9 @@ describe('PATCH /:id/images/:imageId — set type', () => {
     })
     expect(res.statusCode).toBe(204)
     expect((await imagesFor(inv.id))[0].type).toBe('CASH')
+    // A type retag is not a financially-material change — it must emit no event.
+    const types = (await eventsFor(inv.id)).map((e) => e.type)
+    expect(types.filter((t) => t === 'IMAGE_REMOVED' || t === 'IMAGE_ATTACHED')).toHaveLength(1) // only the create's attach
   })
 })
 
@@ -208,8 +227,11 @@ describe('ownership + IDOR (KTD-2a)', () => {
     expect(
       (await app.inject({ method: 'PATCH', url: `/api/invoices/${a.id}/images/${bImageId}`, payload: { type: 'CASH' }, headers: { cookie } })).statusCode,
     ).toBe(404)
-    // B's image is untouched.
-    expect(await imagesFor(b.id)).toHaveLength(1)
+    // B's image is untouched — both the row AND its type (the foreign PATCH
+    // tried to flip it to CASH; the ownership-joined query must have blocked it).
+    const bImages = await imagesFor(b.id)
+    expect(bImages).toHaveLength(1)
+    expect(bImages[0].type).toBe('OTHER')
   })
 })
 
