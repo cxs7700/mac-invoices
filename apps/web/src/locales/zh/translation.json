@@ -270,7 +270,8 @@
     "title": "房产",
     "subtitle": "按房产管理发票与支出。批准发票时分配房产。",
     "name": "名称",
-    "namePlaceholder": "如：中山路123号 或 枫叶公寓",
+    "nameOptional": "名称（可选）",
+    "namePlaceholder": "如：枫叶公寓（可选 — 留空则使用地址）",
     "address": "地址",
     "notesOptional": "备注（可选）",
     "adding": "添加中…",
@@ -282,6 +283,11 @@
     "delete": "删除",
     "deleteFailed": "无法删除房产。",
     "viewItsInvoices": "查看其发票"
+  },
+  "addressAutocomplete": {
+    "searching": "正在搜索地址…",
+    "noResults": "无匹配 — 继续输入或手动填写。",
+    "poweredBy": "地址数据 © OpenStreetMap"
   },
   "propertyDetail": {
     "loading": "加载中…",
@@ -299,6 +305,7 @@
     "backToProperties": "返回房产列表",
     "title": "编辑房产",
     "name": "名称",
+    "nameOptional": "名称（可选）",
     "address": "地址",
     "notesOptional": "备注（可选）",
     "saving": "保存中…",

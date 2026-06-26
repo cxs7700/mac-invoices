@@ -52,8 +52,11 @@ describe('property CRUD', () => {
     expect(detail.json()).toMatchObject({ name: '123 Main St', totalSpend: '0.00' })
   })
 
-  it('rejects empty name; requires auth', async () => {
-    expect((await create({ name: '', address: 'x' }, a.cookie)).statusCode).toBe(400)
+  it('allows a missing/empty name (address is the only required field); requires auth', async () => {
+    const res = await create({ address: '742 Evergreen Terrace' }, a.cookie)
+    expect(res.statusCode).toBe(201)
+    expect(res.json().name).toBe('')
+    expect((await create({ name: '', address: 'x' }, a.cookie)).statusCode).toBe(201)
     expect((await app.inject({ method: 'GET', url: '/api/properties' })).statusCode).toBe(401)
   })
 

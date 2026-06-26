@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
-import { InvoiceCategory } from '@mac-invoices/shared'
+import { InvoiceCategory, propertyLabel } from '@mac-invoices/shared'
 import { Button } from '@/components/ui/button'
 import { useProperties } from '@/hooks/useProperties'
 
@@ -55,7 +55,7 @@ export function ReviewActions({ onApprove, onReject, isPending }: Props) {
           <option value="">{t('review.selectProperty')}</option>
           {properties.map((p) => (
             <option key={p.id} value={p.id}>
-              {p.name}
+              {propertyLabel(p)}
             </option>
           ))}
         </select>

@@ -33,7 +33,9 @@ export async function createProperty(request: FastifyRequest, reply: FastifyRepl
   const p = await request.server.prisma.property.create({
     data: {
       landlordId: request.user.id,
-      name: input.name,
+      // Name is optional; store '' when omitted so the column stays non-null and
+      // the address is used as the display label (see `propertyLabel`).
+      name: input.name ?? '',
       address: input.address,
       notes: input.notes ?? null,
     },
@@ -78,7 +80,7 @@ export async function updateProperty(
   const p = await request.server.prisma.property.update({
     where: { id: request.params.id },
     data: {
-      ...(input.name !== undefined && { name: input.name }),
+      ...(input.name !== undefined && { name: input.name ?? '' }),
       ...(input.address !== undefined && { address: input.address }),
       ...(input.notes !== undefined && { notes: input.notes }),
     },

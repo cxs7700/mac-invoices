@@ -4,6 +4,7 @@ import {
   UpdatePropertySchema,
   PropertySchema,
   PropertyDetailSchema,
+  propertyLabel,
 } from '../src/index'
 
 describe('CreatePropertySchema', () => {
@@ -16,8 +17,12 @@ describe('CreatePropertySchema', () => {
     expect(CreatePropertySchema.safeParse({ name: 'Maple', address: '1 Maple Ave' }).success).toBe(true)
   })
 
-  it('rejects an empty name or address', () => {
-    expect(CreatePropertySchema.safeParse({ name: '', address: 'x' }).success).toBe(false)
+  it('accepts a missing or empty name (address is the only required field)', () => {
+    expect(CreatePropertySchema.safeParse({ address: '1 Maple Ave' }).success).toBe(true)
+    expect(CreatePropertySchema.safeParse({ name: '', address: 'x' }).success).toBe(true)
+  })
+
+  it('still rejects an empty address', () => {
     expect(CreatePropertySchema.safeParse({ name: 'x', address: '' }).success).toBe(false)
   })
 
@@ -46,6 +51,15 @@ describe('PropertySchema', () => {
     const r = PropertySchema.safeParse(valid)
     expect(r.success).toBe(true)
     if (r.success) expect(r.data.createdAt).toBeInstanceOf(Date)
+  })
+})
+
+describe('propertyLabel', () => {
+  it('uses the name when present, else falls back to the address', () => {
+    expect(propertyLabel({ name: 'Maple Duplex', address: '1 Maple Ave' })).toBe('Maple Duplex')
+    expect(propertyLabel({ name: '', address: '1 Maple Ave' })).toBe('1 Maple Ave')
+    expect(propertyLabel({ name: '   ', address: '1 Maple Ave' })).toBe('1 Maple Ave')
+    expect(propertyLabel({ name: null, address: '1 Maple Ave' })).toBe('1 Maple Ave')
   })
 })
 

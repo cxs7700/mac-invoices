@@ -1,5 +1,6 @@
 import { Link, useParams } from 'react-router'
 import { useTranslation } from 'react-i18next'
+import { propertyLabel } from '@mac-invoices/shared'
 import { useProperty } from '@/hooks/useProperties'
 import { useInvoices } from '@/hooks/useInvoices'
 import { InvoiceTable } from '@/components/InvoiceTable'
@@ -35,8 +36,8 @@ export default function PropertyDetail() {
 
       <div className="mt-2 mb-6 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">{property.name}</h1>
-          <p className="text-sm text-muted-foreground">{property.address}</p>
+          <h1 className="text-2xl font-bold text-foreground">{propertyLabel(property)}</h1>
+          {property.name.trim() && <p className="text-sm text-muted-foreground">{property.address}</p>}
           {property.notes && <p className="mt-1 text-sm text-muted-foreground">{property.notes}</p>}
         </div>
         <div className="shrink-0 text-right">
