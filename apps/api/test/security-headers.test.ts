@@ -9,8 +9,14 @@ describe('security headers (@fastify/helmet)', () => {
     const res = await app.inject({ method: 'GET', url: '/api/health' })
     expect(res.headers['x-content-type-options']).toBe('nosniff')
     expect(res.headers['x-frame-options']).toBe('DENY')
-    expect(res.headers['content-security-policy']).toContain("default-src 'none'")
-    expect(res.headers['strict-transport-security']).toBeDefined()
+    const csp = res.headers['content-security-policy']
+    expect(csp).toContain("default-src 'none'")
+    // The explicit frame-ancestors directive must survive (a config regression
+    // dropping it would otherwise pass a contains-only check).
+    expect(csp).toContain("frame-ancestors 'none'")
+    // Assert a real max-age, not just presence — hsts:false or max-age=0 is a
+    // misconfiguration that .toBeDefined() would miss.
+    expect(res.headers['strict-transport-security']).toMatch(/max-age=\d+/)
   })
 
   it('does not break the JSON response body', async () => {

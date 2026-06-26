@@ -68,6 +68,9 @@ export function errorHandler(error: unknown, request: FastifyRequest, reply: Fas
 
   // Request body exceeded the configured bodyLimit — give it a stable code
   // instead of leaking the raw framework code (FST_ERR_CTP_BODY_TOO_LARGE).
+  // The statusCode===413 arm is an intentional catch-all so no 413 ever falls
+  // through to the generic branch and leaks a framework code; nothing in this
+  // app throws a 413 with different semantics (AppError/Prisma are matched above).
   if (fe?.code === 'FST_ERR_CTP_BODY_TOO_LARGE' || fe?.statusCode === 413) {
     return reply.code(413).send(body('PAYLOAD_TOO_LARGE', 'Request body too large'))
   }

@@ -41,9 +41,20 @@ describe('logger redaction (loggerOptions)', () => {
     expect(out).toContain('[Redacted]')
   })
 
-  it('redacts a response set-cookie header', () => {
+  it('redacts a response set-cookie header (censored, not dropped)', () => {
     const { logger, lines } = capture()
     logger.info({ res: { headers: { 'set-cookie': 'session=SECRET-SET' } } }, 'outgoing')
-    expect(lines.join('')).not.toContain('SECRET-SET')
+    const out = lines.join('')
+    expect(out).not.toContain('SECRET-SET')
+    // Censored to [Redacted], not silently dropped (which a mis-typed path would do).
+    expect(out).toContain('[Redacted]')
+  })
+
+  it('redacts bare top-level headers.cookie / headers.authorization', () => {
+    const { logger, lines } = capture()
+    logger.info({ headers: { cookie: 'session=SECRET-BARE', authorization: 'Bearer SECRET-BARE' } }, 'raw')
+    const out = lines.join('')
+    expect(out).not.toContain('SECRET-BARE')
+    expect(out).toContain('[Redacted]')
   })
 })
