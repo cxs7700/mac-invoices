@@ -1,5 +1,42 @@
 import { describe, it, expect } from 'vitest'
-import { CreateContractorSchema, UpdateContractorSchema } from '../src/schemas/contractor'
+import {
+  CreateContractorSchema,
+  UpdateContractorSchema,
+  SubmissionSchema,
+} from '../src/schemas/contractor'
+import { MAX_INVOICE_IMAGES } from '../src/schemas/invoice'
+
+const baseSubmission = {
+  amount: 100,
+  description: 'Fixed a leak',
+  invoiceDate: new Date().toISOString(),
+}
+const img = (url: string) => ({ url })
+
+describe('SubmissionSchema images', () => {
+  it('requires at least one photo (the proof)', () => {
+    expect(SubmissionSchema.safeParse({ ...baseSubmission, images: [] }).success).toBe(false)
+    expect(SubmissionSchema.safeParse({ ...baseSubmission }).success).toBe(false)
+  })
+
+  it('accepts 1 up to the cap', () => {
+    expect(
+      SubmissionSchema.safeParse({ ...baseSubmission, images: [img('https://b.example/1.jpg')] })
+        .success,
+    ).toBe(true)
+    const five = Array.from({ length: MAX_INVOICE_IMAGES }, (_, i) =>
+      img(`https://b.example/${i}.jpg`),
+    )
+    expect(SubmissionSchema.safeParse({ ...baseSubmission, images: five }).success).toBe(true)
+  })
+
+  it('rejects more than the cap', () => {
+    const six = Array.from({ length: MAX_INVOICE_IMAGES + 1 }, (_, i) =>
+      img(`https://b.example/${i}.jpg`),
+    )
+    expect(SubmissionSchema.safeParse({ ...baseSubmission, images: six }).success).toBe(false)
+  })
+})
 
 describe('CreateContractorSchema', () => {
   it('accepts a name + contact', () => {
