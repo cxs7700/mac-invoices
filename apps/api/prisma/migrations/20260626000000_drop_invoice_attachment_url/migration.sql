@@ -1,4 +1,11 @@
 -- Drop the now-unused legacy single-attachment column. `images[]` (InvoiceImage)
 -- has been the single source of truth since the multi-photo feature; no write path
 -- writes attachmentUrl and the one-time backfill into image rows is complete.
+--
+-- DEPLOY ORDER (destructive — inverts the usual migrate-first rule): deploy the
+-- new code FIRST (its regenerated client no longer SELECTs this column), confirm
+-- it is serving, THEN run `db:deploy`. Dropping before the new code is live breaks
+-- every invoice read by the still-running old client. See docs/DEPLOYMENT.md §3.
+-- Re-verify it is empty immediately before applying:
+--   SELECT COUNT(*) FROM "invoices" WHERE "attachmentUrl" IS NOT NULL;  -- must be 0
 ALTER TABLE "invoices" DROP COLUMN "attachmentUrl";

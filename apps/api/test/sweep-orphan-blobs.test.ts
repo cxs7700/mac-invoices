@@ -58,7 +58,9 @@ describe('sweepOrphanBlobs', () => {
 
     const r = await sweepOrphanBlobs(d, { apply: true, now: NOW })
     expect(r.orphans).toBe(2)
-    expect(r.deleted).toBe(2)
+    // The first delete failed; the sweep continues and counts honestly.
+    expect(r.deleted).toBe(1)
+    expect(r.failed).toBe(1)
     expect(d.deleteBlob).toHaveBeenCalledTimes(2)
   })
 

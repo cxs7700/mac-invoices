@@ -44,10 +44,17 @@ export async function sweepOrphanBlobs(deps: Deps, opts: Opts = {}) {
   )
 
   let deleted = 0
+  let failed = 0
   if (apply) {
     for (const o of orphans) {
-      await deleteBlob(o.url).catch(() => {}) // best-effort — a storage hiccup must not abort the sweep
-      deleted++
+      try {
+        await deleteBlob(o.url)
+        deleted++
+      } catch {
+        // Best-effort — a storage hiccup must not abort the sweep. The blob stays
+        // an orphan and is re-reported next run, so count it honestly as failed.
+        failed++
+      }
     }
   }
 
@@ -56,6 +63,7 @@ export async function sweepOrphanBlobs(deps: Deps, opts: Opts = {}) {
     referenced: referenced.size,
     orphans: orphans.length,
     deleted,
+    failed,
     orphanPathnames: orphans.map((o) => o.pathname),
   }
 }
@@ -72,7 +80,7 @@ if (invokedDirectly) {
     .then(async (r) => {
       console.log(`Scanned ${r.scanned} blob(s); ${r.referenced} referenced; ${r.orphans} orphan(s).`)
       if (apply) {
-        console.log(`Deleted ${r.deleted} orphan blob(s).`)
+        console.log(`Deleted ${r.deleted} orphan blob(s)${r.failed ? `; ${r.failed} failed (will retry next run)` : ''}.`)
       } else if (r.orphans > 0) {
         console.log('Dry run — pass `-- --apply` to reclaim these:')
         for (const p of r.orphanPathnames) console.log(`  ${p}`)

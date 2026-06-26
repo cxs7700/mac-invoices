@@ -18,6 +18,8 @@ export async function uploadSubmissionPhoto(
     `${base(token)}/upload-token`,
     { method: 'POST', body: JSON.stringify({ contentType: file.type }) },
   )
+  // Lands at exactly the server-issued pathname (token pins addRandomSuffix:false)
+  // so the owner-prefix gate and the orphan-blob sweep match on pathname.
   const result = await put(pathname, file, {
     access: 'private',
     token: clientToken,

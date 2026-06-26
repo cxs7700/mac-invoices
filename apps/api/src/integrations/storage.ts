@@ -23,7 +23,14 @@ function readWriteToken(): string {
   return token
 }
 
-/** Reduce a blob URL or pathname to its pathname (strip origin + query). */
+/**
+ * Reduce a blob URL or pathname to its pathname (strip origin + query). This is
+ * the canonicalization boundary the owner-prefix gate AND the orphan-blob sweep
+ * both rely on: a stored `InvoiceImage.url` (full URL) and a `list()` blob
+ * pathname (bare path) must reduce to the same string. Holds because uploads pin
+ * the pathname to `owners/<id>/<uuid>` with `addRandomSuffix: false` (see the web
+ * upload hooks) — keep it that way or the sweep could misjudge a referenced blob.
+ */
 export function toPathname(urlOrPathname: string): string {
   try {
     return new URL(urlOrPathname).pathname.replace(/^\/+/, '')
@@ -71,6 +78,10 @@ export async function issueUploadToken(
     const token = await generateClientTokenFromReadWriteToken({
       token: readWriteToken(),
       pathname,
+      // Pin the stored object to exactly this pathname — no random suffix — so the
+      // owner-prefix gate and the orphan-blob sweep can match a stored URL's
+      // pathname to what they issued. Load-bearing for the sweep (see toPathname).
+      addRandomSuffix: false,
       allowedContentTypes: [contentType],
       maximumSizeInBytes: MAX_UPLOAD_BYTES,
       validUntil: Date.now() + UPLOAD_TOKEN_TTL_MS,
