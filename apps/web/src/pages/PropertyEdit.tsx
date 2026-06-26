@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { ApiError } from '@/lib/apiClient'
 import { Button } from '@/components/ui/button'
+import { AddressAutocomplete } from '@/components/AddressAutocomplete'
 import { useProperty, useUpdateProperty } from '@/hooks/useProperties'
 
 export default function PropertyEdit() {
@@ -45,6 +46,7 @@ function EditForm({
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     update.mutate(
+      // Send name even when empty so clearing it removes the label (server stores '').
       { name: name.trim(), address: address.trim(), notes: notes.trim() || undefined },
       { onSuccess: onSaved },
     )
@@ -61,7 +63,7 @@ function EditForm({
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <label htmlFor="name" className="text-sm font-medium text-foreground">
-              {t('propertyEdit.name')}
+              {t('propertyEdit.nameOptional')}
             </label>
             <input
               id="name"
@@ -74,10 +76,10 @@ function EditForm({
             <label htmlFor="address" className="text-sm font-medium text-foreground">
               {t('propertyEdit.address')}
             </label>
-            <input
+            <AddressAutocomplete
               id="address"
               value={address}
-              onChange={(e) => setAddress(e.target.value)}
+              onChange={setAddress}
               className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
             />
           </div>
@@ -98,7 +100,7 @@ function EditForm({
             {serverError}
           </p>
         )}
-        <Button type="submit" className="mt-3" disabled={update.isPending || !name.trim() || !address.trim()}>
+        <Button type="submit" className="mt-3" disabled={update.isPending || !address.trim()}>
           {update.isPending ? t('propertyEdit.saving') : t('propertyEdit.saveChanges')}
         </Button>
       </form>

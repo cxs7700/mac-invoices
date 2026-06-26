@@ -269,8 +269,8 @@
   "properties": {
     "title": "Properties",
     "subtitle": "Organize invoices and spend by property. Assign a property when you approve an invoice.",
-    "name": "Name",
-    "namePlaceholder": "123 Main St or Maple Duplex",
+    "nameOptional": "Name (optional)",
+    "namePlaceholder": "Maple Duplex (optional — address is used if blank)",
     "address": "Address",
     "notesOptional": "Notes (optional)",
     "adding": "Adding…",
@@ -282,6 +282,11 @@
     "delete": "Delete",
     "deleteFailed": "Could not delete property.",
     "viewItsInvoices": "View its invoices"
+  },
+  "addressAutocomplete": {
+    "searching": "Searching addresses…",
+    "noResults": "No matches — keep typing or enter it manually.",
+    "poweredBy": "Address data © OpenStreetMap"
   },
   "propertyDetail": {
     "loading": "Loading…",
@@ -298,7 +303,7 @@
     "notFound": "Property not found.",
     "backToProperties": "Back to properties",
     "title": "Edit property",
-    "name": "Name",
+    "nameOptional": "Name (optional)",
     "address": "Address",
     "notesOptional": "Notes (optional)",
     "saving": "Saving…",

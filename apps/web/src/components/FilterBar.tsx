@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { InvoiceSortField } from '@mac-invoices/shared'
+import { propertyLabel, type InvoiceSortField } from '@mac-invoices/shared'
 import {
   STATUS_OPTIONS,
   SORT_OPTIONS,
@@ -120,7 +120,7 @@ export function FilterBar({ filters, onChange, onClear }: Props) {
           <option value="none">{t('filterBar.unassigned')}</option>
           {properties.map((p) => (
             <option key={p.id} value={p.id}>
-              {p.name}
+              {propertyLabel(p)}
             </option>
           ))}
         </select>

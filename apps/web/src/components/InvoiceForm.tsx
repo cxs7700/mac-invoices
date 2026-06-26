@@ -3,7 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Link } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { CreateInvoiceSchema, InvoiceCategory, type CreateInvoiceInput } from '@mac-invoices/shared'
+import { CreateInvoiceSchema, InvoiceCategory, propertyLabel, type CreateInvoiceInput } from '@mac-invoices/shared'
 import { Button } from '@/components/ui/button'
 import { useProperties } from '@/hooks/useProperties'
 
@@ -131,7 +131,7 @@ export function InvoiceForm({
           <option value="">{t('invoiceForm.none')}</option>
           {properties.map((p) => (
             <option key={p.id} value={p.id}>
-              {p.name}
+              {propertyLabel(p)}
             </option>
           ))}
         </select>

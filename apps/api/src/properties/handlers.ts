@@ -33,7 +33,9 @@ export async function createProperty(request: FastifyRequest, reply: FastifyRepl
   const p = await request.server.prisma.property.create({
     data: {
       landlordId: request.user.id,
-      name: input.name,
+      // Name is optional; store '' when omitted so the column stays non-null and
+      // the address is used as the display label (see `propertyLabel`).
+      name: input.name ?? '',
       address: input.address,
       notes: input.notes ?? null,
     },

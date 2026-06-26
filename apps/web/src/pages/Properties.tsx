@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { useTranslation } from 'react-i18next'
+import { propertyLabel } from '@mac-invoices/shared'
 import { ApiError } from '@/lib/apiClient'
 import { Button } from '@/components/ui/button'
+import { AddressAutocomplete } from '@/components/AddressAutocomplete'
 import { useProperties, useCreateProperty, useDeleteProperty } from '@/hooks/useProperties'
 
 export default function Properties() {
@@ -22,7 +24,7 @@ export default function Properties() {
   const onCreate = (e: React.FormEvent) => {
     e.preventDefault()
     create.mutate(
-      { name: name.trim(), address: address.trim(), notes: notes.trim() || undefined },
+      { name: name.trim() || undefined, address: address.trim(), notes: notes.trim() || undefined },
       {
         onSuccess: () => {
           setName('')
@@ -53,7 +55,7 @@ export default function Properties() {
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <label htmlFor="name" className="text-sm font-medium text-foreground">
-              {t('properties.name')}
+              {t('properties.nameOptional')}
             </label>
             <input
               id="name"
@@ -67,10 +69,10 @@ export default function Properties() {
             <label htmlFor="address" className="text-sm font-medium text-foreground">
               {t('properties.address')}
             </label>
-            <input
+            <AddressAutocomplete
               id="address"
               value={address}
-              onChange={(e) => setAddress(e.target.value)}
+              onChange={setAddress}
               className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
             />
           </div>
@@ -91,7 +93,7 @@ export default function Properties() {
             {createError}
           </p>
         )}
-        <Button type="submit" className="mt-3" disabled={create.isPending || !name.trim() || !address.trim()}>
+        <Button type="submit" className="mt-3" disabled={create.isPending || !address.trim()}>
           {create.isPending ? t('properties.adding') : t('properties.addProperty')}
         </Button>
       </form>
@@ -109,9 +111,9 @@ export default function Properties() {
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <Link to={`/properties/${p.id}`} className="font-medium text-foreground hover:underline">
-                    {p.name}
+                    {propertyLabel(p)}
                   </Link>
-                  <p className="truncate text-sm text-muted-foreground">{p.address}</p>
+                  {p.name.trim() && <p className="truncate text-sm text-muted-foreground">{p.address}</p>}
                 </div>
                 <div className="flex shrink-0 items-center gap-3 text-sm">
                   <Link to={`/properties/${p.id}/edit`} className="text-muted-foreground hover:text-foreground">

@@ -5,13 +5,20 @@ import { z } from 'zod'
 // never returns cross-landlord data (ownership-scoped routes).
 
 export const CreatePropertySchema = z.object({
-  // A label or street line, e.g. "123 Main St" or "Maple Duplex".
-  name: z.string().trim().min(1).max(100),
+  // Optional friendly label, e.g. "Maple Duplex". When absent, the address is the
+  // property's display name (see `propertyLabel`). Address is the only required field.
+  name: z.string().trim().max(100).optional(),
   // Free-text address; structured fields are deferred.
   address: z.string().trim().min(1).max(200),
   notes: z.string().trim().max(1000).optional(),
 })
 export const UpdatePropertySchema = CreatePropertySchema.partial()
+
+/** The label to show for a property: its name if it has one, else its address.
+ * Used everywhere a property is listed (forms, dropdowns, detail header). */
+export function propertyLabel(p: { name?: string | null; address: string }): string {
+  return p.name?.trim() || p.address
+}
 
 /** A property as the landlord lists/views it. */
 export const PropertySchema = z.object({

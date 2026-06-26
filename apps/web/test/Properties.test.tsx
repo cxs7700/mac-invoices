@@ -40,7 +40,7 @@ describe('Properties page', () => {
   it('submits a new property with name + address + notes', () => {
     useProperties.mockReturnValue({ data: { data: [] }, isPending: false, isError: false })
     renderPage()
-    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Lake House' } })
+    fireEvent.change(screen.getByLabelText('Name (optional)'), { target: { value: 'Lake House' } })
     fireEvent.change(screen.getByLabelText('Address'), { target: { value: '9 Lake Rd' } })
     fireEvent.change(screen.getByLabelText(/notes/i), { target: { value: 'cabin' } })
     fireEvent.click(screen.getByRole('button', { name: 'Add property' }))
@@ -48,6 +48,29 @@ describe('Properties page', () => {
       { name: 'Lake House', address: '9 Lake Rd', notes: 'cabin' },
       expect.objectContaining({ onSuccess: expect.any(Function) }),
     )
+  })
+
+  it('submits with only an address (name omitted) — name is optional', () => {
+    useProperties.mockReturnValue({ data: { data: [] }, isPending: false, isError: false })
+    renderPage()
+    fireEvent.change(screen.getByLabelText('Address'), { target: { value: '9 Lake Rd' } })
+    const submit = screen.getByRole('button', { name: 'Add property' })
+    expect(submit.hasAttribute('disabled')).toBe(false)
+    fireEvent.click(submit)
+    expect(createMutate).toHaveBeenCalledWith(
+      { name: undefined, address: '9 Lake Rd', notes: undefined },
+      expect.objectContaining({ onSuccess: expect.any(Function) }),
+    )
+  })
+
+  it('falls back to the address as the label when a property has no name', () => {
+    useProperties.mockReturnValue({
+      data: { data: [property({ name: '', address: '742 Evergreen Terrace' })] },
+      isPending: false,
+      isError: false,
+    })
+    renderPage()
+    expect(screen.getByRole('link', { name: '742 Evergreen Terrace' }).getAttribute('href')).toBe('/properties/p1')
   })
 
   it('lists properties with view/edit links', () => {
