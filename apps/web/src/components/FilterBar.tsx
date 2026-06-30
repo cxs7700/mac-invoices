@@ -15,7 +15,6 @@ const field =
 const SORT_LABEL_KEYS: Record<InvoiceSortField, string> = {
   invoiceDate: 'filterBar.sortDate',
   amount: 'filterBar.sortAmount',
-  dueDate: 'filterBar.sortDueDate',
   status: 'filterBar.sortStatus',
 }
 

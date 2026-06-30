@@ -21,7 +21,6 @@ const rows: InvoiceListItem[] = [
     category: 'REPAIRS',
     status: 'PENDING',
     invoiceDate: '2026-01-15',
-    dueDate: '2026-02-15',
   },
   {
     ...base,
@@ -33,24 +32,19 @@ const rows: InvoiceListItem[] = [
     category: 'REPAIRS',
     status: 'PAID',
     invoiceDate: '2026-01-20',
-    dueDate: null,
   },
 ]
 
-describe('InvoiceTable due-date column', () => {
-  it('renders the due date when present and an em dash when null', () => {
+describe('InvoiceTable', () => {
+  it('renders a row per invoice with its number and vendor', () => {
     render(
       <MemoryRouter>
         <InvoiceTable invoices={rows} />
       </MemoryRouter>,
     )
-    expect(screen.getByText('Due')).toBeDefined()
-
     const r1 = screen.getByText('INV-1').closest('tr')!
-    expect(within(r1).getByText('Feb 15, 2026')).toBeDefined()
-
-    const r2 = screen.getByText('INV-2').closest('tr')!
-    expect(within(r2).getByText('—')).toBeDefined()
+    expect(within(r1).getByText('Acme')).toBeDefined()
+    expect(screen.getByText('INV-2')).toBeDefined()
   })
 })
 
@@ -65,7 +59,6 @@ describe('InvoiceTable add-photo indicator (AE3)', () => {
     category: 'OTHER',
     status: 'PAID',
     invoiceDate: '2026-01-15',
-    dueDate: null,
     imageCount: 0,
     ...over,
   })

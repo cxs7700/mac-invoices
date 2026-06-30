@@ -13,7 +13,7 @@ const property = (over = {}) => ({
 })
 const invoiceItem = {
   id: 'i1', invoiceNumber: 'INV-1', description: 'Roof repair', vendorName: 'Acme',
-  invoiceDate: '2026-03-01', dueDate: null, amount: '100.00', status: 'PAID', sheetsSyncedAt: null,
+  invoiceDate: '2026-03-01', amount: '100.00', status: 'PAID', sheetsSyncedAt: null,
 }
 
 function renderDetail() {

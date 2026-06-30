@@ -117,16 +117,16 @@ describe('update records events', () => {
     expect((await eventsFor(inv.id)).length).toBe(eventsAfterPaid.length)
   })
 
-  it('records a dueDate FIELD_EDITED with null->value, and nothing on a no-op re-submit', async () => {
-    const inv = await createOwn('duedate')
-    await app.inject({ method: 'PATCH', url: `/api/invoices/${inv.id}`, payload: { dueDate: '2026-05-01' }, headers: { cookie } })
+  it('records a vendorName FIELD_EDITED with the old value, and nothing on a no-op re-submit', async () => {
+    const inv = await createOwn('vendoredit')
+    await app.inject({ method: 'PATCH', url: `/api/invoices/${inv.id}`, payload: { vendorName: 'New Vendor' }, headers: { cookie } })
     const edits = (await eventsFor(inv.id)).filter((e) => e.type === 'FIELD_EDITED')
     expect(edits).toHaveLength(1)
-    expect((edits[0].detail as { field: string; old: unknown }).field).toBe('dueDate')
-    expect((edits[0].detail as { old: unknown }).old).toBeNull()
+    expect((edits[0].detail as { field: string; old: unknown }).field).toBe('vendorName')
+    expect((edits[0].detail as { old: unknown }).old).toBe('Vendor')
 
     const before = (await eventsFor(inv.id)).length
-    await app.inject({ method: 'PATCH', url: `/api/invoices/${inv.id}`, payload: { dueDate: '2026-05-01' }, headers: { cookie } })
+    await app.inject({ method: 'PATCH', url: `/api/invoices/${inv.id}`, payload: { vendorName: 'New Vendor' }, headers: { cookie } })
     expect((await eventsFor(inv.id)).length).toBe(before)
   })
 

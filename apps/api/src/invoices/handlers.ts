@@ -84,11 +84,10 @@ export async function listInvoices(
   if (q.propertyId) where.propertyId = q.propertyId === 'none' ? null : q.propertyId
 
   // Exhaustive map (not a computed-key cast) so a new sort field is a compile
-  // error here. invoiceDate desc is the tiebreaker for the nullable dueDate sort.
+  // error here. invoiceDate desc is the secondary tiebreaker.
   const sortClause: Record<InvoiceSortField, Prisma.InvoiceOrderByWithRelationInput> = {
     invoiceDate: { invoiceDate: q.order },
     amount: { amount: q.order },
-    dueDate: { dueDate: q.order },
     status: { status: q.order },
   }
   const orderBy: Prisma.InvoiceOrderByWithRelationInput[] = [
@@ -393,9 +392,9 @@ const EXPORT_COLUMNS = [
   'amount',
   'status',
   'invoiceDate',
-  'dueDate',
   'category',
   'description',
+  'propertyAddress',
 ] as const
 
 /**
@@ -433,6 +432,9 @@ export async function exportInvoices(request: FastifyRequest, reply: FastifyRepl
       sheetsSyncedAt: null,
       status: { notIn: ['SUBMITTED', 'REJECTED', 'CANCELLED'] },
     },
+    // The assigned property's address rides along as an export column (empty when
+    // the invoice has no property).
+    include: { property: { select: { address: true } } },
     orderBy: { invoiceDate: 'asc' },
   })
 
@@ -448,9 +450,9 @@ export async function exportInvoices(request: FastifyRequest, reply: FastifyRepl
         amount: inv.amount.toNumber(),
         status: inv.status,
         invoiceDate: ymd(inv.invoiceDate),
-        dueDate: inv.dueDate ? ymd(inv.dueDate) : '',
         category: inv.category ?? '',
         description: inv.description,
+        propertyAddress: inv.property?.address ?? '',
       }
       return EXPORT_COLUMNS.map((c) => cell[c])
     })

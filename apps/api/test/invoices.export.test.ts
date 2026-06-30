@@ -173,14 +173,30 @@ describe('POST /api/invoices/export', () => {
     }
   })
 
-  it('maps cells: amount as a number, null dueDate as an empty cell', async () => {
+  it('maps cells: amount as a number, propertyAddress empty when unassigned', async () => {
     await create('map', user.cookie, { amount: 149.99 })
     await exportAs(user.cookie)
     const row = (appendRows.mock.calls[0][1] as unknown[][])[0]
-    // [id, invoiceNumber, vendorName, amount, status, invoiceDate, dueDate, category, description]
+    // [id, invoiceNumber, vendorName, amount, status, invoiceDate, category, description, propertyAddress]
     expect(row[3]).toBe(149.99)
     expect(typeof row[3]).toBe('number')
-    expect(row[6]).toBe('') // dueDate null
+    expect(row[8]).toBe('') // propertyAddress empty (no property assigned)
+  })
+
+  it("exports the assigned property's address in the propertyAddress column", async () => {
+    const prop = await app.prisma.property.create({
+      data: { landlordId: user.user.id, name: 'P-EXP', address: '742 Evergreen Terrace' },
+    })
+    try {
+      await create('withprop', user.cookie, { propertyId: prop.id })
+      await exportAs(user.cookie)
+      const row = (appendRows.mock.calls[0][1] as unknown[][])[0]
+      expect(row[8]).toBe('742 Evergreen Terrace')
+    } finally {
+      // Invoices reference the property (onDelete: Restrict) — clear them first.
+      await app.prisma.invoice.deleteMany({ where: { invoiceNumber: { startsWith: NONCE } } })
+      await app.prisma.property.delete({ where: { id: prop.id } }).catch(() => {})
+    }
   })
 })
 
