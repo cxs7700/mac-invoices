@@ -23,6 +23,7 @@ function toDefaults(invoice: Invoice) {
     propertyId: invoice.propertyId ?? undefined,
     invoiceDate: invoice.invoiceDate.slice(0, 10),
     notes: invoice.notes ?? undefined,
+    partsOrdered: invoice.partsOrdered ?? undefined,
   }
 }
 

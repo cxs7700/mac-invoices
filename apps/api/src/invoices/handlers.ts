@@ -395,6 +395,7 @@ const EXPORT_COLUMNS = [
   'category',
   'description',
   'propertyAddress',
+  'partsOrdered',
 ] as const
 
 /**
@@ -453,6 +454,7 @@ export async function exportInvoices(request: FastifyRequest, reply: FastifyRepl
         category: inv.category ?? '',
         description: inv.description,
         propertyAddress: inv.property?.address ?? '',
+        partsOrdered: inv.partsOrdered ?? '',
       }
       return EXPORT_COLUMNS.map((c) => cell[c])
     })

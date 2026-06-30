@@ -159,6 +159,13 @@ export function InvoiceForm({
         <input id="notes" className={fieldClass} {...register('notes')} />
       </div>
 
+      <div>
+        <label htmlFor="partsOrdered" className="block text-sm font-medium mb-1">
+          {t('invoiceForm.partsOrdered')}
+        </label>
+        <input id="partsOrdered" className={fieldClass} {...register('partsOrdered')} />
+      </div>
+
       {serverError && <p className="text-sm text-destructive">{serverError}</p>}
 
       <Button type="submit" disabled={isSubmitting}>
