@@ -14,8 +14,13 @@ model User {
   name         String?
   role         Role         @default(LANDLORD)
   // Per-landlord Google Sheets export target; the export prefers this over the
-  // GOOGLE_SHEET_ID env default. Null = use the env default.
+  // GOOGLE_SHEET_ID env default. Null = use the env default. Continuous sync
+  // (the cron mirror) targets THIS only — never the shared env sheet.
   sheetSpreadsheetId String?
+  // High-water mark for continuous Sheets sync: the last successful full mirror.
+  // A user is "dirty" when their newest Invoice.updatedAt (or newest DELETED
+  // event) is after this, which triggers a clear+rewrite of their sheet.
+  sheetSyncedAt DateTime?
   // In-app notification read-state: contractor activity newer than this is
   // "unread". Cleared (set to now) when the landlord opens the notifications feed.
   notificationsSeenAt DateTime?

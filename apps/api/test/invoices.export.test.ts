@@ -1,8 +1,20 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach, beforeEach, vi } from 'vitest'
 
-// Mock the Sheets module — no live Google calls (DoD).
-const { appendRows } = vi.hoisted(() => ({ appendRows: vi.fn() }))
-vi.mock('../src/integrations/sheets', () => ({ appendRows }))
+// Mock the Sheets seam — no live Google calls (DoD). "Sync now" full-mirrors via
+// overwriteRows; the other exports are stubbed so the app's settings routes still
+// import cleanly.
+const { overwriteRows, appendRows, checkAccess, serviceAccountEmail } = vi.hoisted(() => ({
+  overwriteRows: vi.fn(async () => {}),
+  appendRows: vi.fn(async () => {}),
+  checkAccess: vi.fn(async () => {}),
+  serviceAccountEmail: vi.fn(() => 'svc@x.iam.gserviceaccount.com'),
+}))
+vi.mock('../src/integrations/sheets', () => ({
+  overwriteRows,
+  appendRows,
+  checkAccess,
+  serviceAccountEmail,
+}))
 
 import { buildApp } from '../src/app'
 import { loginCookie, createSecondUser } from './helpers/auth'
@@ -32,6 +44,9 @@ async function create(n: string, cookie: string, extra: Record<string, unknown> 
 const exportAs = (cookie: string, payload: Record<string, unknown> = {}) =>
   app.inject({ method: 'POST', url: '/api/invoices/export', headers: { cookie }, payload })
 
+// Data rows from the most recent mirror call (row 0 is the header).
+const lastDataRows = () => (overwriteRows.mock.calls.at(-1)![1] as unknown[][]).slice(1)
+
 beforeAll(async () => {
   // Raise the export rate-limit before routes register, so the many test exports
   // (one shared loopback IP) don't trip the production cap of 5.
@@ -49,13 +64,10 @@ afterAll(async () => {
   delete process.env.EXPORT_RATE_LIMIT_MAX
 })
 beforeEach(() => {
-  appendRows.mockReset().mockResolvedValue(undefined)
-  delete process.env.EXPORT_CHUNK_SIZE
+  overwriteRows.mockReset().mockResolvedValue(undefined)
   process.env.GOOGLE_SHEET_ID = 'SHEET-TEST'
 })
 afterEach(async () => {
-  // Each test starts with the second user owning zero invoices. Clean the
-  // ledger events for these invoices too (CREATED events from `create`).
   const invs = await app.prisma.invoice.findMany({
     where: { invoiceNumber: { startsWith: NONCE } },
     select: { id: true },
@@ -64,13 +76,13 @@ afterEach(async () => {
   await app.prisma.invoice.deleteMany({ where: { invoiceNumber: { startsWith: NONCE } } })
 })
 
-describe('POST /api/invoices/export', () => {
+describe('POST /api/invoices/export — "Sync now" full mirror', () => {
   it('401s without auth', async () => {
     const res = await app.inject({ method: 'POST', url: '/api/invoices/export', payload: {} })
     expect(res.statusCode).toBe(401)
   })
 
-  it('appends the un-synced invoices, stamps them, and reports the count', async () => {
+  it('mirrors all exportable invoices (header + rows) to the env target and reports the row count', async () => {
     await create('1', user.cookie)
     await create('2', user.cookie)
     await create('3', user.cookie)
@@ -79,122 +91,93 @@ describe('POST /api/invoices/export', () => {
     const res = await exportAs(user.cookie)
     expect(res.statusCode).toBe(200)
     expect(res.json()).toEqual({ exported: 3 })
-    expect(appendRows).toHaveBeenCalledTimes(1)
-    expect(appendRows.mock.calls[0][0]).toBe('SHEET-TEST')
-    expect(appendRows.mock.calls[0][1]).toHaveLength(3)
-    // Export emits no ledger events (sync-as-event is deferred).
+    expect(overwriteRows).toHaveBeenCalledTimes(1)
+    expect(overwriteRows.mock.calls[0][0]).toBe('SHEET-TEST')
+    const rows = overwriteRows.mock.calls[0][1] as unknown[][]
+    expect(rows).toHaveLength(4) // header + 3 data rows
+    expect(rows[0]).toContain('invoiceNumber') // header row
+    expect(rows[0]).toContain('amount')
+    // Mirror emits no ledger events.
     expect(await app.prisma.invoiceEvent.count({ where: { ownerUserId: user.user.id } })).toBe(eventsBefore)
 
-    // A second export sees nothing un-synced.
+    // A second sync re-mirrors everything (full mirror, not incremental).
     const again = await exportAs(user.cookie)
-    expect(again.json()).toEqual({ exported: 0 })
-    expect(appendRows).toHaveBeenCalledTimes(1)
+    expect(again.json()).toEqual({ exported: 3 })
+    expect(overwriteRows).toHaveBeenCalledTimes(2)
   })
 
-  it("never exports another user's invoices", async () => {
+  it('excludes SUBMITTED/REJECTED/CANCELLED invoices from the mirror', async () => {
+    await create('keep', user.cookie)
+    const cancelled = await create('gone', user.cookie)
+    await app.prisma.invoice.update({ where: { id: cancelled }, data: { status: 'CANCELLED' } })
+
+    const res = await exportAs(user.cookie)
+    expect(res.json()).toEqual({ exported: 1 })
+    const numbers = lastDataRows().map((r) => r[1])
+    expect(numbers).toContain(`${NONCE}keep`)
+    expect(numbers).not.toContain(`${NONCE}gone`)
+  })
+
+  it("never mirrors another user's invoices", async () => {
     await create('mine', user.cookie)
     await create('landlords', landlord) // a different owner
 
     await exportAs(user.cookie)
-    const appended = (appendRows.mock.calls[0][1] as string[][]).map((r) => r[1])
-    expect(appended).toContain(`${NONCE}mine`)
-    expect(appended).not.toContain(`${NONCE}landlords`)
+    const numbers = lastDataRows().map((r) => r[1])
+    expect(numbers).toContain(`${NONCE}mine`)
+    expect(numbers).not.toContain(`${NONCE}landlords`)
   })
 
-  it('chunks at the configured size and stamps every chunk', async () => {
-    process.env.EXPORT_CHUNK_SIZE = '2'
-    await create('a', user.cookie)
-    await create('b', user.cookie)
-    await create('c', user.cookie)
-
-    const res = await exportAs(user.cookie)
-    expect(res.json()).toEqual({ exported: 3 })
-    expect(appendRows).toHaveBeenCalledTimes(2) // 2 + 1
-  })
-
-  it('on a mid-export chunk failure, stamps what succeeded and 502s with the durable count', async () => {
-    process.env.EXPORT_CHUNK_SIZE = '2'
-    await create('a', user.cookie)
-    await create('b', user.cookie)
-    await create('c', user.cookie)
-    appendRows
-      .mockResolvedValueOnce(undefined)
-      .mockRejectedValueOnce(new AppError('SHEET_ERROR', 'boom', 502))
-
-    const res = await exportAs(user.cookie)
-    expect(res.statusCode).toBe(502)
-    expect(res.json().error.details).toEqual({ exported: 2 })
-
-    // The 1 un-stamped row remains exportable — a retry resumes only it.
-    appendRows.mockReset().mockResolvedValue(undefined)
-    const retry = await exportAs(user.cookie)
-    expect(retry.json()).toEqual({ exported: 1 })
-    expect(appendRows.mock.calls[0][1]).toHaveLength(1)
-  })
-
-  it('400s when no target spreadsheet is resolvable; a body id overrides env', async () => {
+  it('400s SHEET_NOT_CONNECTED when no target resolves (body id is not an override)', async () => {
     delete process.env.GOOGLE_SHEET_ID
     await create('x', user.cookie)
+
     const bad = await exportAs(user.cookie)
     expect(bad.statusCode).toBe(400)
+    expect(bad.json().error.code).toBe('SHEET_NOT_CONNECTED')
 
-    const ok = await exportAs(user.cookie, { spreadsheetId: 'BODY-SHEET' })
-    expect(ok.statusCode).toBe(200)
-    expect(appendRows.mock.calls[0][0]).toBe('BODY-SHEET')
+    // The body spreadsheetId is accepted by the schema but no longer overrides the
+    // owner-scoped target — still 400 with no env/saved target.
+    const stillBad = await exportAs(user.cookie, { spreadsheetId: 'BODY-SHEET' })
+    expect(stillBad.statusCode).toBe(400)
+    expect(overwriteRows).not.toHaveBeenCalled()
   })
 
-  it('propagates the 503 when export is unconfigured (first-chunk failure, no count)', async () => {
+  it('propagates a sanitized Sheets failure (no partial-count bookkeeping)', async () => {
     await create('x', user.cookie)
-    appendRows.mockRejectedValue(new AppError('EXPORT_NOT_CONFIGURED', 'not configured', 503))
+    overwriteRows.mockRejectedValueOnce(new AppError('SHEET_ERROR', 'boom', 502))
+    const res = await exportAs(user.cookie)
+    expect(res.statusCode).toBe(502)
+    expect(res.json().error.code).toBe('SHEET_ERROR')
+  })
+
+  it('propagates the 503 when Sheets is unconfigured', async () => {
+    await create('x', user.cookie)
+    overwriteRows.mockRejectedValueOnce(new AppError('EXPORT_NOT_CONFIGURED', 'not configured', 503))
     const res = await exportAs(user.cookie)
     expect(res.statusCode).toBe(503)
-    // First-chunk failure (exported === 0): the original error propagates, no { exported } detail.
-    expect(res.json().error.details).toBeUndefined()
-  })
-
-  it('502s with the durable count when the per-chunk stamp (updateMany) fails after a successful append', async () => {
-    process.env.EXPORT_CHUNK_SIZE = '2'
-    await create('a', user.cookie)
-    await create('b', user.cookie)
-    await create('c', user.cookie)
-    appendRows.mockResolvedValue(undefined)
-    // First chunk's stamp runs for real; the second chunk's stamp throws a DB error.
-    const orig = app.prisma.invoice.updateMany.bind(app.prisma.invoice)
-    let calls = 0
-    const spy = vi
-      .spyOn(app.prisma.invoice, 'updateMany')
-      .mockImplementation((args) => (calls++ === 0 ? orig(args) : Promise.reject(new Error('db blip'))) as never)
-    try {
-      const res = await exportAs(user.cookie)
-      expect(res.statusCode).toBe(502)
-      expect(res.json().error.details).toEqual({ exported: 2 })
-    } finally {
-      spy.mockRestore()
-    }
   })
 
   it('maps cells: amount number, empty propertyAddress, partsOrdered passthrough', async () => {
     await create('map', user.cookie, { amount: 149.99, partsOrdered: '2x faucet washers' })
     await exportAs(user.cookie)
-    const row = (appendRows.mock.calls[0][1] as unknown[][])[0]
+    const row = lastDataRows()[0]
     // [id, invoiceNumber, vendorName, amount, status, invoiceDate, category, description, propertyAddress, partsOrdered]
     expect(row[3]).toBe(149.99)
     expect(typeof row[3]).toBe('number')
     expect(row[8]).toBe('') // propertyAddress empty (no property assigned)
-    expect(row[9]).toBe('2x faucet washers') // partsOrdered free text
+    expect(row[9]).toBe('2x faucet washers')
   })
 
-  it("exports the assigned property's address in the propertyAddress column", async () => {
+  it("mirrors the assigned property's address in the propertyAddress column", async () => {
     const prop = await app.prisma.property.create({
       data: { landlordId: user.user.id, name: 'P-EXP', address: '742 Evergreen Terrace' },
     })
     try {
       await create('withprop', user.cookie, { propertyId: prop.id })
       await exportAs(user.cookie)
-      const row = (appendRows.mock.calls[0][1] as unknown[][])[0]
-      expect(row[8]).toBe('742 Evergreen Terrace')
+      expect(lastDataRows()[0][8]).toBe('742 Evergreen Terrace')
     } finally {
-      // Invoices reference the property (onDelete: Restrict) — clear them first.
       await app.prisma.invoice.deleteMany({ where: { invoiceNumber: { startsWith: NONCE } } })
       await app.prisma.property.delete({ where: { id: prop.id } }).catch(() => {})
     }
@@ -222,10 +205,10 @@ describe('POST /api/invoices/export — rate limit', () => {
   })
 
   it('429s with TOO_MANY_REQUESTS after the cap', async () => {
-    appendRows.mockResolvedValue(undefined)
+    overwriteRows.mockResolvedValue(undefined)
     const ex = () =>
       rlApp.inject({ method: 'POST', url: '/api/invoices/export', headers: { cookie: rlCookie }, payload: {} })
-    // The rlUser owns no invoices → each export is 200 { exported: 0 } until the cap trips.
+    // The rlUser owns no invoices → each sync is 200 { exported: 0 } until the cap trips.
     expect((await ex()).statusCode).toBe(200)
     expect((await ex()).statusCode).toBe(200)
     const limited = await ex()

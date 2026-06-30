@@ -15,9 +15,10 @@ import {
 import { AppError } from '../middleware/errorHandler'
 import { parseBody } from '../lib/validate'
 import { money } from '../lib/money'
-import { appendRows } from '../integrations/sheets'
 import { issueUploadToken, signedReadUrl } from '../integrations/storage'
+import { assertCronSecret } from '../lib/cronAuth'
 import * as writeService from './writeService'
+import { mirrorUserSheet, runSheetsSyncFlush } from './sheetSync'
 import type { GetInvoiceParams, ImageParams, ListInvoicesQuery } from './types.ts'
 
 const userSelect = { select: { id: true, name: true, email: true } }
@@ -375,112 +376,45 @@ export async function setInvoiceImageType(
   return reply.code(204).send()
 }
 
-// Read per-call so tests can shrink it via EXPORT_CHUNK_SIZE; clamp to [1, 500]
-// (0 or negative would make the loop never advance — an infinite loop).
-const exportChunk = () => {
-  const n = Math.floor(Number(process.env.EXPORT_CHUNK_SIZE ?? 500))
-  return Number.isFinite(n) ? Math.min(500, Math.max(1, n)) : 500
-}
-const ymd = (d: Date) => d.toISOString().slice(0, 10)
-
-// The §8 column order — single source of truth (the operator header row in
-// docs/SHEETS_EXPORT.md must match this).
-const EXPORT_COLUMNS = [
-  'id',
-  'invoiceNumber',
-  'vendorName',
-  'amount',
-  'status',
-  'invoiceDate',
-  'category',
-  'description',
-  'propertyAddress',
-  'partsOrdered',
-] as const
-
 /**
- * POST /api/invoices/export — append the session user's un-synced invoices to a
- * Google Sheet, then stamp sheetsSyncedAt. Writes in chunks of <=500 and stamps
- * per chunk, so a retry resumes the remainder. Delivery is at-least-once: if the
- * append lands at Google but the function dies before the stamp, the next export
- * re-appends (rows are identifiable by the `id` first column).
+ * POST /api/invoices/export — "Sync now": full-mirror the session user's
+ * invoices to their connected Google Sheet (clear + rewrite). Continuous sync
+ * (the cron) does this automatically; this endpoint forces an immediate pass.
+ *
+ * Targets the landlord's saved spreadsheet id (Settings), falling back to the
+ * server env default for the single-tenant deploy. The body `spreadsheetId` is
+ * still accepted/validated for compatibility but is no longer an override — the
+ * mirror is owner-scoped. Returns `{ exported }` = data rows written.
  */
 export async function exportInvoices(request: FastifyRequest, reply: FastifyReply) {
-  const { spreadsheetId: bodyId } = parseBody(ExportInvoicesSchema, request.body)
-  // Target resolution: an explicit body override, else the landlord's saved
-  // spreadsheet id (Settings), else the server env default.
+  parseBody(ExportInvoicesSchema, request.body)
   const saved = (
     await request.server.prisma.user.findUnique({
       where: { id: request.user.id },
       select: { sheetSpreadsheetId: true },
     })
   )?.sheetSpreadsheetId
-  const spreadsheetId = bodyId ?? saved ?? process.env.GOOGLE_SHEET_ID
+  const spreadsheetId = saved ?? process.env.GOOGLE_SHEET_ID
   if (!spreadsheetId) {
     throw new AppError(
-      'VALIDATION_ERROR',
-      'No target spreadsheet — set GOOGLE_SHEET_ID or pass spreadsheetId',
+      'SHEET_NOT_CONNECTED',
+      'No target spreadsheet — connect a sheet in Settings',
       400,
     )
   }
 
-  const invoices = await request.server.prisma.invoice.findMany({
-    // Only real spend syncs to the accounting sheet (KTD-9): SUBMITTED (un-vetted),
-    // REJECTED (declined) and CANCELLED (withdrawn) are never exported. A later
-    // approval re-qualifies the row (it was never stamped) and assigns its number.
-    where: {
-      userId: request.user.id,
-      sheetsSyncedAt: null,
-      status: { notIn: ['SUBMITTED', 'REJECTED', 'CANCELLED'] },
-    },
-    // The assigned property's address rides along as an export column (empty when
-    // the invoice has no property).
-    include: { property: { select: { address: true } } },
-    orderBy: { invoiceDate: 'asc' },
-  })
-
-  const chunkSize = exportChunk()
-  let exported = 0
-  for (let i = 0; i < invoices.length; i += chunkSize) {
-    const chunk = invoices.slice(i, i + chunkSize)
-    const rows = chunk.map((inv) => {
-      const cell: Record<(typeof EXPORT_COLUMNS)[number], string | number> = {
-        id: inv.id,
-        invoiceNumber: inv.invoiceNumber ?? '',
-        vendorName: inv.vendorName,
-        amount: inv.amount.toNumber(),
-        status: inv.status,
-        invoiceDate: ymd(inv.invoiceDate),
-        category: inv.category ?? '',
-        description: inv.description,
-        propertyAddress: inv.property?.address ?? '',
-        partsOrdered: inv.partsOrdered ?? '',
-      }
-      return EXPORT_COLUMNS.map((c) => cell[c])
-    })
-
-    try {
-      // Append THEN stamp in one guarded step: a stamp-side (DB) failure after a
-      // successful append must also surface the durable count, not 500.
-      await appendRows(spreadsheetId, rows)
-      await writeService.stampSynced(
-        request.server.prisma,
-        request.user.id,
-        chunk.map((c) => c.id),
-      )
-    } catch (err) {
-      // Surface how many rows are durably exported so a retry resumes the rest;
-      // attach the count for any error type, not just AppError.
-      if (exported > 0) {
-        const code = err instanceof AppError ? err.code : 'EXPORT_INTERRUPTED'
-        const message = err instanceof Error ? err.message : 'Export interrupted'
-        const status = err instanceof AppError ? err.statusCode : 502
-        throw new AppError(code, message, status, { exported })
-      }
-      throw err
-    }
-    exported += chunk.length
-  }
-
+  const exported = await mirrorUserSheet(request.server.prisma, request.user.id, spreadsheetId)
   return reply.send({ exported })
+}
+
+/**
+ * POST /api/cron/sync-sheets — run the continuous Sheets-sync flush across every
+ * connected landlord whose data changed since their last sync. PUBLIC but
+ * CRON_SECRET-gated (an external scheduler calls it, not a session); fails
+ * closed. Idempotent: a re-fire of an already-mirrored, unchanged user skips.
+ */
+export async function cronSyncSheets(request: FastifyRequest, reply: FastifyReply) {
+  assertCronSecret(request)
+  const summary = await runSheetsSyncFlush(request.server.prisma)
+  return reply.send(summary)
 }

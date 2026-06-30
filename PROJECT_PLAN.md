@@ -60,8 +60,9 @@ export/reporting surface, never the primary store. (See §12 DEC-001.)
 
 **Data flow**
 - Create/Update/Delete invoice: SPA → API → PostgreSQL.
-- Export: API reads PostgreSQL → writes Google Sheet (manual trigger for MVP).
-- (Later) Continuous sync via a background job after each mutation.
+- Export: API reads PostgreSQL → writes Google Sheet (manual "Sync now" button, plus continuous sync).
+- Continuous sync: a `CRON_SECRET`-gated cron full-mirrors each connected landlord's invoices every
+  ~15 min (new/edits/deletes). Implemented 2026-06-30 — see DEC-024. ✅
 
 ---
 
@@ -370,6 +371,7 @@ submission portal, Sentry.
 - **DEC-004 Fastify over Express.** Schema-first + performance; acceptable smaller ecosystem.
 - **DEC-005..011 (2026-06-20, Phase 0).** Keep installed versions (React 19 / RR7 / Prisma 7) over §3; migrate to the npm-workspaces monorepo as Phase 0 (behavior/schema preserving); adopt the §5 data model in Phase 2 not Phase 0; import shared code as `@mac-invoices/shared`; defer the auth library (Lucia is being sunset) to Phase 3; use Vitest 3 (rolldown-vite@7 needs it); single root `.env` loaded via `loadEnv.ts`; gitignore the generated Prisma client. Full text in `docs/DECISIONS.md`.
 - **DEC-012..016 (2026-06-21, Phase 2).** Seeded-landlord + server-default `userId` until auth; §5 migration by dev reset + reseed (invoiceNumber user-supplied); CREATE-only validation this phase (Update schema defined); Zod-in-handler via `parseBody` (+ `@hookform/resolvers@5` on web); per-invoice images modeled now (`InvoiceImage`/`ImageType`, `CONTRACTOR` role) with the upload/view feature deferred. Full text in `docs/DECISIONS.md`.
+- **DEC-024 (2026-06-30).** Continuous Sheets sync as a `CRON_SECRET`-gated cron **full mirror** (clear+rewrite, per-user `sheetSpreadsheetId` target, change-gated by a new `User.sheetSyncedAt` high-water mark); replaces DEC-021's append-only export with `overwriteRows`, repoints the manual button to "Sync now". Full text in `docs/DECISIONS.md`.
 - *(append new decisions here with date + reasoning)*
 
 ---

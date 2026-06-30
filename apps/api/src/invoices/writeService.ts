@@ -548,15 +548,3 @@ export async function setImageType(
   if (!image) throw new AppError('NOT_FOUND', 'Photo not found', 404)
   await prisma.invoiceImage.update({ where: { id: imageId }, data: { type } })
 }
-
-/**
- * Stamp invoices as exported to Sheets. A plain `updateMany` (no transaction,
- * no event): the export emits no timeline event (sync-as-event is deferred), so
- * the existing append-then-stamp at-least-once export behavior is preserved.
- */
-export async function stampSynced(prisma: PrismaClient, ownerUserId: string, ids: string[]) {
-  await prisma.invoice.updateMany({
-    where: { id: { in: ids }, userId: ownerUserId },
-    data: { sheetsSyncedAt: new Date() },
-  })
-}

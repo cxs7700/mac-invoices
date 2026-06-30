@@ -31,6 +31,9 @@ async function invoiceRoutes(fastify: FastifyInstance) {
     { preHandler: requireAuth, config: { rateLimit: { max: exportMax, timeWindow: '15 minutes' } } },
     handlers.exportInvoices,
   )
+  // Continuous Sheets sync flush. PUBLIC + CRON_SECRET-gated (an external
+  // scheduler calls it, not a session) — deliberately NOT behind requireAuth.
+  fastify.post('/api/cron/sync-sheets', handlers.cronSyncSheets)
   fastify.post('/api/invoices/image-upload-token', auth, handlers.createImageUploadToken)
   fastify.get<{ Params: GetInvoiceParams }>('/api/invoices/:id', auth, handlers.getInvoice)
   fastify.get<{ Params: GetInvoiceParams }>('/api/invoices/:id/events', auth, handlers.listInvoiceEvents)

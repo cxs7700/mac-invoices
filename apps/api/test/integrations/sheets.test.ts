@@ -2,19 +2,25 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 // Mock googleapis so no network call happens.
 const appendMock = vi.fn()
+const clearMock = vi.fn()
+const updateMock = vi.fn()
 vi.mock('googleapis', () => ({
   google: {
     auth: { GoogleAuth: vi.fn(() => ({})) },
-    sheets: vi.fn(() => ({ spreadsheets: { values: { append: appendMock } } })),
+    sheets: vi.fn(() => ({
+      spreadsheets: { values: { append: appendMock, clear: clearMock, update: updateMock } },
+    })),
   },
 }))
 
-import { appendRows } from '../../src/integrations/sheets'
+import { appendRows, overwriteRows } from '../../src/integrations/sheets'
 
 const VALID_KEY = JSON.stringify({ client_email: 'sa@x.iam', private_key: 'PRIVATE-SECRET-123' })
 
 beforeEach(() => {
   appendMock.mockReset()
+  clearMock.mockReset().mockResolvedValue({})
+  updateMock.mockReset().mockResolvedValue({})
   process.env.GOOGLE_SERVICE_ACCOUNT_KEY = VALID_KEY
   process.env.SHEETS_RETRY_BASE_MS = '1'
   delete process.env.GOOGLE_SHEET_TAB
@@ -114,5 +120,57 @@ describe('sheets.appendRows', () => {
     // The thrown error must not carry the raw payload / secret on ANY property
     // (message, details, cause, stack) — the central errorHandler logs the whole error.
     expect(JSON.stringify(err, Object.getOwnPropertyNames(err))).not.toContain('PRIVATE-SECRET-123')
+  })
+})
+
+describe('sheets.overwriteRows (full mirror)', () => {
+  it('clears the whole tab then writes the rows at A1 (USER_ENTERED, timeouts)', async () => {
+    await overwriteRows('SHEET-1', [
+      ['id', 'invoiceNumber'],
+      ['abc', 'INV-1'],
+    ])
+    expect(clearMock.mock.calls[0][0]).toEqual({ spreadsheetId: 'SHEET-1', range: 'Invoices' })
+    expect(clearMock.mock.calls[0][1]).toMatchObject({ timeout: 30000 })
+    expect(updateMock.mock.calls[0][0]).toEqual({
+      spreadsheetId: 'SHEET-1',
+      range: 'Invoices!A1',
+      valueInputOption: 'USER_ENTERED',
+      requestBody: {
+        values: [
+          ['id', 'invoiceNumber'],
+          ['abc', 'INV-1'],
+        ],
+      },
+    })
+    expect(updateMock.mock.calls[0][1]).toMatchObject({ timeout: 30000 })
+  })
+
+  it('neutralizes formula-injection in mirrored cells', async () => {
+    await overwriteRows('S', [['=HYPERLINK("http://evil")', 'safe']])
+    expect(updateMock.mock.calls[0][0].requestBody.values[0]).toEqual([
+      "'=HYPERLINK(\"http://evil\")",
+      'safe',
+    ])
+  })
+
+  it('retries a transient 429 on the clear step then resolves', async () => {
+    clearMock.mockReset().mockRejectedValueOnce({ code: 429 }).mockResolvedValueOnce({})
+    await overwriteRows('S', [['x']])
+    expect(clearMock).toHaveBeenCalledTimes(2)
+    expect(updateMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('sanitizes an update-step error and does not leak credentials', async () => {
+    updateMock.mockReset().mockRejectedValue({ code: 403, message: 'no access to PRIVATE-SECRET-123' })
+    const err = await overwriteRows('S', [['x']]).catch((e) => e)
+    expect(err).toMatchObject({ code: 'SHEET_PERMISSION_DENIED', statusCode: 502 })
+    expect(JSON.stringify(err, Object.getOwnPropertyNames(err))).not.toContain('PRIVATE-SECRET-123')
+  })
+
+  it('uses GOOGLE_SHEET_TAB for both the clear range and the update anchor', async () => {
+    process.env.GOOGLE_SHEET_TAB = 'Exports'
+    await overwriteRows('S', [['x']])
+    expect(clearMock.mock.calls[0][0].range).toBe('Exports')
+    expect(updateMock.mock.calls[0][0].range).toBe('Exports!A1')
   })
 })

@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
-import { AppError } from '../middleware/errorHandler'
 import { requireAuth } from '../auth/requireAuth'
+import { assertCronSecret } from '../lib/cronAuth'
 import { runDigestFlush } from './digest'
 import { listFeed, markSeen } from './feed'
 
@@ -15,10 +15,7 @@ import { listFeed, markSeen } from './feed'
  * already-stamped events and sends nothing more.
  */
 async function notifyDigest(request: FastifyRequest, reply: FastifyReply) {
-  const secret = process.env.CRON_SECRET
-  if (!secret || request.headers.authorization !== `Bearer ${secret}`) {
-    throw new AppError('UNAUTHORIZED', 'Unauthorized', 401)
-  }
+  assertCronSecret(request)
   const summary = await runDigestFlush(request.server.prisma)
   return reply.send(summary)
 }
