@@ -19,6 +19,7 @@ export function InvoiceTable({ invoices }: { invoices: InvoiceListItem[] }) {
           <tr>
             <th className={th}>{t('invoiceTable.number')}</th>
             <th className={th}>{t('invoiceTable.job')}</th>
+            <th className={th}>{t('invoiceTable.partsOrdered')}</th>
             <th className={th}>{t('invoiceTable.vendor')}</th>
             <th className={th}>{t('invoiceTable.date')}</th>
             <th className={`${th} text-right`}>{t('invoiceTable.price')}</th>
@@ -35,6 +36,7 @@ export function InvoiceTable({ invoices }: { invoices: InvoiceListItem[] }) {
                 </Link>
               </td>
               <td className={`${td} max-w-xs truncate`}>{inv.description}</td>
+              <td className={`${td} max-w-xs truncate`}>{inv.partsOrdered || '—'}</td>
               <td className={td}>{inv.vendorName}</td>
               <td className={td}>{formatDate(inv.invoiceDate)}</td>
               <td className={`${td} text-right tabular-nums`}>{formatMoney(inv.amount)}</td>
