@@ -216,6 +216,7 @@ export async function createInvoice(
         propertyId: input.propertyId ?? null,
         invoiceDate: input.invoiceDate,
         notes: input.notes ?? null,
+        partsOrdered: input.partsOrdered ?? null,
         userId: actorId,
       },
       include: { user: userSelect },
@@ -371,6 +372,7 @@ export async function updateInvoice(
     if (input.propertyId !== undefined) data.propertyId = input.propertyId
     if (input.invoiceDate !== undefined) data.invoiceDate = input.invoiceDate
     if (input.notes !== undefined) data.notes = input.notes
+    if (input.partsOrdered !== undefined) data.partsOrdered = input.partsOrdered
 
     const events: Prisma.InvoiceEventCreateManyInput[] = []
     const base = { invoiceId: id, actorId, ownerUserId: before.userId }

@@ -173,14 +173,15 @@ describe('POST /api/invoices/export', () => {
     }
   })
 
-  it('maps cells: amount as a number, propertyAddress empty when unassigned', async () => {
-    await create('map', user.cookie, { amount: 149.99 })
+  it('maps cells: amount number, empty propertyAddress, partsOrdered passthrough', async () => {
+    await create('map', user.cookie, { amount: 149.99, partsOrdered: '2x faucet washers' })
     await exportAs(user.cookie)
     const row = (appendRows.mock.calls[0][1] as unknown[][])[0]
-    // [id, invoiceNumber, vendorName, amount, status, invoiceDate, category, description, propertyAddress]
+    // [id, invoiceNumber, vendorName, amount, status, invoiceDate, category, description, propertyAddress, partsOrdered]
     expect(row[3]).toBe(149.99)
     expect(typeof row[3]).toBe('number')
     expect(row[8]).toBe('') // propertyAddress empty (no property assigned)
+    expect(row[9]).toBe('2x faucet washers') // partsOrdered free text
   })
 
   it("exports the assigned property's address in the propertyAddress column", async () => {

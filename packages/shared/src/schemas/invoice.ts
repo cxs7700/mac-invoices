@@ -80,6 +80,7 @@ export const CreateInvoiceSchema = z.object({
   propertyId: z.string().optional(),
   invoiceDate: z.coerce.date(),
   notes: z.string().max(1000).optional(),
+  partsOrdered: z.string().max(1000).optional(),
   // Optional photos to attach at create time (each uploaded to storage first).
   // 0 is valid (create now, photograph later); capped at MAX_INVOICE_IMAGES.
   // `images[]` is the single source of truth — the legacy `attachmentUrl` column

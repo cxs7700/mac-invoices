@@ -100,6 +100,7 @@ export default function InvoiceDetail() {
           <div className="mt-4 space-y-3">
             <Field label={t('invoiceDetail.description')} value={invoice.description} />
             <Field label={t('invoiceDetail.notes')} value={invoice.notes} />
+            <Field label={t('invoiceDetail.partsOrdered')} value={invoice.partsOrdered} />
           </div>
         </div>
 

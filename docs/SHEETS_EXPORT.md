@@ -14,7 +14,7 @@ See `docs/DECISIONS.md` DEC-021 for the design.
 4. **Share the sheet as Editor** with the service account's `client_email` (from the key JSON). This is
    the #1 first-use failure — without it every export returns a permission error.
 5. **Write the header row once** on the export tab (default tab name `Invoices`):
-   `id, invoiceNumber, vendorName, amount, status, invoiceDate, category, description, propertyAddress`.
+   `id, invoiceNumber, vendorName, amount, status, invoiceDate, category, description, propertyAddress, partsOrdered`.
 
 ## Environment variables
 

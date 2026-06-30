@@ -89,6 +89,8 @@ model Invoice {
   paidDate               DateTime?
   rejectionReason        String?
   notes                  String?
+  // Free-text description of parts ordered for the job (optional).
+  partsOrdered           String?
   sheetsSyncedAt         DateTime?
   createdAt              DateTime         @default(now())
   updatedAt              DateTime         @updatedAt
