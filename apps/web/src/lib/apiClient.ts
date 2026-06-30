@@ -24,11 +24,15 @@ export class ApiError extends Error {
  * the server's { error: { code, message } } shape. Pair with TanStack Query.
  */
 export async function apiClient<T = unknown>(path: string, init?: RequestInit): Promise<T> {
+  // Only declare a JSON content-type when we actually send a body. A bodyless
+  // POST (e.g. /sheets/test, logout) with `Content-Type: application/json` makes
+  // Fastify's JSON parser reject the empty body ("Body cannot be empty…").
+  const hasBody = init?.body != null
   const res = await fetch(`${BASE_URL}${path}`, {
     ...init,
     credentials: 'include',
     headers: {
-      'Content-Type': 'application/json',
+      ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
       ...(init?.headers ?? {}),
     },
   })
