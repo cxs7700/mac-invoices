@@ -32,7 +32,6 @@ const recentInvoice = {
   category: 'REPAIRS',
   status: 'PENDING',
   invoiceDate: '2026-02-01',
-  dueDate: null,
   updatedAt: '2026-02-01',
   sheetsSyncedAt: null,
 }

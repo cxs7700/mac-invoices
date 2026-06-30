@@ -106,40 +106,6 @@ describe('GET /api/invoices — filter + sort', () => {
     expect(nums).toEqual([`${NONCE}2`])
   })
 
-  it('sorts by the nullable dueDate with a stable invoiceDate tiebreaker', async () => {
-    const SUB = `${NONCE}DUE-`
-    const mk = (n: string, dueDate: string | null) =>
-      app.inject({
-        method: 'POST',
-        url: '/api/invoices',
-        headers: { cookie },
-        payload: {
-          invoiceNumber: `${SUB}${n}`,
-          vendorName: `${SUB}v`,
-          description: 'w',
-          amount: 10,
-          category: 'OTHER',
-          invoiceDate: '2026-01-01',
-          ...(dueDate ? { dueDate } : {}),
-        },
-      })
-    try {
-      await mk('a', '2026-05-01')
-      await mk('b', '2026-03-01')
-      await mk('nil', null)
-      const res = await app.inject({
-        method: 'GET',
-        url: `/api/invoices?vendor=${encodeURIComponent(SUB)}&sort=dueDate&order=asc`,
-        headers: { cookie },
-      })
-      const nums = res.json().data.map((i: { invoiceNumber: string }) => i.invoiceNumber)
-      // asc: earliest due first; the null-dueDate row sorts last (Postgres NULLS LAST).
-      expect(nums).toEqual([`${SUB}b`, `${SUB}a`, `${SUB}nil`])
-    } finally {
-      await app.prisma.invoice.deleteMany({ where: { invoiceNumber: { startsWith: SUB } } })
-    }
-  })
-
   it('search filters by job description (case-insensitive contains)', async () => {
     const SUB = `${NONCE}DESC-`
     const mk = (n: string, description: string) =>

@@ -24,7 +24,6 @@ const row = {
   category: 'REPAIRS',
   status: 'PENDING',
   invoiceDate: '2026-01-15',
-  dueDate: null,
 }
 
 function statsResponse() {

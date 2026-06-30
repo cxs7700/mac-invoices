@@ -16,7 +16,6 @@ const invoice = {
   propertyId: null,
   status: 'PENDING',
   invoiceDate: '2026-01-15',
-  dueDate: null,
   paidDate: null,
   notes: 'left key under mat',
   imageCount: 0,

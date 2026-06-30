@@ -94,7 +94,7 @@ const userSelect = { select: { id: true, name: true, email: true } }
 // Financially-material fields whose edits are recorded as FIELD_EDITED events.
 // `paidDate` is intentionally excluded — it is an artifact of the status
 // transition and is captured by STATUS_CHANGED.
-const TRACKED_FIELDS = ['amount', 'vendorName', 'invoiceDate', 'dueDate'] as const
+const TRACKED_FIELDS = ['amount', 'vendorName', 'invoiceDate'] as const
 
 /** Canonical string form of a tracked field, for stable old/new diffing + display. */
 function normalize(field: string, value: unknown): string | null {
@@ -215,7 +215,6 @@ export async function createInvoice(
         category: input.category,
         propertyId: input.propertyId ?? null,
         invoiceDate: input.invoiceDate,
-        dueDate: input.dueDate ?? null,
         notes: input.notes ?? null,
         userId: actorId,
       },
@@ -371,7 +370,6 @@ export async function updateInvoice(
     if (input.category !== undefined) data.category = input.category
     if (input.propertyId !== undefined) data.propertyId = input.propertyId
     if (input.invoiceDate !== undefined) data.invoiceDate = input.invoiceDate
-    if (input.dueDate !== undefined) data.dueDate = input.dueDate
     if (input.notes !== undefined) data.notes = input.notes
 
     const events: Prisma.InvoiceEventCreateManyInput[] = []

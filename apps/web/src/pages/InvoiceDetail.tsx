@@ -62,7 +62,7 @@ export default function InvoiceDetail() {
             </h1>
             <div className="flex items-center gap-2">
               <SyncBadge sheetsSyncedAt={invoice.sheetsSyncedAt} updatedAt={invoice.updatedAt} />
-              <StatusBadge status={invoice.status} dueDate={invoice.dueDate} />
+              <StatusBadge status={invoice.status} />
             </div>
           </div>
 
@@ -85,7 +85,6 @@ export default function InvoiceDetail() {
               <Field label={t('invoiceDetail.submittedBy')} value={invoice.submitterName} />
             )}
             <Field label={t('invoiceDetail.invoiceDate')} value={formatDate(invoice.invoiceDate)} />
-            <Field label={t('invoiceDetail.dueDate')} value={formatDate(invoice.dueDate)} />
             <Field label={t('invoiceDetail.paidDate')} value={formatDate(invoice.paidDate)} />
           </div>
 

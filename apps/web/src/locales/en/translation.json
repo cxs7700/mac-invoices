@@ -50,7 +50,6 @@
     "REJECTED": "Rejected",
     "CANCELLED": "Cancelled",
     "SUBMITTED": "Submitted",
-    "overdue": "Overdue",
     "aria": "Status: {{label}}"
   },
   "category": {
@@ -128,7 +127,6 @@
     "job": "Job",
     "vendor": "Vendor",
     "date": "Date",
-    "due": "Due",
     "price": "Price",
     "status": "Status",
     "sheet": "Sheet"
@@ -152,7 +150,6 @@
     "sortBy": "Sort by",
     "sortDate": "Date",
     "sortAmount": "Amount",
-    "sortDueDate": "Due date",
     "sortStatus": "Status",
     "sortAscending": "Sort ascending",
     "sortDescending": "Sort descending",
@@ -176,7 +173,6 @@
     "uncategorized": "Uncategorized",
     "submittedBy": "Submitted by",
     "invoiceDate": "Invoice date",
-    "dueDate": "Due date",
     "paidDate": "Paid date",
     "rejectionReason": "Rejection reason",
     "description": "Description",

@@ -86,7 +86,6 @@ model Invoice {
   property               Property?        @relation(fields: [propertyId], references: [id], onDelete: Restrict)
   status                 InvoiceStatus    @default(PENDING)
   invoiceDate            DateTime
-  dueDate                DateTime?
   paidDate               DateTime?
   rejectionReason        String?
   notes                  String?

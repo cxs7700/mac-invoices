@@ -21,7 +21,6 @@ export function InvoiceTable({ invoices }: { invoices: InvoiceListItem[] }) {
             <th className={th}>{t('invoiceTable.job')}</th>
             <th className={th}>{t('invoiceTable.vendor')}</th>
             <th className={th}>{t('invoiceTable.date')}</th>
-            <th className={th}>{t('invoiceTable.due')}</th>
             <th className={`${th} text-right`}>{t('invoiceTable.price')}</th>
             <th className={th}>{t('invoiceTable.status')}</th>
             <th className={th}>{t('invoiceTable.sheet')}</th>
@@ -38,11 +37,10 @@ export function InvoiceTable({ invoices }: { invoices: InvoiceListItem[] }) {
               <td className={`${td} max-w-xs truncate`}>{inv.description}</td>
               <td className={td}>{inv.vendorName}</td>
               <td className={td}>{formatDate(inv.invoiceDate)}</td>
-              <td className={td}>{inv.dueDate ? formatDate(inv.dueDate) : '—'}</td>
               <td className={`${td} text-right tabular-nums`}>{formatMoney(inv.amount)}</td>
               <td className={td}>
                 <div className="flex items-center gap-2">
-                  <StatusBadge status={inv.status} dueDate={inv.dueDate} />
+                  <StatusBadge status={inv.status} />
                   {needsPhoto(inv.status, inv.imageCount) && <AddPhotoIndicator invoiceId={inv.id} />}
                 </div>
               </td>

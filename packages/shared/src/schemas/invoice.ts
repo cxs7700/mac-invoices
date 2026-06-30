@@ -79,7 +79,6 @@ export const CreateInvoiceSchema = z.object({
   category: InvoiceCategory,
   propertyId: z.string().optional(),
   invoiceDate: z.coerce.date(),
-  dueDate: z.coerce.date().optional(),
   notes: z.string().max(1000).optional(),
   // Optional photos to attach at create time (each uploaded to storage first).
   // 0 is valid (create now, photograph later); capped at MAX_INVOICE_IMAGES.
@@ -97,7 +96,7 @@ export const UpdateInvoiceSchema = CreateInvoiceSchema.partial().extend({
 })
 
 // Sort is a whitelist so the API never builds an `orderBy` from a raw string.
-export const InvoiceSortField = z.enum(['invoiceDate', 'amount', 'dueDate', 'status'])
+export const InvoiceSortField = z.enum(['invoiceDate', 'amount', 'status'])
 export const SortOrder = z.enum(['asc', 'desc'])
 
 /**

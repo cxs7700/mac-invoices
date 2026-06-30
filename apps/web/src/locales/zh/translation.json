@@ -50,7 +50,6 @@
     "REJECTED": "已拒绝",
     "CANCELLED": "已取消",
     "SUBMITTED": "已提交",
-    "overdue": "逾期",
     "aria": "状态：{{label}}"
   },
   "category": {
@@ -128,7 +127,6 @@
     "job": "项目",
     "vendor": "供应商",
     "date": "日期",
-    "due": "到期",
     "price": "金额",
     "status": "状态",
     "sheet": "表格"
@@ -152,7 +150,6 @@
     "sortBy": "排序",
     "sortDate": "日期",
     "sortAmount": "金额",
-    "sortDueDate": "截止日期",
     "sortStatus": "状态",
     "sortAscending": "升序",
     "sortDescending": "降序",
@@ -176,7 +173,6 @@
     "uncategorized": "未分类",
     "submittedBy": "提交人",
     "invoiceDate": "开票日期",
-    "dueDate": "截止日期",
     "paidDate": "支付日期",
     "rejectionReason": "拒绝原因",
     "description": "说明",

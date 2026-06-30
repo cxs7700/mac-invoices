@@ -25,13 +25,6 @@ export function formatDate(value: string | Date | null | undefined): string {
       })
 }
 
-/** Whether an invoice should display as overdue (unpaid + due date past). */
-export function isOverdue(status: string, dueDate: string | Date | null | undefined): boolean {
-  if (status !== 'PENDING' && status !== 'APPROVED') return false
-  if (dueDate == null) return false
-  return new Date(dueDate).getTime() < Date.now()
-}
-
 export type SyncState = 'not-exported' | 'exported' | 'drifted'
 
 // The Sheets export stamp also bumps the row's updatedAt (~the same instant), so
