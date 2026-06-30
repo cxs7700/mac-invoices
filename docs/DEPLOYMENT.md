@@ -18,7 +18,7 @@ are the **manual operator steps** — they need your Vercel account, a database,
 
 | Option | When | Notes |
 |---|---|---|
-| **Reuse the current Prisma Postgres** (`db.prisma.io`) | Fastest — demo/staging | Already serverless-pooled, migrated, and seeded. **Single connection string** (no separate `DIRECT_URL`). **Security must-do:** it was seeded with the `changeme-dev` landlord password — re-seed with a strong `LANDLORD_PASSWORD` (step 4) **before** the URL is public, or it's a known-credential admin login. |
+| **Reuse the current Prisma Postgres** (`db.prisma.io`) | Fastest — demo/staging | Already serverless-pooled, migrated, and seeded. **Single connection string** (no separate `DIRECT_URL`). **Landlord password:** originally `changeme-dev`, but **rotated to a strong value on 2026-06-30** (see §4), so this DB is no longer a known-credential login. A *fresh* DB still needs the step-4 rotation before going public. |
 | **New managed Postgres** (Neon / Supabase / Vercel Postgres) | Clean production | Provision it, then use its **pooled** endpoint as `DATABASE_URL` (app) and its **direct** endpoint as `DIRECT_URL` (migrations). Run migrate + seed (steps 3–4). |
 
 Serverless needs a **pooled** app connection (the function reuses one `PrismaClient`, but
@@ -69,6 +69,12 @@ DATABASE_URL="<prisma-postgres-url>" npm run db:deploy
 The seed upserts the landlord login and **fails closed** if `LANDLORD_PASSWORD` is unset, and
 refuses the `changeme-dev` default when `NODE_ENV=production`. Run it once against the target
 DB with a strong password (this also rotates the password if you reused the dev DB):
+
+> **Live deploy (2026-06-30):** the production Prisma Postgres (`db.prisma.io`) landlord login —
+> `landlord@example.com` — has already been rotated off `changeme-dev` to a strong random password.
+> The value is **not** stored in this repo (it lives only as an argon2 hash in the DB) — keep it in
+> a password manager. Re-run the command below to set your own value; it upserts the landlord and
+> leaves invoices untouched. Requires Node 24 (`.nvmrc`).
 
 ```bash
 DATABASE_URL="<target-db-url>" LANDLORD_PASSWORD="<strong-secret>" \
