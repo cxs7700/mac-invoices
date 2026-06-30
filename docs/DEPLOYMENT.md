@@ -7,9 +7,10 @@ origin silently 401s every authenticated request.
 
 Plan of record: `docs/plans/2026-06-22-003-feat-vercel-deploy-plan.md`.
 
-The repo is already deploy-ready (`vercel.json`, the `api/index.ts` function + `build:api`
-bundle, the same-origin client, `engines.node`). The steps below are the **manual operator
-steps** — they need your Vercel account, a database, and secrets.
+The repo is already deploy-ready (`vercel.json` + `scripts/build-vercel.mjs`, which esbuild-bundles
+`apps/api/src/vercelEntry.ts` and emits a Vercel Build Output API tree — the function, the static
+SPA, and routing — into `.vercel/output`; the same-origin client; `engines.node`). The steps below
+are the **manual operator steps** — they need your Vercel account, a database, and secrets.
 
 ---
 
@@ -26,20 +27,21 @@ Postgres use the `-pooler` / transaction-pooling endpoint for `DATABASE_URL`.
 
 ## 2. Connect the repo to Vercel
 
-1. `vercel login` (browser auth), or use the Vercel dashboard.
-2. **New Project → import this GitHub repo.** Set **Root Directory = repo root** (not
-   `apps/web` — the root `api/` function and workspace deps must be visible).
-3. Framework preset: **Other** (the build is driven by `vercel.json`). Don't override the
+1. `vercel login` (browser auth), then `vercel link` to link this directory to the project
+   (writes `.vercel/project.json`). The dashboard's **New Project → import repo** flow also works.
+2. **Root Directory = repo root** (not `apps/web` — `scripts/build-vercel.mjs` bundles the whole
+   workspace and emits `.vercel/output`). Framework preset **Other**; don't override the
    build/output settings — `vercel.json` owns them.
 
-Deploys then run automatically: **push to `main` → Production**, **open a PR → Preview**.
+**Deploys are manual:** `vercel --prod` builds and ships the **current local working tree** to
+Production (`vercel` alone makes a Preview). Pushing to `main` does **not** auto-deploy — the
+deployed code is whatever is checked out when you run the command, not `origin/main`.
 
 ## 3. Run migrations (before the code that needs them deploys)
 
 Migrations must **not** run in the Vercel build (concurrent builds race the lock). Run them
-as a one-off against the **direct** connection, and — because a push to `main` auto-deploys
-— run them **before** merging code that depends on a new migration (or keep the migration
-backward-compatible with the currently-deployed code):
+as a one-off against the **direct** connection, **before** you `vercel --prod` code that depends
+on a new migration (or keep the migration backward-compatible with the currently-deployed code):
 
 ```bash
 # managed Postgres: point at the DIRECT (non-pooled) URL
@@ -87,17 +89,19 @@ previews hit a DB). Mark secrets **Sensitive**.
 | `LANDLORD_USER_ID` | `landlord_seed_user` | must match what was seeded |
 | `LANDLORD_EMAIL` | the seeded email | |
 | `COOKIE_SECURE` | `true` | sends the session cookie only over HTTPS — **set for Preview too** |
-| `NODE_ENV` | `production` | |
+| `NODE_ENV` | *(do **not** set)* | Vercel sets `production` in the function runtime automatically; adding it as a project env var makes the build's `npm install` skip devDependencies → the web build fails with exit 2 |
 | `VITE_API_URL` | *(empty / unset)* | same-origin; baked into the SPA at build |
 
 Notes:
 - Env vars are **baked at build** — changing one needs a redeploy.
 - Only `VITE_*` vars reach the browser bundle; the sole one here is `VITE_API_URL` (safe). No
   server secret is `VITE_*`, so nothing sensitive ships to the client.
-- Each PR **Preview** is its own HTTPS `*.vercel.app` origin; the strict cookie works per-origin,
-  so login is exercised per preview (hence `COOKIE_SECURE=true` on Preview).
-- `WEB_ORIGIN` must equal the actual production URL (e.g. `https://mac-invoices.vercel.app`, or a
-  custom domain). It is both the CORS allow-origin and the same-origin the strict cookie needs.
+- Each **Preview** deploy (`vercel` without `--prod`) is its own HTTPS `*.vercel.app` origin; the
+  strict cookie works per-origin, so login is exercised per preview (hence `COOKIE_SECURE=true` on Preview).
+- `WEB_ORIGIN` is **not required** for this same-origin deploy: the SPA and API share one origin, so
+  the browser never runs CORS on `/api` calls (verified in production with `WEB_ORIGIN` unset). The
+  strict cookie depends on the real request origins, not this var. Set it only if you split the API
+  onto a separate origin — then to the SPA's origin.
 - `SESSION_SECRET` is **not** used — sessions are opaque `@oslojs` tokens (a SHA-256 lookup id),
   so there is no signing secret to configure. It is intentionally absent from `.env.example`.
 
@@ -115,7 +119,7 @@ Tuning knobs (`EXPORT_RATE_LIMIT_MAX`, `EXPORT_CHUNK_SIZE`, `SHEETS_RETRY_BASE_M
 
 ## 6. Deploy + smoke test
 
-Push to `main` (or promote a verified Preview). Then run the smoke checklist against the URL:
+Run `vercel --prod` (or promote a verified Preview). Then run the smoke checklist against the URL:
 
 - `GET /api/health` → `200 {"status":"ok"}` over HTTPS.
 - **Login** as the landlord → the `Set-Cookie` carries `Secure`, `HttpOnly`, `SameSite=Strict`;

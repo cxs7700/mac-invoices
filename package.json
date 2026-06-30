@@ -15,7 +15,6 @@
     "dev:web": "npm run dev -w @mac-invoices/web",
     "dev:api": "npm run dev -w @mac-invoices/api",
     "build": "npm run build -w @mac-invoices/web",
-    "build:api": "node scripts/build-api.mjs",
     "start": "npm run start -w @mac-invoices/api",
     "lint": "eslint .",
     "format": "prettier --write .",

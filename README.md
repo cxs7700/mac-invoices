@@ -83,7 +83,7 @@ The Google Sheets export is optional — the app runs fine without `GOOGLE_*` se
 
 ## Deploy
 
-The app deploys to **Vercel as a single project**: the web SPA is served as static assets and the Fastify API runs as a serverless function mounted at `/api` (same-origin, so the `sameSite=strict` session cookie works). Build wiring lives in `vercel.json`, `api/index.ts`, and `scripts/build-api.mjs`. Full operator steps: [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md); Google Sheets setup: [`docs/SHEETS_EXPORT.md`](docs/SHEETS_EXPORT.md).
+The app deploys to **Vercel as a single project**: the web SPA is served as static assets and the Fastify API runs as a serverless function mounted at `/api` (same-origin, so the `sameSite=strict` session cookie works). Build wiring lives in `vercel.json`, `apps/api/src/vercelEntry.ts`, and `scripts/build-vercel.mjs` (which emits a Vercel Build Output API tree). Full operator steps: [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md); Google Sheets setup: [`docs/SHEETS_EXPORT.md`](docs/SHEETS_EXPORT.md).
 
 Outline:
 
