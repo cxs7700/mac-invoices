@@ -12,6 +12,7 @@ export type InvoiceListItem = {
   category: string | null
   status: string
   invoiceDate: string
+  partsOrdered: string | null
   updatedAt: string
   sheetsSyncedAt: string | null
   // Number of attached photos (from the API _count) — drives the add-photo

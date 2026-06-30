@@ -125,6 +125,7 @@
   "invoiceTable": {
     "number": "#",
     "job": "Job",
+    "partsOrdered": "Parts ordered",
     "vendor": "Vendor",
     "date": "Date",
     "price": "Price",

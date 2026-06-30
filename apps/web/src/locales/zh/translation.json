@@ -125,6 +125,7 @@
   "invoiceTable": {
     "number": "#",
     "job": "项目",
+    "partsOrdered": "已订购的零件",
     "vendor": "供应商",
     "date": "日期",
     "price": "金额",

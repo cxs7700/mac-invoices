@@ -7,6 +7,7 @@ import type { InvoiceListItem } from '@/hooks/useInvoices'
 const base = {
   updatedAt: '2026-01-20',
   sheetsSyncedAt: null,
+  partsOrdered: null,
   imageCount: 1,
 }
 
@@ -21,6 +22,7 @@ const rows: InvoiceListItem[] = [
     category: 'REPAIRS',
     status: 'PENDING',
     invoiceDate: '2026-01-15',
+    partsOrdered: '2x sink washer',
   },
   {
     ...base,
@@ -45,6 +47,18 @@ describe('InvoiceTable', () => {
     const r1 = screen.getByText('INV-1').closest('tr')!
     expect(within(r1).getByText('Acme')).toBeDefined()
     expect(screen.getByText('INV-2')).toBeDefined()
+  })
+
+  it('shows partsOrdered when present and an em dash when null', () => {
+    render(
+      <MemoryRouter>
+        <InvoiceTable invoices={rows} />
+      </MemoryRouter>,
+    )
+    const r1 = screen.getByText('INV-1').closest('tr')!
+    expect(within(r1).getByText('2x sink washer')).toBeDefined()
+    const r2 = screen.getByText('INV-2').closest('tr')!
+    expect(within(r2).getByText('—')).toBeDefined()
   })
 })
 
