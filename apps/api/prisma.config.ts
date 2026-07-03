@@ -3,12 +3,24 @@
 import { config } from 'dotenv'
 import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
-import { defineConfig, env } from 'prisma/config'
+import { defineConfig } from 'prisma/config'
 
 // Load the single repo-root .env (see PROJECT_PLAN.md §13). Prisma runs this config
 // with cwd at apps/api, so resolve the root .env relative to this file.
 const here = dirname(fileURLToPath(import.meta.url))
 config({ path: resolve(here, '../../.env') })
+
+// Resolve DATABASE_URL leniently: `prisma generate` (run in every Vercel build,
+// including PREVIEW deploys where DB secrets are not injected) reads only the
+// schema and needs no connection, but Prisma's strict `env()` helper THROWS at
+// config load when the var is unset — failing the build. Fall back to a
+// non-connecting placeholder so `generate` always works; commands that actually
+// touch the DB (`migrate`, `db push`) still require a real URL in the environment
+// (local .env / the manual hosted ship step) and fail loudly if it's the
+// placeholder. The runtime client connects via the pg adapter in
+// src/lib/prisma.ts, not this datasource url.
+const datasourceUrl =
+  process.env.DATABASE_URL ?? 'postgresql://placeholder:placeholder@localhost:5432/placeholder'
 
 export default defineConfig({
   schema: 'prisma/schema.prisma',
@@ -17,6 +29,6 @@ export default defineConfig({
     seed: 'tsx prisma/seed.ts',
   },
   datasource: {
-    url: env('DATABASE_URL'),
+    url: datasourceUrl,
   },
 })
