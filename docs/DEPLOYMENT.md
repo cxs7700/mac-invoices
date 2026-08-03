@@ -104,10 +104,12 @@ Notes:
   server secret is `VITE_*`, so nothing sensitive ships to the client.
 - Each **Preview** deploy (`vercel` without `--prod`) is its own HTTPS `*.vercel.app` origin; the
   strict cookie works per-origin, so login is exercised per preview (hence `COOKIE_SECURE=true` on Preview).
-- `WEB_ORIGIN` is **not required** for this same-origin deploy: the SPA and API share one origin, so
-  the browser never runs CORS on `/api` calls (verified in production with `WEB_ORIGIN` unset). The
-  strict cookie depends on the real request origins, not this var. Set it only if you split the API
-  onto a separate origin — then to the SPA's origin.
+- `WEB_ORIGIN` is not required for CORS on this same-origin deploy (the SPA and API share one
+  origin, so the browser never runs CORS on `/api` calls; the strict cookie depends on the real
+  request origins, not this var). **It IS required for correct outbound links**, though: the Sheets
+  export `invoiceLink` column, digest-email links, and contractor magic links all build URLs from it
+  and fall back to `http://localhost:5173` when unset. Set it to the production origin
+  (`https://mac-invoices.vercel.app`).
 - `SESSION_SECRET` is **not** used — sessions are opaque `@oslojs` tokens (a SHA-256 lookup id),
   so there is no signing secret to configure. It is intentionally absent from `.env.example`.
 

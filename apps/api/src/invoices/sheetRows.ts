@@ -16,6 +16,8 @@ export const EXPORT_COLUMNS = [
   'description',
   'propertyAddress',
   'partsOrdered',
+  // Keep invoiceLink LAST: existing consumers address cells positionally.
+  'invoiceLink',
 ] as const
 
 /** The header row written as row 1 of every full mirror. */
@@ -27,6 +29,13 @@ export const EXPORT_HEADER: string[] = [...EXPORT_COLUMNS]
 export const NON_EXPORTABLE_STATUSES = ['SUBMITTED', 'REJECTED', 'CANCELLED'] as const
 
 const ymd = (d: Date) => d.toISOString().slice(0, 10)
+
+/** The app's invoice-detail URL — the gallery page with fresh signed photo URLs.
+ * A direct blob link would be useless in a sheet (private store, 15-min expiry);
+ * this link never expires and stays behind the login. WEB_ORIGIN fallback matches
+ * the digest/contractor-link convention. */
+const invoiceLink = (id: string) =>
+  `${process.env.WEB_ORIGIN ?? 'http://localhost:5173'}/invoices/${id}`
 
 /** The minimal invoice shape a row needs (amount kept as the Prisma Decimal so
  * money never round-trips through a JS float before the cell). */
@@ -56,6 +65,7 @@ export function invoiceToRow(inv: InvoiceRowInput): (string | number)[] {
     description: inv.description,
     propertyAddress: inv.property?.address ?? '',
     partsOrdered: inv.partsOrdered ?? '',
+    invoiceLink: invoiceLink(inv.id),
   }
   return EXPORT_COLUMNS.map((c) => cell[c])
 }
