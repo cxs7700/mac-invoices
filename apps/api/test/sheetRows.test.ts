@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { EXPORT_COLUMNS, EXPORT_HEADER, invoiceToRow } from '../src/invoices/sheetRows'
 import type { InvoiceRowInput } from '../src/invoices/sheetRows'
+import { SheetFormula } from '../src/integrations/sheetCells'
 
 const inv: InvoiceRowInput = {
   id: 'inv_link_1',
@@ -30,15 +31,27 @@ describe('invoiceLink column', () => {
     expect(EXPORT_HEADER[EXPORT_HEADER.length - 1]).toBe('invoiceLink')
   })
 
-  it('links to the app invoice-detail page under WEB_ORIGIN', () => {
+  it('is a HYPERLINK formula showing "Link" that targets the detail page under WEB_ORIGIN', () => {
     process.env.WEB_ORIGIN = 'https://app.example'
     const row = invoiceToRow(inv)
-    expect(row[row.length - 1]).toBe('https://app.example/invoices/inv_link_1')
+    expect(row[row.length - 1]).toEqual(
+      new SheetFormula('=HYPERLINK("https://app.example/invoices/inv_link_1", "Link")'),
+    )
   })
 
   it('falls back to the localhost dev origin when WEB_ORIGIN is unset (codebase convention)', () => {
     const row = invoiceToRow(inv)
-    expect(row[row.length - 1]).toBe('http://localhost:5173/invoices/inv_link_1')
+    expect(row[row.length - 1]).toEqual(
+      new SheetFormula('=HYPERLINK("http://localhost:5173/invoices/inv_link_1", "Link")'),
+    )
+  })
+
+  it('escapes double quotes from WEB_ORIGIN so the formula stays well-formed', () => {
+    process.env.WEB_ORIGIN = 'https://app.example/"x'
+    const row = invoiceToRow(inv)
+    expect((row[row.length - 1] as SheetFormula).formula).toBe(
+      '=HYPERLINK("https://app.example/""x/invoices/inv_link_1", "Link")',
+    )
   })
 
   it('does not shift the existing cells', () => {

@@ -14,6 +14,7 @@ vi.mock('googleapis', () => ({
 }))
 
 import { appendRows, overwriteRows } from '../../src/integrations/sheets'
+import { SheetFormula } from '../../src/integrations/sheetCells'
 
 const VALID_KEY = JSON.stringify({ client_email: 'sa@x.iam', private_key: 'PRIVATE-SECRET-123' })
 
@@ -52,6 +53,15 @@ describe('sheets.appendRows', () => {
       42,
       "'-bad",
       "'@x",
+    ])
+  })
+
+  it('passes a server-constructed SheetFormula through verbatim (not neutralized)', async () => {
+    appendMock.mockResolvedValue({})
+    await appendRows('S', [[new SheetFormula('=HYPERLINK("https://app/i/1", "Link")'), 'safe']])
+    expect(appendMock.mock.calls[0][0].requestBody.values[0]).toEqual([
+      '=HYPERLINK("https://app/i/1", "Link")',
+      'safe',
     ])
   })
 

@@ -2,6 +2,8 @@
 // "Sync now" handler and the continuous-sync cron mirror so the two can never
 // drift. Pure (no DB / no Google client) and trivially unit-testable.
 
+import { SheetFormula, type SheetCell } from '../integrations/sheetCells'
+
 // The §8 column order. The mirror writes these names as a header row (row 1),
 // then one data row per invoice; the operator no longer maintains the header by
 // hand (a full-mirror clear+rewrite would wipe it — KTD continuous-sync).
@@ -33,9 +35,13 @@ const ymd = (d: Date) => d.toISOString().slice(0, 10)
 /** The app's invoice-detail URL — the gallery page with fresh signed photo URLs.
  * A direct blob link would be useless in a sheet (private store, 15-min expiry);
  * this link never expires and stays behind the login. WEB_ORIGIN fallback matches
- * the digest/contractor-link convention. */
-const invoiceLink = (id: string) =>
-  `${process.env.WEB_ORIGIN ?? 'http://localhost:5173'}/invoices/${id}`
+ * the digest/contractor-link convention. Rendered as a HYPERLINK formula so the
+ * cell shows "Link" instead of the raw URL; the embedded quote-escape keeps the
+ * formula well-formed no matter what WEB_ORIGIN holds. */
+const invoiceLink = (id: string) => {
+  const url = `${process.env.WEB_ORIGIN ?? 'http://localhost:5173'}/invoices/${id}`
+  return new SheetFormula(`=HYPERLINK("${url.replace(/"/g, '""')}", "Link")`)
+}
 
 /** The minimal invoice shape a row needs (amount kept as the Prisma Decimal so
  * money never round-trips through a JS float before the cell). */
@@ -53,8 +59,8 @@ export type InvoiceRowInput = {
 }
 
 /** Map one invoice to a sheet row in `EXPORT_COLUMNS` order. */
-export function invoiceToRow(inv: InvoiceRowInput): (string | number)[] {
-  const cell: Record<(typeof EXPORT_COLUMNS)[number], string | number> = {
+export function invoiceToRow(inv: InvoiceRowInput): SheetCell[] {
+  const cell: Record<(typeof EXPORT_COLUMNS)[number], SheetCell> = {
     id: inv.id,
     invoiceNumber: inv.invoiceNumber ?? '',
     vendorName: inv.vendorName,

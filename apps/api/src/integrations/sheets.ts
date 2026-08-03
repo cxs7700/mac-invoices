@@ -1,5 +1,6 @@
 import { google } from 'googleapis'
 import { AppError } from '../middleware/errorHandler'
+import { SheetFormula, type SheetCell } from './sheetCells'
 
 // One-way export to Google Sheets via a service account (§8). The handler imports
 // this module directly; tests `vi.mock` it. Google errors are NEVER propagated
@@ -69,8 +70,11 @@ function isRetryable(err: unknown): boolean {
 }
 
 /** Neutralize spreadsheet formula injection: a text cell starting with =,+,-,@
- * (or a control char) is forced to literal text with a leading apostrophe. */
-function safeCell(value: string | number): string | number {
+ * (or a control char) is forced to literal text with a leading apostrophe.
+ * A SheetFormula is the one exception — a server-constructed formula that
+ * passes through verbatim (USER_ENTERED then evaluates it). */
+function safeCell(value: SheetCell): string | number {
+  if (value instanceof SheetFormula) return value.formula
   if (typeof value === 'string' && /^[=+\-@\t\r]/.test(value)) return `'${value}`
   return value
 }
@@ -139,7 +143,7 @@ async function withRetry(call: () => Promise<unknown>): Promise<void> {
 }
 
 /** Append `rows` to the pinned tab, retrying transient 429/5xx with backoff. */
-export async function appendRows(spreadsheetId: string, rows: (string | number)[][]): Promise<void> {
+export async function appendRows(spreadsheetId: string, rows: SheetCell[][]): Promise<void> {
   const sheets = getSheetsClient()
   const safeRows = rows.map((row) => row.map(safeCell))
   await withRetry(() =>
@@ -165,7 +169,7 @@ export async function appendRows(spreadsheetId: string, rows: (string | number)[
  * after the clear leaves the tab empty, but the caller is the cron mirror which
  * re-runs idempotently (the user stays "dirty" until a full pass succeeds).
  */
-export async function overwriteRows(spreadsheetId: string, rows: (string | number)[][]): Promise<void> {
+export async function overwriteRows(spreadsheetId: string, rows: SheetCell[][]): Promise<void> {
   const sheets = getSheetsClient()
   const safeRows = rows.map((row) => row.map(safeCell))
   await withRetry(() =>
