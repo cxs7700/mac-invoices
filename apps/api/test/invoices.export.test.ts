@@ -96,7 +96,7 @@ describe('POST /api/invoices/export — "Sync now" full mirror', () => {
     const rows = overwriteRows.mock.calls[0][1] as unknown[][]
     expect(rows).toHaveLength(4) // header + 3 data rows
     expect(rows[0]).toContain('Invoice #') // header row
-    expect(rows[0]).toContain('amount')
+    expect(rows[0]).toContain('Amount')
     // Mirror emits no ledger events.
     expect(await app.prisma.invoiceEvent.count({ where: { ownerUserId: user.user.id } })).toBe(eventsBefore)
 
