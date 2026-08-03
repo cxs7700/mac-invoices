@@ -31,7 +31,6 @@ export default function InvoiceDetail() {
   const { data: events, isPending: eventsPending } = useInvoiceEvents(id)
   const update = useUpdateInvoice(id!)
   const del = useDeleteInvoice()
-  const [confirmReject, setConfirmReject] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   if (isPending) return <div className="text-muted-foreground">{t('invoiceDetail.loading')}</div>
@@ -118,57 +117,17 @@ export default function InvoiceDetail() {
                   onReject={(reason) => update.mutate({ status: 'REJECTED', rejectionReason: reason })}
                 />
               ) : (
-                <>
-                  <Button
-                    className="w-full"
-                    disabled={invoice.status === 'PAID' || update.isPending}
-                    onClick={() => update.mutate({ status: 'PAID' })}
-                  >
-                    {t('invoiceDetail.markAsPaid')}
-                  </Button>
-
-                  {confirmReject ? (
-                    <div className="flex gap-2">
-                      <Button
-                        variant="destructive"
-                        className="flex-1"
-                        onClick={() => {
-                          update.mutate({ status: 'REJECTED' })
-                          setConfirmReject(false)
-                        }}
-                      >
-                        {t('invoiceDetail.confirmReject')}
-                      </Button>
-                      <Button variant="outline" className="flex-1" onClick={() => setConfirmReject(false)}>
-                        {t('invoiceDetail.cancel')}
-                      </Button>
-                    </div>
-                  ) : (
-                    <Button
-                      variant="outline"
-                      className="w-full text-destructive"
-                      onClick={() => setConfirmReject(true)}
-                    >
-                      {t('invoiceDetail.disputeReject')}
-                    </Button>
-                  )}
-                </>
+                <Button
+                  className="w-full"
+                  disabled={invoice.status === 'PAID' || update.isPending}
+                  onClick={() => update.mutate({ status: 'PAID' })}
+                >
+                  {t('invoiceDetail.markAsPaid')}
+                </Button>
               )}
 
               <Button variant="outline" className="w-full" asChild>
                 <Link to={`/invoices/${invoice.id}/edit`}>{t('invoiceDetail.edit')}</Link>
-              </Button>
-
-              <Button
-                variant="outline"
-                className="w-full"
-                aria-label={t('invoiceDetail.sendReminderAria')}
-                title={t('invoiceDetail.sendReminderTitle')}
-                tabIndex={-1}
-                disabled
-              >
-                {t('invoiceDetail.sendReminder')}{' '}
-                <span className="ml-1 text-xs text-muted-foreground">{t('invoiceDetail.soon')}</span>
               </Button>
 
               <Button

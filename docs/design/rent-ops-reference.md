@@ -31,8 +31,9 @@ Type: **Public Sans**. Radius ~6–10px. Spacing 8/12/16/22 rhythm.
 - **Invoice list** — header (title + "New invoice"); status filter; table (#, Job,
   Vendor, Date, Price, Status pill); prev/next pagination.
 - **Invoice detail** — two columns: record (invoice #, status pill, dates, vendor,
-  description, amount boxed, notes, attachments) left; action rail (Mark paid /
-  Dispute / Send-reminder-disabled) + a data-backed status timeline right.
+  description, amount boxed, notes, attachments) left; action rail (Mark paid)
+  + a data-backed status timeline right. (The design's Dispute / Send-reminder
+  actions were later removed from the app.)
 - **Create / edit** — single-column form; the "scan a note / line items" card renders
   **disabled "Soon"** (the OCR + line-items feature is deferred).
 

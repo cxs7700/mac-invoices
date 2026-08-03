@@ -81,26 +81,6 @@ describe('InvoiceDetail', () => {
     )
   })
 
-  it('rejects only after a confirm step', async () => {
-    const fetchMock = setup()
-    await waitFor(() => expect(screen.getByText('Invoice INV-1')).toBeDefined())
-    fireEvent.click(screen.getByRole('button', { name: /dispute \/ reject/i }))
-    fireEvent.click(screen.getByRole('button', { name: /confirm reject/i }))
-    await waitFor(() =>
-      expect(
-        fetchMock.mock.calls.some(
-          (c) => c[1]?.method === 'PATCH' && String(c[1]?.body).includes('REJECTED'),
-        ),
-      ).toBe(true),
-    )
-  })
-
-  it('disables the send-reminder action', async () => {
-    setup()
-    await waitFor(() => expect(screen.getByText('Invoice INV-1')).toBeDefined())
-    expect(screen.getByRole('button', { name: /send reminder/i })).toHaveProperty('disabled', true)
-  })
-
   it('shows a not-found state on 404', async () => {
     setup(404)
     await waitFor(() => expect(screen.getByText(/invoice not found/i)).toBeDefined())
