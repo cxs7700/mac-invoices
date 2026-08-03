@@ -162,6 +162,20 @@ endpoint. To enable it in production:
    - (Vercel's free Hobby cron is daily-only, which is why the schedule lives in GitHub Actions; cron-job.org is a drop-in alternative.)
 3. **Enable the workflow.** The schedule is disabled before the first deploy (it would fail every ~15 min against an un-deployed app). Turn it on once the app is live: `gh workflow enable "Contractor notification digest"` (or the Actions tab). Disable again with `gh workflow disable "…"`.
 
+## Continuous Sheets sync
+
+The connected Google Sheet is a continuous full mirror of each landlord's invoices, driven by the same
+cron pattern as the digest. To enable it in production:
+
+1. **Sheets env vars** — `GOOGLE_SERVICE_ACCOUNT_KEY` (+ optional `GOOGLE_SHEET_TAB`); see `docs/SHEETS_EXPORT.md`.
+   Reuses the **same `CRON_SECRET`** as the digest — nothing new to add if that's already set.
+2. **Per-landlord setup.** Each landlord connects their sheet in Settings → Sheets (continuous sync uses
+   that saved id, **not** the server-wide `GOOGLE_SHEET_ID`). A landlord with no connected sheet is skipped.
+3. **GitHub Actions scheduler** (`.github/workflows/sync-sheets.yml`, runs every ~15 min) — uses the same
+   `APP_URL` variable and `CRON_SECRET` secret as the digest workflow.
+4. **Enable the workflow** once the app is live: `gh workflow enable "Continuous Sheets sync"` (disabled
+   before the first deploy, same as the digest). Endpoint: `POST /api/cron/sync-sheets`, `CRON_SECRET`-gated.
+
 ## Known limitations (tracked)
 
 - **Login rate-limit** uses an in-process store → per-warm-instance on serverless, not fleet-wide.

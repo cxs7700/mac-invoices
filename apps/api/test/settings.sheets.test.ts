@@ -2,11 +2,13 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import { AppError } from '../src/middleware/errorHandler'
 
 // Mock the sheets seam — no live Google calls. checkAccess/serviceAccountEmail
-// are controllable per test; appendRows is captured to prove export targeting.
+// are controllable per test; overwriteRows is captured to prove export targeting
+// ("Sync now" full-mirrors via overwriteRows).
 const sheets = vi.hoisted(() => ({
   serviceAccountEmail: vi.fn(() => 'svc@project.iam.gserviceaccount.com'),
   checkAccess: vi.fn(async () => {}),
   appendRows: vi.fn(async () => {}),
+  overwriteRows: vi.fn(async () => {}),
 }))
 vi.mock('../src/integrations/sheets', () => sheets)
 
@@ -68,19 +70,19 @@ describe('Sheets settings', () => {
     expect(res.json().error.message).toMatch(/share it as Editor/)
   })
 
-  it('export prefers the saved spreadsheet id over the env default', async () => {
+  it('"Sync now" mirrors to the saved spreadsheet id over the env default', async () => {
     await save('SAVED-TARGET')
-    // Give the user an invoice so the export has a row to append.
+    // Give the user an invoice so the mirror has a data row.
     await app.inject({
       method: 'POST',
       url: '/api/invoices',
       payload: { vendorName: 'V', description: 'w', amount: 10, category: 'OTHER', invoiceDate: '2026-06-01' },
       headers: { cookie: cookie() },
     })
-    sheets.appendRows.mockClear()
+    sheets.overwriteRows.mockClear()
     const res = await app.inject({ method: 'POST', url: '/api/invoices/export', payload: {}, headers: { cookie: cookie() } })
     expect(res.statusCode).toBe(200)
-    expect(sheets.appendRows).toHaveBeenCalled()
-    expect(sheets.appendRows.mock.calls[0][0]).toBe('SAVED-TARGET') // targeted the saved id
+    expect(sheets.overwriteRows).toHaveBeenCalled()
+    expect(sheets.overwriteRows.mock.calls[0][0]).toBe('SAVED-TARGET') // targeted the saved id
   })
 })

@@ -13,9 +13,9 @@ const tone: Record<SyncState, string> = {
 }
 
 /**
- * Per-invoice Google Sheets export state. "Drifted" means the invoice was edited
- * after its last export, so the sheet is stale (export is one-way, so this is an
- * advisory prompt to re-export — the app never re-pushes automatically).
+ * Per-invoice Google Sheets sync state. "Drifted" means the invoice was edited
+ * after its last sync, so the sheet is momentarily stale; continuous sync
+ * re-mirrors it on the next cron pass (~15 min), or immediately via "Sync now".
  */
 export function SyncBadge({ sheetsSyncedAt, updatedAt }: Props) {
   const { t } = useTranslation()

@@ -38,10 +38,14 @@ function getSheetsClient() {
   return google.sheets({ version: 'v4', auth })
 }
 
+/** The pinned tab name (a clear targets the whole tab, an update anchors at A1). */
+function tabName(): string {
+  return process.env.GOOGLE_SHEET_TAB ?? 'Invoices'
+}
+
 /** Fully-qualified range on a pinned tab so a multi-tab workbook can't mis-target. */
 function tabRange(): string {
-  const tab = process.env.GOOGLE_SHEET_TAB ?? 'Invoices'
-  return `${tab}!A1`
+  return `${tabName()}!A1`
 }
 
 function statusOf(err: unknown): number | undefined {
@@ -115,22 +119,13 @@ export async function checkAccess(spreadsheetId: string): Promise<void> {
   }
 }
 
-/** Append `rows` to the pinned tab, retrying transient 429/5xx with backoff. */
-export async function appendRows(spreadsheetId: string, rows: (string | number)[][]): Promise<void> {
-  const sheets = getSheetsClient()
-  const safeRows = rows.map((row) => row.map(safeCell))
+/** Run a single Google call with the retry/backoff + sanitize policy shared by
+ * every write: retry transient 429/5xx/transport errors with exponential backoff
+ * + jitter, then surface a sanitized AppError (never the raw provider error). */
+async function withRetry(call: () => Promise<unknown>): Promise<void> {
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
-      await sheets.spreadsheets.values.append(
-        {
-          spreadsheetId,
-          range: tabRange(),
-          valueInputOption: 'USER_ENTERED',
-          requestBody: { values: safeRows },
-        },
-        // Bound a slow (non-failing) Google call so it can't hang the handler.
-        { timeout: 30_000 },
-      )
+      await call()
       return
     } catch (err) {
       if (isRetryable(err) && attempt < MAX_ATTEMPTS) {
@@ -141,4 +136,50 @@ export async function appendRows(spreadsheetId: string, rows: (string | number)[
       throw sanitize(err)
     }
   }
+}
+
+/** Append `rows` to the pinned tab, retrying transient 429/5xx with backoff. */
+export async function appendRows(spreadsheetId: string, rows: (string | number)[][]): Promise<void> {
+  const sheets = getSheetsClient()
+  const safeRows = rows.map((row) => row.map(safeCell))
+  await withRetry(() =>
+    sheets.spreadsheets.values.append(
+      {
+        spreadsheetId,
+        range: tabRange(),
+        valueInputOption: 'USER_ENTERED',
+        requestBody: { values: safeRows },
+      },
+      // Bound a slow (non-failing) Google call so it can't hang the handler.
+      { timeout: 30_000 },
+    ),
+  )
+}
+
+/**
+ * Replace the pinned tab's entire contents with `rows` — the continuous-sync
+ * full mirror. Clears the tab THEN writes (`values.update` at A1), so deleted
+ * invoices vanish and edits land in place; pass a header row as `rows[0]` since
+ * the clear wipes any operator-added header. Each Google call carries the shared
+ * retry/backoff + sanitize policy. NOT atomic across the two calls: a failure
+ * after the clear leaves the tab empty, but the caller is the cron mirror which
+ * re-runs idempotently (the user stays "dirty" until a full pass succeeds).
+ */
+export async function overwriteRows(spreadsheetId: string, rows: (string | number)[][]): Promise<void> {
+  const sheets = getSheetsClient()
+  const safeRows = rows.map((row) => row.map(safeCell))
+  await withRetry(() =>
+    sheets.spreadsheets.values.clear({ spreadsheetId, range: tabName() }, { timeout: 30_000 }),
+  )
+  await withRetry(() =>
+    sheets.spreadsheets.values.update(
+      {
+        spreadsheetId,
+        range: tabRange(),
+        valueInputOption: 'USER_ENTERED',
+        requestBody: { values: safeRows },
+      },
+      { timeout: 30_000 },
+    ),
+  )
 }
