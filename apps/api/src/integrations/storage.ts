@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { del, getDownloadUrl, list } from '@vercel/blob'
+import { del, issueSignedToken, list, presignUrl } from '@vercel/blob'
 import { generateClientTokenFromReadWriteToken } from '@vercel/blob/client'
 import { AppError } from '../middleware/errorHandler'
 
@@ -13,6 +13,7 @@ import { AppError } from '../middleware/errorHandler'
 const ALLOWED_CONTENT_TYPES = ['image/jpeg', 'image/png', 'image/heic', 'image/heif', 'image/webp']
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024 // 10 MB
 const UPLOAD_TOKEN_TTL_MS = 5 * 60 * 1000 // 5 min to complete the upload
+const READ_URL_TTL_MS = 15 * 60 * 1000 // signed read URLs expire after 15 min
 
 /** Read the Blob token, distinguishing unset (not configured) from present. */
 function readWriteToken(): string {
@@ -93,14 +94,29 @@ export async function issueUploadToken(
 }
 
 /**
- * A read URL for an owned blob. Blobs are private; `getDownloadUrl` returns the
- * store's signed, expiring download URL. (Go-live: confirm the store's signed-URL
- * TTL is short — ~15 min — and that private access is enabled.)
+ * A short-lived (15 min) presigned read URL for an owned blob. The store is
+ * PRIVATE, so a bare blob URL — including `getDownloadUrl()`, which only
+ * rewrites the URL and signs nothing — is rejected by the CDN with 403. A
+ * readable URL must be minted per read: `issueSignedToken` (control-plane call)
+ * scoped to exactly this pathname + GET, then `presignUrl` (local HMAC).
  */
-export function signedReadUrl(urlOrPathname: string): string {
-  readWriteToken() // ensure configured (throws 503 otherwise)
+export async function signedReadUrl(urlOrPathname: string): Promise<string> {
+  const token = readWriteToken()
+  const pathname = toPathname(urlOrPathname)
   try {
-    return getDownloadUrl(urlOrPathname)
+    const signed = await issueSignedToken({
+      token,
+      pathname,
+      operations: ['get'],
+      validUntil: Date.now() + READ_URL_TTL_MS,
+    })
+    const { presignedUrl } = await presignUrl(signed, {
+      operation: 'get',
+      pathname,
+      access: 'private',
+      validUntil: signed.validUntil,
+    })
+    return presignedUrl
   } catch (err) {
     throw sanitize(err)
   }

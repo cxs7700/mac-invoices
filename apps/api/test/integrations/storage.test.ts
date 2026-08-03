@@ -1,12 +1,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 // Mock the Blob SDK — the adapter is the seam; no live storage calls.
-const { del, getDownloadUrl, generateClientTokenFromReadWriteToken } = vi.hoisted(() => ({
-  del: vi.fn(),
-  getDownloadUrl: vi.fn(),
-  generateClientTokenFromReadWriteToken: vi.fn(),
-}))
-vi.mock('@vercel/blob', () => ({ del, getDownloadUrl }))
+const { del, issueSignedToken, presignUrl, generateClientTokenFromReadWriteToken } = vi.hoisted(
+  () => ({
+    del: vi.fn(),
+    issueSignedToken: vi.fn(),
+    presignUrl: vi.fn(),
+    generateClientTokenFromReadWriteToken: vi.fn(),
+  }),
+)
+vi.mock('@vercel/blob', () => ({ del, issueSignedToken, presignUrl }))
 vi.mock('@vercel/blob/client', () => ({ generateClientTokenFromReadWriteToken }))
 
 import {
@@ -43,6 +46,13 @@ describe('storage not configured', () => {
   it('deleteBlob throws 503 when the token is unset', async () => {
     await expect(deleteBlob('owners/u1/x')).rejects.toMatchObject({ code: 'STORAGE_NOT_CONFIGURED' })
   })
+
+  it('signedReadUrl throws 503 when the token is unset', async () => {
+    await expect(signedReadUrl('owners/u1/x')).rejects.toMatchObject({
+      code: 'STORAGE_NOT_CONFIGURED',
+      statusCode: 503,
+    })
+  })
 })
 
 describe('storage with token', () => {
@@ -78,8 +88,34 @@ describe('storage with token', () => {
     })
   })
 
-  it('signedReadUrl delegates to the Blob download URL', () => {
-    getDownloadUrl.mockReturnValue('https://signed/url')
-    expect(signedReadUrl('owners/u1/x')).toBe('https://signed/url')
+  it('signedReadUrl mints a presigned GET URL for the blob PATHNAME (private store)', async () => {
+    // getDownloadUrl() does NOT sign — a private store 403s it. The adapter must
+    // go through issueSignedToken → presignUrl, and pass the bare pathname even
+    // when the stored value is a full blob URL.
+    issueSignedToken.mockResolvedValue({
+      delegationToken: 'delegation',
+      clientSigningToken: 'signing',
+      validUntil: 12345,
+    })
+    presignUrl.mockResolvedValue({ presignedUrl: 'https://store.example/owners/u1/x?signed=1' })
+
+    const url = await signedReadUrl('https://store.example/owners/u1/x?download=1')
+
+    expect(url).toBe('https://store.example/owners/u1/x?signed=1')
+    expect(issueSignedToken).toHaveBeenCalledWith(
+      expect.objectContaining({ pathname: 'owners/u1/x', operations: ['get'] }),
+    )
+    expect(presignUrl).toHaveBeenCalledWith(
+      expect.objectContaining({ delegationToken: 'delegation', clientSigningToken: 'signing' }),
+      expect.objectContaining({ operation: 'get', pathname: 'owners/u1/x', access: 'private' }),
+    )
+  })
+
+  it('sanitizes a provider error on signedReadUrl — no raw error / token leak', async () => {
+    issueSignedToken.mockRejectedValue(new Error('raw boom embedding vercel_blob_rw_secret'))
+    await expect(signedReadUrl('owners/u1/x')).rejects.toMatchObject({
+      code: 'STORAGE_ERROR',
+      statusCode: 502,
+    })
   })
 })

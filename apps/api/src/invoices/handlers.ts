@@ -326,13 +326,15 @@ export async function listInvoiceImages(
     include: { images: { orderBy: { createdAt: 'asc' } } },
   })
   if (!invoice) throw new AppError('NOT_FOUND', 'Invoice not found', 404)
-  const data = invoice.images.map((img) => ({
-    id: img.id,
-    url: signedReadUrl(img.url),
-    type: img.type,
-    caption: img.caption,
-    createdAt: img.createdAt,
-  }))
+  const data = await Promise.all(
+    invoice.images.map(async (img) => ({
+      id: img.id,
+      url: await signedReadUrl(img.url),
+      type: img.type,
+      caption: img.caption,
+      createdAt: img.createdAt,
+    })),
+  )
   return reply.send({ data })
 }
 
