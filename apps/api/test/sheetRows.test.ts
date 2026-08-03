@@ -28,7 +28,23 @@ describe('invoiceLink column', () => {
 
   it('is the LAST column so existing positional consumers keep their indexes', () => {
     expect(EXPORT_COLUMNS[EXPORT_COLUMNS.length - 1]).toBe('invoiceLink')
-    expect(EXPORT_HEADER[EXPORT_HEADER.length - 1]).toBe('invoiceLink')
+    expect(EXPORT_HEADER[EXPORT_HEADER.length - 1]).toBe('Invoice Link')
+  })
+
+  it('labels every column with friendly header text in EXPORT_COLUMNS order', () => {
+    expect(EXPORT_HEADER).toEqual([
+      'ID',
+      'Invoice #',
+      'Vendor',
+      'Amount',
+      'Status',
+      'Date',
+      'Category',
+      'Description',
+      'Property',
+      'Parts Ordered',
+      'Invoice Link',
+    ])
   })
 
   it('is a HYPERLINK formula showing "Link" that targets the detail page under WEB_ORIGIN', () => {

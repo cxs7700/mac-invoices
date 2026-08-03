@@ -22,8 +22,25 @@ export const EXPORT_COLUMNS = [
   'invoiceLink',
 ] as const
 
+/** Human-friendly labels for the header row. Keys stay the internal column
+ * names; only the displayed text changes — positions are untouched, so
+ * positional consumers are unaffected. */
+const COLUMN_LABELS: Record<(typeof EXPORT_COLUMNS)[number], string> = {
+  id: 'ID',
+  invoiceNumber: 'Invoice #',
+  vendorName: 'Vendor',
+  amount: 'Amount',
+  status: 'Status',
+  invoiceDate: 'Date',
+  category: 'Category',
+  description: 'Description',
+  propertyAddress: 'Property',
+  partsOrdered: 'Parts Ordered',
+  invoiceLink: 'Invoice Link',
+}
+
 /** The header row written as row 1 of every full mirror. */
-export const EXPORT_HEADER: string[] = [...EXPORT_COLUMNS]
+export const EXPORT_HEADER: string[] = EXPORT_COLUMNS.map((c) => COLUMN_LABELS[c])
 
 // Only real spend mirrors to the accounting sheet (KTD-9): SUBMITTED (un-vetted),
 // REJECTED (declined) and CANCELLED (withdrawn) are never exported. A later

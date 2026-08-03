@@ -82,7 +82,7 @@ describe('continuous Sheets sync flush', () => {
     const myCalls = callsFor(l.target)
     expect(myCalls).toHaveLength(1)
     expect(myCalls[0][1]).toHaveLength(3) // header + 2 data rows
-    expect(myCalls[0][1][0]).toContain('invoiceNumber') // header row
+    expect(myCalls[0][1][0]).toContain('Invoice #') // header row
     expect(await hwOf(l.id)).not.toBeNull()
   })
 
