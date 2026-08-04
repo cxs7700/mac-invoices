@@ -151,6 +151,8 @@ export function InvoiceImageGallery({ invoiceId }: { invoiceId: string }) {
           role="dialog"
           aria-modal="true"
           aria-label={t('invoiceGallery.fullSize')}
+          // Intentionally theme-invariant (not the --overlay token): a cinema
+          // surface behind full-size photos stays black in both themes.
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
           onClick={() => setLightbox(null)}
         >

@@ -157,7 +157,7 @@ export default function InvoiceDetail() {
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-overlay p-4"
         >
           <div className="w-full max-w-sm rounded-lg border border-border bg-card p-6">
             <h3 className="font-semibold text-foreground">

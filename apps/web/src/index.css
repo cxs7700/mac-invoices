@@ -118,6 +118,16 @@
   background: var(--selection);
 }
 
+/* Paper is always light: re-pinning color-scheme makes every light-dark()
+   token resolve to its light value in print, whatever the active theme.
+   (:root.dark out-specifies the .dark rule above.) */
+@media print {
+  :root,
+  :root.dark {
+    color-scheme: light;
+  }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

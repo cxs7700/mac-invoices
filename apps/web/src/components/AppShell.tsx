@@ -21,7 +21,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="flex h-screen overflow-hidden bg-background">
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="md:hidden flex shrink-0 items-center justify-between border-b border-border bg-card px-4 py-3">
+        <header className="md:hidden print:hidden flex shrink-0 items-center justify-between border-b border-border bg-card px-4 py-3">
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -51,7 +51,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
         {drawerOpen && (
           <div className="md:hidden fixed inset-0 z-50" role="dialog" aria-modal="true" aria-label={t('common.menu')}>
-            <div className="absolute inset-0 bg-black/40" onClick={() => setDrawerOpen(false)} aria-hidden />
+            <div className="absolute inset-0 bg-overlay" onClick={() => setDrawerOpen(false)} aria-hidden />
             <div className="absolute inset-y-0 left-0 flex w-64 flex-col bg-sidebar border-r border-sidebar-border">
               <div className="flex items-center justify-between px-4 py-4">
                 <span className="text-lg font-bold text-foreground">{t('app.name')}</span>
