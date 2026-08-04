@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ideation: Dark Mode / Light Mode Toggle</title>
+<style>
+  :root {
+    --bg: #eef1f5;
+    --card: #ffffff;
+    --ink: #1c2733;
+    --muted: #5a6b7b;
+    --accent: #1d5fb0;
+    --accent-soft: #e3ecf7;
+    --accent-text: #174a8a;
+    --border: #d7dde5;
+    --good: #1f8a5b;
+    --good-soft: #e6f4ec;
+    --warn: #b8442a;
+    --warn-soft: #fbeee9;
+    --code-bg: #e9edf2;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12161c;
+      --card: #1a2029;
+      --ink: #e4e9ef;
+      --muted: #93a1b0;
+      --accent: #6ba3e8;
+      --accent-soft: #1c2c42;
+      --accent-text: #8db8ef;
+      --border: #2c3541;
+      --good: #4cc38a;
+      --good-soft: #12281c;
+      --warn: #e8886f;
+      --warn-soft: #35201a;
+      --code-bg: #232b36;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  .page { max-width: 900px; margin-inline: auto; padding: 2.5rem 1.25rem 4rem; }
+  header.doc-header { margin-bottom: 2rem; }
+  .eyebrow {
+    font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--accent-text); font-weight: 600; margin-bottom: 0.4rem;
+  }
+  h1 { font-size: 1.7rem; line-height: 1.25; margin: 0 0 0.6rem; }
+  .meta-line { color: var(--muted); font-size: 0.85rem; }
+  .meta-line b { color: var(--ink); font-weight: 600; }
+  .stats-strip {
+    display: flex; flex-wrap: wrap; gap: 0.75rem; margin: 1.4rem 0 0;
+  }
+  .stat {
+    background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+    padding: 0.55rem 0.9rem; min-width: 7.5rem;
+  }
+  .stat .n { font-size: 1.25rem; font-weight: 700; }
+  .stat .l { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+  section { margin-top: 2.6rem; }
+  h2 { font-size: 1.25rem; border-bottom: 2px solid var(--border); padding-bottom: 0.35rem; }
+  h3 { font-size: 1.05rem; margin: 0; }
+  p, li { max-width: 72ch; }
+  code {
+    background: var(--code-bg); border-radius: 4px; padding: 0.1em 0.35em;
+    font: 0.85em ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  ul.grounding { padding-left: 1.2rem; }
+  ul.grounding li { margin-bottom: 0.45rem; }
+  ol.axes { padding-left: 1.4rem; }
+  ol.axes li { margin-bottom: 0.35rem; }
+  ol.axes b { font-weight: 600; }
+  ul.jump { padding-left: 1.2rem; margin: 0.8rem 0 1.6rem; }
+  ul.jump li { margin-bottom: 0.25rem; }
+  a { color: var(--accent-text); }
+  article.idea {
+    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    padding: 1.3rem 1.5rem; margin-bottom: 1.4rem;
+  }
+  .idea-head { display: flex; align-items: baseline; gap: 0.7rem; margin-bottom: 0.7rem; flex-wrap: wrap; }
+  .rank-chip {
+    background: var(--accent-soft); color: var(--accent-text);
+    border-radius: 999px; padding: 0.15rem 0.7rem; font-weight: 700; font-size: 0.85rem;
+    flex-shrink: 0;
+  }
+  .chip-row { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 0.3rem 0 0.9rem; }
+  .chip {
+    border-radius: 999px; padding: 0.12rem 0.65rem; font-size: 0.75rem; font-weight: 600;
+    background: var(--code-bg); color: var(--muted);
+  }
+  .chip.axis { background: var(--accent-soft); color: var(--accent-text); }
+  dl.fields { margin: 0; }
+  dl.fields dt {
+    font-size: 0.72rem; letter-spacing: 0.09em; text-transform: uppercase;
+    color: var(--muted); font-weight: 700; margin-top: 0.85rem;
+  }
+  dl.fields dd { margin: 0.25rem 0 0; max-width: 76ch; }
+  .basis-tag { font-weight: 700; color: var(--accent-text); }
+  figure { margin: 1.1rem 0 0.4rem; }
+  figcaption { font-size: 0.78rem; color: var(--muted); margin-top: 0.4rem; max-width: 72ch; }
+  .swatch-row { display: flex; gap: 1.5rem; flex-wrap: wrap; }
+  .swatch-col { flex: 1 1 240px; }
+  .swatch-col .col-label { font-size: 0.75rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 0.5rem; }
+  .badge-demo {
+    display: inline-block; border-radius: 999px; padding: 0.25rem 0.85rem;
+    font-size: 0.8rem; font-weight: 600; margin: 0 0.4rem 0.4rem 0;
+  }
+  .demo-surface { border: 1px solid var(--border); border-radius: 8px; padding: 0.9rem; }
+  .two-col { display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 1rem; }
+  .two-col > div {
+    flex: 1 1 280px; border: 1px solid var(--border); border-radius: 8px;
+    padding: 0.9rem 1.1rem; background: var(--bg);
+  }
+  .two-col .col-title { font-weight: 700; margin-bottom: 0.4rem; }
+  .two-col ul { padding-left: 1.1rem; margin: 0.4rem 0 0; font-size: 0.9rem; }
+  .two-col li { margin-bottom: 0.3rem; }
+  table.rejections { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+  table.rejections th, table.rejections td {
+    border: 1px solid var(--border); padding: 0.5rem 0.7rem; text-align: left; vertical-align: top;
+  }
+  table.rejections th { background: var(--code-bg); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; }
+  .scroll-x { overflow-x: auto; }
+  footer.composition-signal {
+    margin-top: 3.5rem; padding-top: 1rem; border-top: 1px solid var(--border);
+    font-size: 0.78rem; color: var(--muted);
+  }
+  svg text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+</style>
+</head>
+<body>
+<div class="page">
+
+<header class="doc-header">
+  <div class="eyebrow">Ideation · ce-ideate</div>
+  <h1>Dark Mode / Light Mode Toggle — Ranked Ideation</h1>
+  <p class="meta-line">
+    <b>Date:</b> <time datetime="2026-08-04">2026-08-04</time> ·
+    <b>Topic:</b> dark-mode-toggle ·
+    <b>Focus:</b> dark mode / light mode toggle ·
+    <b>Mode:</b> repo-grounded
+  </p>
+  <div class="stats-strip">
+    <div class="stat"><div class="n">44</div><div class="l">raw ideas</div></div>
+    <div class="stat"><div class="n">7</div><div class="l">survivors</div></div>
+    <div class="stat"><div class="n">4</div><div class="l">axes covered</div></div>
+    <div class="stat"><div class="n">13</div><div class="l">agents</div></div>
+  </div>
+</header>
+
+<section id="grounding">
+  <h2>Grounding Context</h2>
+  <p><b>Codebase Context.</b> Mac Invoices is an npm-workspaces monorepo: React 19 + Vite + Tailwind CSS v4 + shadcn/ui ("new-york") in <code>apps/web</code>, Fastify + Prisma/Postgres in <code>apps/api</code>. Two personas: a landlord and contractors ("Rent Ops"). The theme infrastructure is half-wired and the grounding turned up unusually concrete evidence:</p>
+  <ul class="grounding">
+    <li><code>apps/web/src/index.css</code> declares <code>@custom-variant dark (&amp;:is(.dark *))</code> and 31 light-only CSS color tokens (the documented Rent Ops palette, DEC-017 + <code>docs/design/rent-ops-reference.md</code>), mapped through <code>@theme inline</code> — but <b>no <code>.dark</code> block exists</b>, so toggling the class does nothing today. No toggle UI, no persistence.</li>
+    <li><b>Preference precedent (locale):</b> localStorage read synchronously at boot (before React renders), <code>User.locale</code> as server source of truth on <code>/api/auth/me</code>, AuthGuard reconciles after the session resolves, and the toggle writes both (localStorage + <code>PATCH /api/settings/profile</code>). <code>LanguageSwitcher</code> is mounted in both the AppShell mobile header and the Sidebar desktop footer with a <code>persist</code> prop.</li>
+    <li><b>Verified hazards:</b> three hardcoded overlays (<code>bg-black/70</code> lightbox, <code>bg-black/40</code> drawer scrim, <code>bg-black/30</code> confirm scrim), <code>text-white</code> on the destructive button, a hardcoded <code>::selection</code>, a missing <code>--destructive-foreground</code> token, and <b>zero print styles anywhere</b>. Everything else uses token classes.</li>
+    <li><b>Invoice photos</b> (cash, parts, checks) are core evidentiary content rendered as <code>&lt;img&gt;</code> in token-colored cards — the one surface CSS tokens can't fix.</li>
+    <li><b>External:</b> the official shadcn/ui Vite dark-mode guide is a near drop-in for this stack (ThemeProvider, tri-state, localStorage) but omits the inline blocking script that prevents first-paint flash; convention has shifted to three-state light/dark/system controls; WCAG contrast applies identically to dark palettes.</li>
+    <li><b>Conventions honored:</b> Definition of Done is <code>lint &amp;&amp; typecheck &amp;&amp; test</code> green (CI-enforced); cost-averse (no paid deps); durable design decisions get DECISIONS.md entries.</li>
+  </ul>
+</section>
+
+<section id="axes">
+  <h2>Topic Axes</h2>
+  <ol class="axes">
+    <li><b>dark-palette-tokens</b> — dark counterparts for the Rent Ops palette, especially the four status fg/bg pairs</li>
+    <li><b>toggle-ux-placement</b> — the control itself: where it lives, what it looks like, how many states</li>
+    <li><b>persistence-first-paint</b> — storage, server sync, system preference, the FOUC/boot path</li>
+    <li><b>surface-edge-cases</b> — hardcoded colors, overlays, invoice photos, print/export, focus states</li>
+  </ol>
+</section>
+
+<section id="ranked-ideas">
+  <h2>Ranked Ideas</h2>
+  <ul class="jump">
+    <li><a href="#i1">1. The zero-FOUC delivery ladder</a></li>
+    <li><a href="#i2">2. Status pairs as emissive "instrument-cluster lamps"</a></li>
+    <li><a href="#i3">3. The Theme Integrity Suite</a></li>
+    <li><a href="#i4">4. "Paper stays paper": photo mat + forced-light print</a></li>
+    <li><a href="#i5">5. Extract SegmentedSwitcher&lt;T&gt; — the theme control for free</a></li>
+    <li><a href="#i6">6. Decide the persistence fork on purpose</a></li>
+    <li><a href="#i7">7. Role-aware default: contractors get light</a></li>
+  </ul>
+
+  <article class="idea" id="i1">
+    <div class="idea-head"><span class="rank-chip">1</span><h3>The zero-FOUC delivery ladder</h3></div>
+    <div class="chip-row"><span class="chip axis">persistence-first-paint</span><span class="chip">Confidence 85%</span><span class="chip">Complexity Medium</span></div>
+    <dl class="fields">
+      <dt>Description</dt>
+      <dd>Ship dark mode in three independently shippable rungs, sequenced so the hardest problem (first-paint flash) doesn't exist until the rung that solves it. <b>v0:</b> widen <code>@custom-variant dark</code> to also match <code>prefers-color-scheme: dark</code> and add the <code>.dark</code> token block — dark mode ships with no ThemeProvider, no localStorage, no boot script, and structurally zero FOUC, because media queries resolve before any JavaScript runs. <b>v1:</b> add the tri-state toggle plus a ~10-line inline blocking script in <code>index.html</code> that reads localStorage, resolves <code>system</code> via <code>matchMedia</code>, and sets the <code>.dark</code> class, <code>color-scheme</code> (so native scrollbars, form controls, and the gallery's <code>&lt;select&gt;</code> go dark), and a <code>&lt;meta name="theme-color"&gt;</code> as one unit — fixing the hardcoded <code>::selection</code> in the same file. Store <code>'light' | 'dark' | 'system'</code> from the first commit; a boolean is a one-way door that costs a migration later. <b>v2 (optional):</b> the View Transitions circular wipe as polish.</dd>
+      <dt>Basis</dt>
+      <dd><span class="basis-tag">direct:</span> <code>index.css:4</code> — class-only variant routing is verified as the sole blocker to a media-query v0; <code>index.html:1–13</code> — verified bare head (no inline script, no theme meta). <span class="basis-tag">external:</span> the inline-blocking-script pattern (notanumber.in; also used by next-themes) is the only reliable SPA fix for first-paint flash, and the shadcn Vite guide omits it.</dd>
+      <dt>Rationale</dt>
+      <dd>The FOUC axis exists only because a class toggle is assumed from day one. Re-sequencing deletes the risk from v0 entirely and localizes it to v1, where the boot script solves it. Each rung delivers user-visible value on its own, and a stall after any rung still leaves a working feature.</dd>
+      <dt>Downsides</dt>
+      <dd>v0 gives OS-followers dark mode but offers no manual override, which users who keep their OS dark but want the app light may notice; the variant must be widened carefully so v1's class routing composes with the media query rather than fighting it.</dd>
+    </dl>
+    <figure>
+      <svg viewBox="0 0 720 190" role="img" aria-label="Three-rung delivery ladder: v0 media-query dark with no FOUC surface, v1 toggle plus boot script where FOUC risk appears and is solved, v2 optional wipe polish" style="width:100%;height:auto;">
+        <rect x="10" y="120" width="220" height="52" rx="8" fill="var(--accent-soft)" stroke="var(--accent)"/>
+        <text x="120" y="142" text-anchor="middle" font-size="13" font-weight="700" fill="var(--accent-text)">v0 · tokens + media query</text>
+        <text x="120" y="160" text-anchor="middle" font-size="11" fill="var(--muted)">no JS · zero FOUC surface</text>
+        <rect x="250" y="70" width="220" height="52" rx="8" fill="var(--accent-soft)" stroke="var(--accent)"/>
+        <text x="360" y="92" text-anchor="middle" font-size="13" font-weight="700" fill="var(--accent-text)">v1 · tri-state toggle</text>
+        <text x="360" y="110" text-anchor="middle" font-size="11" fill="var(--muted)">boot script + storage shape</text>
+        <rect x="490" y="20" width="220" height="52" rx="8" fill="none" stroke="var(--border)" stroke-dasharray="5 4"/>
+        <text x="600" y="42" text-anchor="middle" font-size="13" font-weight="700" fill="var(--muted)">v2 · wipe polish</text>
+        <text x="600" y="60" text-anchor="middle" font-size="11" fill="var(--muted)">optional</text>
+        <line x1="230" y1="146" x2="250" y2="100" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="470" y1="96" x2="490" y2="50" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#arr)"/>
+        <text x="360" y="140" text-anchor="middle" font-size="11" font-weight="600" fill="var(--warn)">FOUC risk appears here — and the boot script ships here</text>
+        <defs><marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="var(--muted)"/></marker></defs>
+      </svg>
+      <figcaption>Illustrative sequencing — each rung is independently shippable; the flash problem only exists from v1 on, where its fix lands.</figcaption>
+    </figure>
+  </article>
+
+  <article class="idea" id="i2">
+    <div class="idea-head"><span class="rank-chip">2</span><h3>Status pairs as emissive "instrument-cluster lamps"</h3></div>
+    <div class="chip-row"><span class="chip axis">dark-palette-tokens</span><span class="chip">Confidence 85%</span><span class="chip">Complexity Low</span></div>
+    <dl class="fields">
+      <dt>Description</dt>
+      <dd>The four status pairs (paid, overdue, pending, submitted) are the app's highest-stakes pixels, and they are constructed as dark-text-on-pale-tint — a construction with no valid naive inversion. Borrow the automotive night-cluster recipe: keep the hue (paid stays green, overdue stays red — semantics constant), swap the luminance roles (a luminous foreground on a low-luminance tinted well), and rank foreground brightness by actionability — overdue brightest, quiescent states sinking toward chrome ("dark cockpit": a calm panel means all is well). Hand-design these 8 values; first-draft the other ~23 chrome tokens with a small OKLCH transform script, then record the resulting palette (or the transform itself) as a DECISIONS.md entry per the DEC-017 convention. Mint the missing <code>--destructive-foreground</code> in the same pass — light mode papers over it with a hardcoded <code>text-white</code> today.</dd>
+      <dt>Basis</dt>
+      <dd><span class="basis-tag">direct:</span> <code>index.css:72–81</code> — the four fg/bg pairs verified (<code>--status-paid-foreground: #1f8a5b</code> on <code>#e6f4ec</code>, etc.); <code>ui/button.tsx:14</code> — <code>text-white</code> with no <code>--destructive-foreground</code> token, verified. <span class="basis-tag">external:</span> automotive day/night instrument-cluster convention; WCAG 4.5:1 applies unchanged in dark palettes.</dd>
+      <dt>Rationale</dt>
+      <dd>A landlord misreading "overdue" as "paid" at 11pm is a correctness bug wearing a cosmetic disguise. One written generation rule produces all ten status values deterministically and gives the DECISIONS entry its rationale for free — while the transform handles the low-stakes chrome tokens mechanically.</dd>
+      <dt>Downsides</dt>
+      <dd>Hand-designing 8 values plus reviewing ~23 generated ones is real design time; the split approach (hand + script) needs the boundary documented or future tokens won't know which side they're on.</dd>
+    </dl>
+    <figure>
+      <div class="swatch-row">
+        <div class="swatch-col">
+          <div class="col-label">Light — reflective (today)</div>
+          <div class="demo-surface" style="background:#eef1f5;">
+            <span class="badge-demo" style="background:#e6f4ec;color:#1f8a5b;">Paid</span>
+            <span class="badge-demo" style="background:#fbeee9;color:#b8442a;">Overdue</span>
+            <span class="badge-demo" style="background:#eef2f7;color:#5a6b7b;">Pending</span>
+          </div>
+        </div>
+        <div class="swatch-col">
+          <div class="col-label">Dark — emissive (illustrative)</div>
+          <div class="demo-surface" style="background:#12161c;">
+            <span class="badge-demo" style="background:#122b1f;color:#4cc38a;">Paid</span>
+            <span class="badge-demo" style="background:#35201a;color:#f0916f;">Overdue</span>
+            <span class="badge-demo" style="background:#1e2630;color:#93a1b0;">Pending</span>
+          </div>
+        </div>
+      </div>
+      <figcaption>Same hue, swapped luminance roles: dark ink on pale tint becomes luminous foreground on a low-luminance well. Values shown are illustrative, not the spec.</figcaption>
+    </figure>
+  </article>
+
+  <article class="idea" id="i3">
+    <div class="idea-head"><span class="rank-chip">3</span><h3>The Theme Integrity Suite</h3></div>
+    <div class="chip-row"><span class="chip axis">surface-edge-cases</span><span class="chip">Confidence 80%</span><span class="chip">Complexity Medium</span></div>
+    <dl class="fields">
+      <dt>Description</dt>
+      <dd>One PR that rides the existing Definition-of-Done gates and makes the theme self-enforcing forever. (a) A hand-rolled vitest suite parses <code>index.css</code>, computes WCAG contrast for every declared fg/bg token pair in <em>both</em> theme blocks (4.5:1 normal, 3:1 large/badge), and fails when a <code>:root</code> token is missing from <code>.dark</code> — a check that would have caught the missing <code>--destructive-foreground</code> on day one, and matters because an incomplete <code>.dark</code> block fails <em>silently</em> (unset variables cascade from <code>:root</code>). (b) Close the five known token bypasses — a <code>--overlay</code> token for the two scrims, <code>--destructive-foreground</code>, the <code>::selection</code> fix, with the lightbox's <code>bg-black/70</code> kept literal and documented as a deliberate theme-invariant "cinema surface" — then add an ESLint/grep gate banning raw color literals outside <code>index.css</code>.</dd>
+      <dt>Basis</dt>
+      <dd><span class="basis-tag">direct:</span> all five literals verified at file:line (<code>InvoiceImageGallery.tsx:154</code>, <code>AppShell.tsx:54</code>, <code>InvoiceDetail.tsx:160</code>, <code>button.tsx:14</code>, <code>::selection</code> in <code>index.css</code>); <code>components.json</code> <code>cssVariables: true</code> means the whole palette lives in one parseable file; CI already gates <code>lint &amp;&amp; typecheck &amp;&amp; test</code>.</dd>
+      <dt>Rationale</dt>
+      <dd>Dark-mode bugs in token-based systems come almost exclusively from token bypasses and silent palette drift. Closing the known bypasses <em>and</em> the door they came through converts a one-time styling task into a standing invariant — and it's a model first artifact for the currently empty <code>docs/solutions/</code> knowledge base.</dd>
+      <dt>Downsides</dt>
+      <dd>Hand-rolled CSS parsing plus WCAG math is fiddlier than the "~40 lines" it sounds like; the lint rule adds a policy every future frontend PR must obey, which the team should opt into knowingly.</dd>
+    </dl>
+  </article>
+
+  <article class="idea" id="i4">
+    <div class="idea-head"><span class="rank-chip">4</span><h3>"Paper stays paper": photo mat + forced-light print</h3></div>
+    <div class="chip-row"><span class="chip axis">surface-edge-cases</span><span class="chip">Confidence 70%</span><span class="chip">Complexity Low</span></div>
+    <dl class="fields">
+      <dt>Description</dt>
+      <dd>One principle with two instances: surfaces representing physical paper are theme-invariant. (a) A <code>--photo-mat</code> token pinned to the same neutral mid-gray in <em>both</em> themes backs the photo thumbnail wells and the lightbox, so flash-lit photos of cash, checks, and parts read like prints on a mat rather than glaring rectangles floating on near-black — the convention every serious photo tool (Lightroom, gallery apps) converged on. (b) A <code>@media print</code> block re-pins the tokens to light values and hides chrome. Zero print styles exist today; printing is accidentally correct only because <code>:root</code> is light-only — the moment <code>.dark</code> ships, Cmd-P from dark mode produces charcoal invoices, the one dark-mode bug that yields a physically wrong business artifact instead of a cosmetic glitch.</dd>
+      <dt>Basis</dt>
+      <dd><span class="basis-tag">direct:</span> <code>InvoiceImageGallery.tsx:64–76, 154</code> verified (thumbnails sit in token-colored bordered cards; lightbox backdrop <code>bg-black/70</code>); repo grep verified <b>zero</b> <code>@media print</code> matches. <span class="basis-tag">external:</span> constant-neutral-surround convention in photo tooling; prepress "output intent" separation. Note: the verifier corrected an earlier framing — thumbnails already have a border and padding, so the mat replaces their token-colored backing rather than adding a missing frame.</dd>
+      <dt>Rationale</dt>
+      <dd>Photos are the one surface tokens can't fix (the pixels are the content), and print is the one surface nobody tests from dark mode until tax season. Both are ~10–20 line fixes if made in the same PR as the palette, and both get expensive as bug reports later. Whatever photo convention ships first will be copied into the still-deferred upload UI and any future export path.</dd>
+      <dt>Downsides</dt>
+      <dd>A theme-invariant mat is a deliberate exception to "everything themes," which needs a comment or DECISIONS line so a future cleanup doesn't "fix" it; photo-contrast benefit is a design judgment, not measured.</dd>
+    </dl>
+  </article>
+
+  <article class="idea" id="i5">
+    <div class="idea-head"><span class="rank-chip">5</span><h3>Extract SegmentedSwitcher&lt;T&gt; — the theme control for free</h3></div>
+    <div class="chip-row"><span class="chip axis">toggle-ux-placement</span><span class="chip">Confidence 85%</span><span class="chip">Complexity Low</span></div>
+    <dl class="fields">
+      <dt>Description</dt>
+      <dd><code>LanguageSwitcher</code> is already a generic segmented control: <code>role="group"</code>, per-segment <code>aria-pressed</code>, active-state styling, an optional <code>persist</code> prop for server sync, and dual mounts (AppShell mobile header + Sidebar desktop footer). Extract <code>SegmentedSwitcher&lt;T&gt;</code> taking <code>{options, value, onChange, renderLabel}</code>; LanguageSwitcher becomes a thin wrapper, and ThemeSwitcher becomes another — three segments (Sun / Moon / Monitor, tri-state with <code>system</code> default, per current convention), 20×20 inline SVGs matching the NotificationsBell icon pattern, with a test file mirroring <code>LanguageSwitch.test.tsx</code>. The second preference control is where a design system either compounds or forks into near-duplicates; this decides it in the compounding direction at roughly negative net lines of code.</dd>
+      <dt>Basis</dt>
+      <dd><span class="basis-tag">direct:</span> <code>LanguageSwitcher.tsx</code>, <code>AppShell.tsx:24–50</code>, <code>Sidebar.tsx:26–38</code> all verified verbatim, including the <code>aria-pressed</code>/<code>role="group"</code>/<code>persist</code> structure. <span class="basis-tag">external:</span> three-state light/dark/system with a Monitor icon is the prevailing convention.</dd>
+      <dt>Rationale</dt>
+      <dd>The app already solved "compact preference switcher living in two chrome locations with optional server sync" once. Cloning the pattern by extraction (rather than copy-paste) means the third preference control — and the review checklist for it — is nearly automatic.</dd>
+      <dt>Downsides</dt>
+      <dd>A settings-page-only placement (rejected below) would avoid adding a fourth control to already-crowded chrome; if chrome load becomes a concern, the extraction still pays off wherever the control lands. Classic second-instance abstraction risk: two instances may not yet reveal the right generic API.</dd>
+    </dl>
+  </article>
+
+  <article class="idea" id="i6">
+    <div class="idea-head"><span class="rank-chip">6</span><h3>Decide the persistence fork on purpose</h3></div>
+    <div class="chip-row"><span class="chip axis">persistence-first-paint</span><span class="chip">Confidence 75%</span><span class="chip">Complexity Low</span></div>
+    <dl class="fields">
+      <dt>Description</dt>
+      <dd>The single biggest scope fork in the feature, worth an explicit decision rather than a default. <b>Option A — device-local:</b> localStorage only. Theme is arguably device state (like OS appearance), and this skips five moving parts: the <code>User.theme</code> column and migration, the Zod schema change, the PATCH plumbing, the query invalidation, and the reconcile effect — each a place a bug can live. <b>Option B — preference primitive:</b> clone the locale rails (<code>User.theme</code>, <code>/me</code>, <code>PATCH /api/settings/profile</code>), formalizing a twice-proven template any future per-user preference reuses nearly for free. Either way, one corrected hazard stands: if server sync ships, the post-login reconcile must never visibly repaint the app — apply the server value silently or before paint, rather than copying AuthGuard's visible-after-resolve pattern verbatim.</dd>
+      <dt>Basis</dt>
+      <dd><span class="basis-tag">direct:</span> <code>AuthGuard.tsx:18–25</code> reconcile effect, settings handlers, and <code>schema.prisma</code> locale field all verified. <span class="basis-tag">reasoned:</span> the cost delta between the options is measured in actual files touched, enumerated from the locale implementation. (The verifier rejected an earlier premise that locale's reconcile was "imperceptible" — a full text-language swap is plenty visible — so the hazard is stated on its own merits, not by contrast with locale.)</dd>
+      <dt>Rationale</dt>
+      <dd>This choice determines the schema, the API surface, and the switcher component's props before any code lands. Deciding it explicitly is cheap; un-deciding a shipped <code>User.theme</code> column or retrofitting sync later is not.</dd>
+      <dt>Downsides</dt>
+      <dd>Option A gives up cross-device continuity (landlord's phone vs desktop); Option B commits future preferences to the same shape and adds a migration to this feature's scope.</dd>
+    </dl>
+    <div class="two-col">
+      <div>
+        <div class="col-title">A · Device-local</div>
+        <ul>
+          <li>localStorage only; no schema, API, or migration changes</li>
+          <li>Five fewer moving parts, five fewer bug surfaces</li>
+          <li>No cross-device continuity</li>
+        </ul>
+      </div>
+      <div>
+        <div class="col-title">B · Preference primitive</div>
+        <ul>
+          <li><code>User.theme</code> + <code>/me</code> + PATCH, on the proven locale rails</li>
+          <li>Formalizes the template for every future preference</li>
+          <li>Must reconcile silently — never a visible post-login repaint</li>
+        </ul>
+      </div>
+    </div>
+  </article>
+
+  <article class="idea" id="i7">
+    <div class="idea-head"><span class="rank-chip">7</span><h3>Role-aware default: contractors get light</h3></div>
+    <div class="chip-row"><span class="chip axis">persistence-first-paint</span><span class="chip">Confidence 55%</span><span class="chip">Complexity Low</span></div>
+    <dl class="fields">
+      <dt>Description</dt>
+      <dd>"System default" is generic-webapp dogma; this app has exactly two user archetypes with opposite lighting contexts, and the server already knows which one is logged in. Contractors work phones outdoors in daylight, where a scheduled OS dark mode produces a glare-unreadable UI at exactly the wrong moment; the landlord does books indoors, where following the system is right. Resolution order: explicit user choice &gt; role-based default (<code>CONTRACTOR</code> → light, others → system) &gt; light for pre-auth screens.</dd>
+      <dt>Basis</dt>
+      <dd><span class="basis-tag">direct:</span> <code>useAuth.ts:5</code> — <code>role</code> is on the auth payload, verified. <span class="basis-tag">reasoned:</span> outdoor-glare legibility is a well-established UX claim — but the persona inference is not backed by usage data, so confidence is deliberately low.</dd>
+      <dt>Rationale</dt>
+      <dd>A one-line default rule that serves the app's second persona better than the imported consumer-app convention — and it composes with any of the ideas above (it only changes what <code>system</code> resolves to before an explicit choice exists).</dd>
+      <dt>Downsides</dt>
+      <dd>Speculative until a contractor actually complains or is asked; role-dependent defaults are a small surprise ("why does my app ignore my phone's dark mode?") that must be easy to override.</dd>
+    </dl>
+  </article>
+</section>
+
+<section id="rejection-summary">
+  <h2>Rejection Summary</h2>
+  <div class="scroll-x">
+  <table class="rejections">
+    <tr><th>Idea</th><th>Reason rejected</th></tr>
+    <tr><td>OKLCH derivation script as a standalone direction</td><td>Absorbed into idea 2 — the transform drafts the ~23 chrome tokens; the 8 status values need hand design (resolves the generator-flagged tension between "derive everything" and "no naive inversion").</td></tr>
+    <tr><td>Contrast CI gate; raw-color lint ban (as separate ideas)</td><td>Absorbed into idea 3 as one suite riding the existing DoD gates.</td></tr>
+    <tr><td>Media-query-only v0; inline boot script; tri-state storage shape (as separate ideas)</td><td>Absorbed into idea 1 as the ladder's rungs.</td></tr>
+    <tr><td>Photo mat; forced-light print (as separate ideas)</td><td>Absorbed into idea 4 under the "paper stays paper" principle; the photo idea's "edge-to-edge" framing was corrected after verification (thumbnails already have a border + padding wrapper).</td></tr>
+    <tr><td>View Transitions circular wipe</td><td>Below the ambition floor as a standalone direction for a two-persona utility app (verifier concurred); retained only as the optional v2 rung inside idea 1.</td></tr>
+    <tr><td>Settings-page-only placement</td><td>Loses to idea 5 on precedent (LanguageSwitcher already lives in chrome) and on one-tap access at night; noted as the alternative within idea 5.</td></tr>
+    <tr><td>N-theme architecture + "Job Site" high-contrast theme</td><td>Scope overrun — a third theme is a new product surface beyond the dark/light ask (verifier concurred); the <code>data-theme</code>-vs-class routing note survives as an implementation aside.</td></tr>
+    <tr><td>Photo-contrast pixel-sampling CI check (Playwright + canvas)</td><td>Redundant if idea 4's mat ships — a structural fix beats after-the-fact detection; heavy CI machinery for marginal value.</td></tr>
+    <tr><td>"Don't copy the reconcile verbatim" as its own idea</td><td>Duplicate — folded into idea 6 as its corrected hazard.</td></tr>
+    <tr><td>"Tri-state matches the Locale enum precedent" framing</td><td>Basis overreach — <code>Locale</code> is a two-value enum, not a tri-state precedent; tri-state survives inside ideas 1 and 5 on external-convention merits instead.</td></tr>
+    <tr><td>Contractor synthesis (role default + Job Site theme)</td><td>Inherits the Job Site scope overrun; the role-aware default survives standalone as idea 7.</td></tr>
+  </table>
+  </div>
+</section>
+
+<footer class="composition-signal">
+  Composed 2026-08-04 by ce-ideate (run a3f81c2e) from focus "dark mode / light mode toggle" — 5 ideation frames over 4 evidence dossiers, fresh-context basis verification, 44 raw → 7 survivors.
+</footer>
+
+</div>
+</body>
+</html>
