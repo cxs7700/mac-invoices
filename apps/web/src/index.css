@@ -1,7 +1,19 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 
-@custom-variant dark (&:is(.dark *));
+/* v0 (OS-following): dark utilities fire on the .dark class OR the OS
+   preference. The media branch is removed at v1, when the boot script
+   stamps the class and becomes the sole resolver. */
+@custom-variant dark {
+  &:is(.dark *) {
+    @slot;
+  }
+  @media (prefers-color-scheme: dark) {
+    &:not(.light *) {
+      @slot;
+    }
+  }
+}
 
 @theme inline {
   --font-sans:
@@ -26,6 +38,8 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-overlay: var(--overlay);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -44,45 +58,64 @@
   --color-status-submitted-foreground: var(--status-submitted-foreground);
 }
 
-/* Rent Ops light theme (the design's palette). */
+/* Rent Ops palette — light and dark values declared together via light-dark()
+   so no token can silently lack a dark counterpart (DEC: dark palette; see
+   docs/design/rent-ops-reference.md). Which side applies is decided purely by
+   color-scheme: `light dark` on :root follows the OS; a .light/.dark class on
+   <html> pins it. Status pairs keep their hue in dark and swap luminance roles
+   (luminous foreground on a low-luminance tinted well); overdue carries the
+   brightest foreground of the set — the actionable state reads first. */
 :root {
+  color-scheme: light dark;
   --radius: 0.5rem;
-  --background: #eef1f5;
-  --foreground: #0f2942;
-  --card: #ffffff;
-  --card-foreground: #0f2942;
-  --popover: #ffffff;
-  --popover-foreground: #0f2942;
-  --primary: #1d5fb0;
-  --primary-foreground: #ffffff;
-  --secondary: #f2f5f9;
-  --secondary-foreground: #33475b;
-  --muted: #f2f5f9;
-  --muted-foreground: #5a6b7b;
-  --accent: #eef2f7;
-  --accent-foreground: #1d5fb0;
-  --destructive: #b8442a;
-  --border: #e4e9f0;
-  --input: #e4e9f0;
-  --ring: #1d5fb0;
-  --sidebar: #f2f5f9;
-  --sidebar-foreground: #33475b;
-  --sidebar-accent: #eef2f7;
-  --sidebar-border: #e4e9f0;
-  --status-paid: #e6f4ec;
-  --status-paid-foreground: #1f8a5b;
-  --status-overdue: #fbeee9;
-  --status-overdue-foreground: #b8442a;
-  --status-pending: #eef2f7;
-  --status-pending-foreground: #5a6b7b;
+  --background: light-dark(#eef1f5, #10151c);
+  --foreground: light-dark(#0f2942, #dce5ee);
+  --card: light-dark(#ffffff, #171e28);
+  --card-foreground: light-dark(#0f2942, #dce5ee);
+  --popover: light-dark(#ffffff, #1b2330);
+  --popover-foreground: light-dark(#0f2942, #dce5ee);
+  --primary: light-dark(#1d5fb0, #5b96e0);
+  --primary-foreground: light-dark(#ffffff, #0c1626);
+  --secondary: light-dark(#f2f5f9, #1c2430);
+  --secondary-foreground: light-dark(#33475b, #c2cdd9);
+  --muted: light-dark(#f2f5f9, #1c2430);
+  --muted-foreground: light-dark(#5a6b7b, #8da0b3);
+  --accent: light-dark(#eef2f7, #22314a);
+  --accent-foreground: light-dark(#1d5fb0, #85b2ec);
+  --destructive: light-dark(#b8442a, #c74c31);
+  --destructive-foreground: light-dark(#ffffff, #ffffff);
+  --overlay: light-dark(rgb(15 23 32 / 0.45), rgb(0 0 0 / 0.6));
+  --selection: light-dark(#cfe0f3, #2b4a72);
+  --border: light-dark(#e4e9f0, #29323f);
+  --input: light-dark(#e4e9f0, #29323f);
+  --ring: light-dark(#1d5fb0, #5b96e0);
+  --sidebar: light-dark(#f2f5f9, #141a23);
+  --sidebar-foreground: light-dark(#33475b, #c2cdd9);
+  --sidebar-accent: light-dark(#eef2f7, #202b3a);
+  --sidebar-border: light-dark(#e4e9f0, #232d3a);
+  --status-paid: light-dark(#e6f4ec, #12291c);
+  --status-paid-foreground: light-dark(#1f8a5b, #4cc38a);
+  --status-overdue: light-dark(#fbeee9, #331611);
+  --status-overdue-foreground: light-dark(#b8442a, #f2916d);
+  --status-pending: light-dark(#eef2f7, #1d2530);
+  --status-pending-foreground: light-dark(#5a6b7b, #97a8ba);
   /* SUBMITTED — a contractor submission awaiting review (blue/info, distinct
      from pending grey so the "to review" state reads at a glance). */
-  --status-submitted: #e7eefc;
-  --status-submitted-foreground: #1d5fb0;
+  --status-submitted: light-dark(#e7eefc, #142441);
+  --status-submitted-foreground: light-dark(#1d5fb0, #6ba3e8);
+}
+
+/* Explicit user choice (stamped on <html> by the v1 boot script) pins the
+   scheme; without a class, :root's `light dark` follows the OS. */
+.dark {
+  color-scheme: dark;
+}
+.light {
+  color-scheme: light;
 }
 
 ::selection {
-  background: #cfe0f3;
+  background: var(--selection);
 }
 
 @layer base {
