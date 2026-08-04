@@ -28,7 +28,8 @@
     "language": { "title": "Language" },
     "profile": { "title": "Profile", "name": "Name", "email": "Email", "emailReadOnly": "Email can't be changed yet.", "saved": "Profile saved.", "save": "Save" },
     "security": { "title": "Security" },
-    "sheets": { "title": "Google Sheets connection" }
+    "sheets": { "title": "Google Sheets connection" },
+    "theme": { "title": "Theme", "light": "Light", "system": "System", "dark": "Dark" }
   },
   "login": {
     "welcome": "Welcome back — sign in to continue.",

@@ -5,6 +5,7 @@ import { Sidebar } from './Sidebar'
 import { NavLinks } from './NavLinks'
 import { NotificationsBell } from './NotificationsBell'
 import { LanguageSwitcher } from './LanguageSwitcher'
+import { ThemeSwitcher } from './ThemeSwitcher'
 import { useLogout } from '@/hooks/useAuth'
 
 /** Authenticated layout: sidebar (desktop) + a mobile top bar with a slide-out
@@ -38,6 +39,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
           <div className="flex items-center gap-3">
             <LanguageSwitcher persist />
+            <ThemeSwitcher />
             <NotificationsBell />
             <button
               type="button"

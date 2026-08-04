@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { NavLinks } from './NavLinks'
 import { NotificationsBell } from './NotificationsBell'
 import { LanguageSwitcher } from './LanguageSwitcher'
+import { ThemeSwitcher } from './ThemeSwitcher'
 import { useMe, useLogout } from '@/hooks/useAuth'
 
 export function Sidebar() {
@@ -24,7 +25,10 @@ export function Sidebar() {
       <NavLinks />
 
       <div className="border-t border-sidebar-border p-3">
-        <LanguageSwitcher persist />
+        <div className="flex items-center gap-2">
+          <LanguageSwitcher persist />
+          <ThemeSwitcher />
+        </div>
         <div className="mt-2 truncate text-sm text-foreground">{me.data?.name ?? me.data?.email}</div>
         <button
           type="button"
