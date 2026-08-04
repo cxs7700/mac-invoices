@@ -17,13 +17,18 @@ import {
 
 /**
  * The newest change time for a user: max of their newest `Invoice.updatedAt`
- * (covers create + ANY field edit, including fields that emit no InvoiceEvent)
- * and their newest DELETED tombstone event (the only trace a hard-deleted
- * invoice leaves — the event has no FK to the invoice). Null when the user has
- * never had an invoice and never deleted one.
+ * (covers create + ANY field edit, including fields that emit no InvoiceEvent),
+ * their newest DELETED tombstone event (the only trace a hard-deleted invoice
+ * leaves — the event has no FK to the invoice), and their newest
+ * `Property.updatedAt` — the mirror also carries property data (the address
+ * column + the Property dropdown's option list), so a property add/edit must
+ * dirty the user. Property deletion leaves no timestamp trace, but deletion is
+ * blocked while invoices reference the property, so a deleted address merely
+ * lingers as a dropdown option until the next change (accepted). Null when the
+ * user has no invoices, no delete events, and no properties.
  */
 async function lastChangeAt(prisma: PrismaClient, userId: string): Promise<Date | null> {
-  const [newestInvoice, newestDelete] = await Promise.all([
+  const [newestInvoice, newestDelete, newestProperty] = await Promise.all([
     prisma.invoice.findFirst({
       where: { userId },
       orderBy: { updatedAt: 'desc' },
@@ -34,10 +39,17 @@ async function lastChangeAt(prisma: PrismaClient, userId: string): Promise<Date 
       orderBy: { createdAt: 'desc' },
       select: { createdAt: true },
     }),
+    prisma.property.findFirst({
+      where: { landlordId: userId },
+      orderBy: { updatedAt: 'desc' },
+      select: { updatedAt: true },
+    }),
   ])
-  const times = [newestInvoice?.updatedAt, newestDelete?.createdAt].filter(
-    (t): t is Date => t != null,
-  )
+  const times = [
+    newestInvoice?.updatedAt,
+    newestDelete?.createdAt,
+    newestProperty?.updatedAt,
+  ].filter((t): t is Date => t != null)
   if (times.length === 0) return null
   return new Date(Math.max(...times.map((t) => t.getTime())))
 }
@@ -102,6 +114,12 @@ export async function mirrorUserSheet(
 export type SyncFlushSummary = { users: number; synced: number; skipped: number; failed: number }
 
 /**
+ * Minimal structural logger so callers can surface per-user sync failures
+ * (e.g. Fastify's `request.log`) without this module depending on fastify.
+ */
+export type SyncFlushLogger = { warn: (obj: object, msg?: string) => void }
+
+/**
  * Mirror every connected landlord whose data changed since their last sync.
  *
  * Candidates are users with a saved `sheetSpreadsheetId` ONLY — continuous sync
@@ -111,7 +129,10 @@ export type SyncFlushSummary = { users: number; synced: number; skipped: number;
  * quota). Each user is its own commit/error boundary: one user's permission/429
  * failure is counted and never crashes the job or blocks the others.
  */
-export async function runSheetsSyncFlush(prisma: PrismaClient): Promise<SyncFlushSummary> {
+export async function runSheetsSyncFlush(
+  prisma: PrismaClient,
+  log?: SyncFlushLogger,
+): Promise<SyncFlushSummary> {
   const users = await prisma.user.findMany({
     where: { sheetSpreadsheetId: { not: null } },
     select: { id: true, sheetSpreadsheetId: true, sheetSyncedAt: true },
@@ -131,8 +152,18 @@ export async function runSheetsSyncFlush(prisma: PrismaClient): Promise<SyncFlus
       // sheetSpreadsheetId is non-null by the query filter above.
       await mirrorUserSheet(prisma, u.id, u.sheetSpreadsheetId as string)
       synced++
-    } catch {
+    } catch (err) {
       failed++
+      // Only the AppError code/message (already sanitized by the integration
+      // layer) — never the raw error object, which could carry credentials.
+      log?.warn(
+        {
+          userId: u.id,
+          code: (err as { code?: string })?.code,
+          message: err instanceof Error ? err.message : String(err),
+        },
+        'sheets sync failed for user',
+      )
     }
   }
   return { users: users.length, synced, skipped, failed }

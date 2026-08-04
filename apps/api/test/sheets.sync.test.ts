@@ -120,6 +120,28 @@ describe('continuous Sheets sync flush', () => {
     expect(callsFor(l.target)).toHaveLength(1)
   })
 
+  it('re-mirrors after a property is added with no invoice change (dropdown options track)', async () => {
+    const l = await makeLandlord()
+    const inv = await makeInvoice(l.id)
+    await app.prisma.user.update({ where: { id: l.id }, data: { sheetSyncedAt: inv.updatedAt } })
+
+    // Clean first → skipped.
+    await runSheetsSyncFlush(app.prisma)
+    expect(callsFor(l.target)).toHaveLength(0)
+
+    // A new property (address feeds the Property dropdown) → dirty again.
+    const prop = await app.prisma.property.create({
+      data: { landlordId: l.id, name: '7 Elm St', address: '7 Elm St' },
+    })
+    try {
+      await runSheetsSyncFlush(app.prisma)
+      expect(callsFor(l.target)).toHaveLength(1)
+    } finally {
+      await app.prisma.invoice.deleteMany({ where: { userId: l.id } })
+      await app.prisma.property.deleteMany({ where: { id: prop.id } })
+    }
+  })
+
   it('drops a deleted invoice from the mirror (delete propagates via the DELETED event)', async () => {
     const l = await makeLandlord()
     const keep = await makeInvoice(l.id)
@@ -209,11 +231,17 @@ describe('continuous Sheets sync flush', () => {
       return 123
     })
 
-    const res = await runSheetsSyncFlush(app.prisma)
+    const log = { warn: vi.fn() }
+    const res = await runSheetsSyncFlush(app.prisma, log)
 
     expect(res.failed).toBe(1)
     expect(callsFor(l.target)).toHaveLength(0) // never cleared/overwritten
     expect(await hwOf(l.id)).toBeNull() // no stamp — re-mirrored next pass
+    // The failure reason is surfaced to the caller's logger (not swallowed).
+    expect(log.warn).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: l.id, message: 'SHEET_TAB_NOT_FOUND' }),
+      'sheets sync failed for user',
+    )
   })
 
   it('a validation failure after the values write keeps the user dirty (no stamp, counted failed)', async () => {

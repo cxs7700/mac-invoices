@@ -417,6 +417,6 @@ export async function exportInvoices(request: FastifyRequest, reply: FastifyRepl
  */
 export async function cronSyncSheets(request: FastifyRequest, reply: FastifyReply) {
   assertCronSecret(request)
-  const summary = await runSheetsSyncFlush(request.server.prisma)
+  const summary = await runSheetsSyncFlush(request.server.prisma, request.log)
   return reply.send(summary)
 }
