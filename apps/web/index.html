@@ -5,6 +5,30 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>mac-invoices</title>
+    <script>
+      // First-paint theme stamp: runs before any render so the stored choice
+      // (or the OS preference) applies with no flash. Deliberately duplicates
+      // the few resolution lines in src/lib/theme.ts — keep in sync (DEC-025).
+      ;(function () {
+        var stored = null
+        try {
+          stored = localStorage.getItem('theme')
+        } catch (e) {
+          /* storage unavailable — fall through to the OS preference */
+        }
+        var theme =
+          stored === 'light' || stored === 'dark'
+            ? stored
+            : matchMedia('(prefers-color-scheme: dark)').matches
+              ? 'dark'
+              : 'light'
+        document.documentElement.classList.add(theme)
+        var meta = document.createElement('meta')
+        meta.name = 'theme-color'
+        meta.content = theme === 'dark' ? '#10151c' : '#eef1f5'
+        document.head.appendChild(meta)
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

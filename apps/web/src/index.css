@@ -1,19 +1,10 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 
-/* v0 (OS-following): dark utilities fire on the .dark class OR the OS
-   preference. The media branch is removed at v1, when the boot script
-   stamps the class and becomes the sole resolver. */
-@custom-variant dark {
-  &:is(.dark *) {
-    @slot;
-  }
-  @media (prefers-color-scheme: dark) {
-    &:not(.light *) {
-      @slot;
-    }
-  }
-}
+/* The index.html boot script stamps .light/.dark on <html> before first
+   paint (resolving `system` itself), so class-only routing is sufficient.
+   Without JS, tokens still OS-follow via :root's `color-scheme: light dark`. */
+@custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --font-sans:

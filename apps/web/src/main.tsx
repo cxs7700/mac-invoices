@@ -8,6 +8,7 @@ import '@fontsource/public-sans/600.css'
 import '@fontsource/public-sans/700.css'
 import './index.css'
 import './lib/i18n' // initialize i18next once, before the first render
+import { initTheme } from './lib/theme'
 import App from './App.tsx'
 import { AuthGuard } from './components/AuthGuard.tsx'
 import { queryClient } from './lib/queryClient'
@@ -23,6 +24,10 @@ import Properties from './pages/Properties.tsx'
 import PropertyDetail from './pages/PropertyDetail.tsx'
 import PropertyEdit from './pages/PropertyEdit.tsx'
 import Settings from './pages/Settings.tsx'
+
+// The index.html boot script stamped the first-paint theme; this wires the
+// live OS-preference listener for the `system` choice.
+initTheme()
 
 const router = createBrowserRouter([
   { path: '/login', element: <Login /> },
