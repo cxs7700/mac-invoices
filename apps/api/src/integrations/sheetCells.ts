@@ -1,5 +1,6 @@
-// Cell types for the Sheets writers. Lives apart from sheets.ts so pure row
-// builders (sheetRows.ts) can construct formulas without importing googleapis.
+// Plain types shared between the pure row/spec builders (sheetRows.ts) and the
+// googleapis-backed writer (sheets.ts). Lives apart from sheets.ts so the pure
+// side never imports googleapis.
 
 /** A cell whose string is a formula the SERVER constructed (never user text).
  * safeCell writes it through verbatim instead of neutralizing the leading `=`;
