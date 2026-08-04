@@ -9,3 +9,8 @@ export class SheetFormula {
 }
 
 export type SheetCell = string | number | SheetFormula
+
+/** A dropdown (data-validation) spec for one sheet column: the 0-based column
+ * index and the allowed values. Built by the pure layout side (sheetRows.ts)
+ * so option lists can never drift from the column positions they attach to. */
+export type ColumnDropdownSpec = { columnIndex: number; values: string[] }

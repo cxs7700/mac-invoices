@@ -1,6 +1,6 @@
-import { google } from 'googleapis'
+import { google, type sheets_v4 } from 'googleapis'
 import { AppError } from '../middleware/errorHandler'
-import { SheetFormula, type SheetCell } from './sheetCells'
+import { SheetFormula, type SheetCell, type ColumnDropdownSpec } from './sheetCells'
 
 // One-way export to Google Sheets via a service account (§8). The handler imports
 // this module directly; tests `vi.mock` it. Google errors are NEVER propagated
@@ -125,12 +125,12 @@ export async function checkAccess(spreadsheetId: string): Promise<void> {
 
 /** Run a single Google call with the retry/backoff + sanitize policy shared by
  * every write: retry transient 429/5xx/transport errors with exponential backoff
- * + jitter, then surface a sanitized AppError (never the raw provider error). */
-async function withRetry(call: () => Promise<unknown>): Promise<void> {
+ * + jitter, then surface a sanitized AppError (never the raw provider error).
+ * Returns the call's result so read calls (e.g. the tab lookup) share the policy. */
+async function withRetry<T>(call: () => Promise<T>): Promise<T> {
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
-      await call()
-      return
+      return await call()
     } catch (err) {
       if (isRetryable(err) && attempt < MAX_ATTEMPTS) {
         const base = baseMs()
@@ -140,6 +140,85 @@ async function withRetry(call: () => Promise<unknown>): Promise<void> {
       throw sanitize(err)
     }
   }
+  // Unreachable: every iteration returns or throws; the last attempt never continues.
+  throw sanitize(undefined)
+}
+
+/**
+ * Resolve the pinned tab's numeric grid sheetId (gid) — required by
+ * `setDataValidation`, which has no A1-notation form. The `spreadsheets.get`
+ * runs inside the shared retry/sanitize policy, but the title match happens
+ * OUT here: `sanitize` flattens anything thrown inside `withRetry` to a generic
+ * code, and a tab-title miss must surface as its own distinct, actionable error
+ * BEFORE any destructive write. An exact, case-sensitive title match is
+ * intentional (tab names are operator-pinned via GOOGLE_SHEET_TAB). sheetId 0
+ * (the first tab) is valid — only null/undefined mean "no match".
+ */
+export async function resolveSheetTabId(spreadsheetId: string): Promise<number> {
+  const sheets = getSheetsClient()
+  const res = await withRetry(() =>
+    sheets.spreadsheets.get(
+      { spreadsheetId, fields: 'sheets.properties(sheetId,title)' },
+      { timeout: 30_000 },
+    ),
+  )
+  const match = res.data.sheets?.find((s) => s.properties?.title === tabName())
+  const sheetId = match?.properties?.sheetId
+  if (sheetId == null) {
+    throw new AppError(
+      'SHEET_TAB_NOT_FOUND',
+      `The spreadsheet has no "${tabName()}" tab — create it (or fix GOOGLE_SHEET_TAB) and sync again`,
+      502,
+    )
+  }
+  return sheetId
+}
+
+/**
+ * Apply dropdown (data-validation) rules to the mirrored tab in ONE atomic
+ * `batchUpdate`: first clear ALL validation from the data rows (rules survive
+ * `values.clear`, so rules from an older column layout would otherwise linger on
+ * shifted columns), then set a ONE_OF_LIST rule per spec from row 2 downward,
+ * unbounded, so rows added by later syncs stay covered. Specs with empty value
+ * lists set no rule (an empty ONE_OF_LIST is a Google 400) — the leading clear
+ * still covers their columns. `strict` only affects interactive edits; the
+ * mirror's own `values.update` writes bypass validation.
+ */
+export async function applyColumnDropdowns(
+  spreadsheetId: string,
+  sheetId: number,
+  specs: ColumnDropdownSpec[],
+): Promise<void> {
+  const sheets = getSheetsClient()
+  const requests: sheets_v4.Schema$Request[] = [
+    { setDataValidation: { range: { sheetId, startRowIndex: 1 } } },
+    ...specs
+      .filter((spec) => spec.values.length > 0)
+      .map((spec) => ({
+        setDataValidation: {
+          range: {
+            sheetId,
+            startRowIndex: 1,
+            startColumnIndex: spec.columnIndex,
+            endColumnIndex: spec.columnIndex + 1,
+          },
+          rule: {
+            condition: {
+              type: 'ONE_OF_LIST',
+              values: spec.values.map((v) => ({ userEnteredValue: v })),
+            },
+            showCustomUi: true,
+            strict: true,
+          },
+        },
+      })),
+  ]
+  await withRetry(() =>
+    sheets.spreadsheets.batchUpdate(
+      { spreadsheetId, requestBody: { requests } },
+      { timeout: 30_000 },
+    ),
+  )
 }
 
 /** Append `rows` to the pinned tab, retrying transient 429/5xx with backoff. */
