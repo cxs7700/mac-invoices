@@ -113,7 +113,7 @@ describe('POST /api/invoices/export — "Sync now" full mirror', () => {
 
     const res = await exportAs(user.cookie)
     expect(res.json()).toEqual({ exported: 1 })
-    const numbers = lastDataRows().map((r) => r[1])
+    const numbers = lastDataRows().map((r) => r[0])
     expect(numbers).toContain(`${NONCE}keep`)
     expect(numbers).not.toContain(`${NONCE}gone`)
   })
@@ -123,7 +123,7 @@ describe('POST /api/invoices/export — "Sync now" full mirror', () => {
     await create('landlords', landlord) // a different owner
 
     await exportAs(user.cookie)
-    const numbers = lastDataRows().map((r) => r[1])
+    const numbers = lastDataRows().map((r) => r[0])
     expect(numbers).toContain(`${NONCE}mine`)
     expect(numbers).not.toContain(`${NONCE}landlords`)
   })
@@ -162,11 +162,11 @@ describe('POST /api/invoices/export — "Sync now" full mirror', () => {
     await create('map', user.cookie, { amount: 149.99, partsOrdered: '2x faucet washers' })
     await exportAs(user.cookie)
     const row = lastDataRows()[0]
-    // [id, invoiceNumber, vendorName, amount, status, invoiceDate, category, description, propertyAddress, partsOrdered]
-    expect(row[3]).toBe(149.99)
-    expect(typeof row[3]).toBe('number')
-    expect(row[8]).toBe('') // propertyAddress empty (no property assigned)
-    expect(row[9]).toBe('2x faucet washers')
+    // [invoiceNumber, invoiceDate, description, propertyAddress, amount, category, status, notes, partsOrdered, invoiceLink]
+    expect(row[4]).toBe(149.99)
+    expect(typeof row[4]).toBe('number')
+    expect(row[3]).toBe('') // propertyAddress empty (no property assigned)
+    expect(row[8]).toBe('2x faucet washers')
   })
 
   it("mirrors the assigned property's address in the propertyAddress column", async () => {
@@ -176,7 +176,7 @@ describe('POST /api/invoices/export — "Sync now" full mirror', () => {
     try {
       await create('withprop', user.cookie, { propertyId: prop.id })
       await exportAs(user.cookie)
-      expect(lastDataRows()[0][8]).toBe('742 Evergreen Terrace')
+      expect(lastDataRows()[0][3]).toBe('742 Evergreen Terrace')
     } finally {
       await app.prisma.invoice.deleteMany({ where: { invoiceNumber: { startsWith: NONCE } } })
       await app.prisma.property.delete({ where: { id: prop.id } }).catch(() => {})

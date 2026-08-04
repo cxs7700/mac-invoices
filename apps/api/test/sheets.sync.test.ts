@@ -127,7 +127,7 @@ describe('continuous Sheets sync flush', () => {
 
     const rows = callsFor(l.target).at(-1)![1] as unknown[][]
     expect(rows).toHaveLength(2) // header + 1
-    const numbers = rows.slice(1).map((r) => r[1])
+    const numbers = rows.slice(1).map((r) => r[0])
     expect(numbers).toContain(keep.invoiceNumber)
     expect(numbers).not.toContain(gone.invoiceNumber)
   })
