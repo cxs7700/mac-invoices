@@ -1,10 +1,17 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest'
 
 // Mock the Sheets seam — no live Google calls. overwriteRows is captured to prove
-// which users got a full mirror and with what rows.
-const overwriteRows = vi.hoisted(() => vi.fn(async () => {}))
+// which users got a full mirror and with what rows; resolveSheetTabId and
+// applyColumnDropdowns cover the dropdown-validation step of every mirror.
+const { overwriteRows, resolveSheetTabId, applyColumnDropdowns } = vi.hoisted(() => ({
+  overwriteRows: vi.fn(async () => {}),
+  resolveSheetTabId: vi.fn(async () => 123),
+  applyColumnDropdowns: vi.fn(async () => {}),
+}))
 vi.mock('../src/integrations/sheets', () => ({
   overwriteRows,
+  resolveSheetTabId,
+  applyColumnDropdowns,
   appendRows: vi.fn(),
   checkAccess: vi.fn(),
   serviceAccountEmail: vi.fn(() => 'svc@x.iam.gserviceaccount.com'),
@@ -60,6 +67,8 @@ beforeAll(async () => {
 })
 beforeEach(() => {
   overwriteRows.mockReset().mockResolvedValue(undefined)
+  resolveSheetTabId.mockReset().mockResolvedValue(123)
+  applyColumnDropdowns.mockReset().mockResolvedValue(undefined)
 })
 afterAll(async () => {
   for (const id of created) {
@@ -130,6 +139,95 @@ describe('continuous Sheets sync flush', () => {
     const numbers = rows.slice(1).map((r) => r[0])
     expect(numbers).toContain(keep.invoiceNumber)
     expect(numbers).not.toContain(gone.invoiceNumber)
+  })
+
+  it('writes rows ascending by invoice number (natural order), un-numbered rows last', async () => {
+    const l = await makeLandlord()
+    const p = `SORT-${uniq()}-` // shared prefix keeps numbers unique in the DB; suffix sorts naturally
+    await makeInvoice(l.id, { invoiceNumber: `${p}10` })
+    await makeInvoice(l.id, { invoiceNumber: `${p}2` })
+    await makeInvoice(l.id, { invoiceNumber: `${p}9` })
+    await makeInvoice(l.id, { invoiceNumber: null })
+
+    await runSheetsSyncFlush(app.prisma)
+
+    const rows = callsFor(l.target).at(-1)![1] as unknown[][]
+    expect(rows.slice(1).map((r) => r[0])).toEqual([`${p}2`, `${p}9`, `${p}10`, ''])
+  })
+
+  it('applies dropdown validation after the values write, with the landlord properties as options', async () => {
+    const l = await makeLandlord()
+    await makeInvoice(l.id)
+    const props = await Promise.all(
+      ['9 Oak Ave', '12 Main St'].map((address) =>
+        app.prisma.property.create({ data: { landlordId: l.id, name: address, address } }),
+      ),
+    )
+    try {
+      await runSheetsSyncFlush(app.prisma)
+
+      const call = applyColumnDropdowns.mock.calls.find((c) => c[0] === l.target)!
+      expect(call[1]).toBe(123) // the resolved tab sheetId
+      const specs = call[2] as Array<{ columnIndex: number; values: string[] }>
+      expect(specs.find((s) => s.values.includes('PENDING'))?.values).toEqual([
+        'PENDING',
+        'APPROVED',
+        'PAID',
+      ])
+      expect(specs.find((s) => s.values.includes('9 Oak Ave'))?.values).toEqual([
+        '9 Oak Ave',
+        '12 Main St',
+      ])
+      // Validation lands after the values write.
+      expect(applyColumnDropdowns.mock.invocationCallOrder[0]).toBeGreaterThan(
+        overwriteRows.mock.invocationCallOrder[0],
+      )
+    } finally {
+      await app.prisma.invoice.deleteMany({ where: { userId: l.id } })
+      await app.prisma.property.deleteMany({ where: { id: { in: props.map((p) => p.id) } } })
+    }
+  })
+
+  it('a landlord with zero properties still syncs — the property spec just has no values', async () => {
+    const l = await makeLandlord()
+    await makeInvoice(l.id)
+
+    const res = await runSheetsSyncFlush(app.prisma)
+    expect(res.failed).toBe(0)
+
+    const call = applyColumnDropdowns.mock.calls.find((c) => c[0] === l.target)!
+    const specs = call[2] as Array<{ columnIndex: number; values: string[] }>
+    const property = specs.find((s) => !s.values.includes('PENDING') && !s.values.includes('OTHER'))
+    expect(property?.values).toEqual([])
+  })
+
+  it('a tab-lookup failure aborts BEFORE the destructive overwrite and leaves the user dirty', async () => {
+    const l = await makeLandlord()
+    await makeInvoice(l.id)
+    resolveSheetTabId.mockImplementation(async (target: string) => {
+      if (target === l.target) throw new Error('SHEET_TAB_NOT_FOUND')
+      return 123
+    })
+
+    const res = await runSheetsSyncFlush(app.prisma)
+
+    expect(res.failed).toBe(1)
+    expect(callsFor(l.target)).toHaveLength(0) // never cleared/overwritten
+    expect(await hwOf(l.id)).toBeNull() // no stamp — re-mirrored next pass
+  })
+
+  it('a validation failure after the values write keeps the user dirty (no stamp, counted failed)', async () => {
+    const l = await makeLandlord()
+    await makeInvoice(l.id)
+    applyColumnDropdowns.mockImplementation(async (target: string) => {
+      if (target === l.target) throw new Error('validation boom')
+    })
+
+    const res = await runSheetsSyncFlush(app.prisma)
+
+    expect(res.failed).toBe(1)
+    expect(callsFor(l.target)).toHaveLength(1) // values DID land this pass
+    expect(await hwOf(l.id)).toBeNull() // but the user stays dirty for a re-mirror
   })
 
   it("isolates one landlord's Sheets failure: it is counted, the others still sync", async () => {

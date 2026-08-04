@@ -1,6 +1,12 @@
 import type { PrismaClient } from '../../prisma/generated/client.ts'
-import { overwriteRows } from '../integrations/sheets'
-import { EXPORT_HEADER, invoiceToRow, NON_EXPORTABLE_STATUSES } from './sheetRows'
+import { applyColumnDropdowns, overwriteRows, resolveSheetTabId } from '../integrations/sheets'
+import {
+  compareForExport,
+  dropdownSpecs,
+  EXPORT_HEADER,
+  invoiceToRow,
+  NON_EXPORTABLE_STATUSES,
+} from './sheetRows'
 
 // Continuous Google Sheets sync — the connected sheet is a FULL MIRROR of a
 // landlord's exportable invoices (new + edits + deletes), refreshed by a
@@ -37,16 +43,21 @@ async function lastChangeAt(prisma: PrismaClient, userId: string): Promise<Date 
 }
 
 /**
- * Full-mirror one user's invoices into `spreadsheetId`: clear the tab, write the
- * header + every exportable invoice row, then stamp `User.sheetSyncedAt` and the
- * mirrored invoices' `sheetsSyncedAt` to a timestamp captured BEFORE the read.
+ * Full-mirror one user's invoices into `spreadsheetId`: resolve the tab's grid
+ * id, clear the tab, write the header + every exportable invoice row (ascending
+ * by invoice number), re-apply the dropdown validation rules, then stamp
+ * `User.sheetSyncedAt` and the mirrored invoices' `sheetsSyncedAt` to a
+ * timestamp captured BEFORE the read.
  *
- * Order is overwrite-THEN-stamp: a death between the two leaves the user "dirty"
- * and the next run re-mirrors — a clear+rewrite is idempotent, so a redundant
- * pass is harmless (at-least-once). Stamping to `flushStart` (not now) keeps the
- * SyncBadge honest: an invoice edited during the flush has `updatedAt >
- * sheetsSyncedAt` and shows "drifted" until the next pass. Returns the number of
- * data rows written. Throws a sanitized AppError on a Sheets failure.
+ * The gid lookup runs FIRST so a missing/renamed tab fails before the clear can
+ * wipe data; validation runs LAST (after values) and a failure there also keeps
+ * the user dirty. Order is overwrite-THEN-stamp: a death between the two leaves
+ * the user "dirty" and the next run re-mirrors — a clear+rewrite (and a
+ * validation re-apply) is idempotent, so a redundant pass is harmless
+ * (at-least-once). Stamping to `flushStart` (not now) keeps the SyncBadge
+ * honest: an invoice edited during the flush has `updatedAt > sheetsSyncedAt`
+ * and shows "drifted" until the next pass. Returns the number of data rows
+ * written. Throws a sanitized AppError on a Sheets failure.
  */
 export async function mirrorUserSheet(
   prisma: PrismaClient,
@@ -54,15 +65,28 @@ export async function mirrorUserSheet(
   spreadsheetId: string,
 ): Promise<number> {
   const flushStart = new Date()
-  const invoices = await prisma.invoice.findMany({
-    where: { userId, status: { notIn: [...NON_EXPORTABLE_STATUSES] } },
-    // The assigned property's address rides along as a column (empty when none).
-    include: { property: { select: { address: true } } },
-    orderBy: { invoiceDate: 'asc' },
-  })
+  const sheetId = await resolveSheetTabId(spreadsheetId)
 
+  const [invoices, properties] = await Promise.all([
+    prisma.invoice.findMany({
+      where: { userId, status: { notIn: [...NON_EXPORTABLE_STATUSES] } },
+      // The assigned property's address rides along as a column (empty when none).
+      include: { property: { select: { address: true } } },
+      orderBy: { invoiceDate: 'asc' },
+    }),
+    // The Property dropdown's option list — rebuilt every pass so it tracks the table.
+    prisma.property.findMany({ where: { landlordId: userId }, select: { address: true } }),
+  ])
+
+  // Ledger order: ascending invoice number (natural order), un-numbered rows last.
+  invoices.sort(compareForExport)
   const dataRows = invoices.map(invoiceToRow)
   await overwriteRows(spreadsheetId, [EXPORT_HEADER, ...dataRows])
+  await applyColumnDropdowns(
+    spreadsheetId,
+    sheetId,
+    dropdownSpecs(properties.map((p) => p.address)),
+  )
 
   await prisma.$transaction([
     prisma.user.update({ where: { id: userId }, data: { sheetSyncedAt: flushStart } }),
