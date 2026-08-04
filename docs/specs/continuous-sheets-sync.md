@@ -31,9 +31,21 @@ Same row set and columns as today's export (single source of truth: `EXPORT_COLU
 1. **Rows:** the user's invoices with `status NOT IN (SUBMITTED, REJECTED, CANCELLED)` —
    only real spend (PENDING/APPROVED/PAID). Contractor submissions awaiting approval,
    rejected, and withdrawn invoices are never mirrored.
-2. **Columns (order):** `id, invoiceNumber, vendorName, amount, status, invoiceDate,
-   category, description, propertyAddress, partsOrdered`. The mirror writes a **header row**
-   first (column names), then data — because clear+rewrite wipes any operator-added header.
+2. **Columns (order):** `invoiceNumber, invoiceDate, description, propertyAddress, amount,
+   category, status, notes, partsOrdered, invoiceLink` (2026-08-04 plan: the internal `id`
+   and `vendorName` are no longer exported; `invoiceLink` renders as a `HYPERLINK` "Link"
+   cell and stays last). The mirror writes a **header row** first (human-friendly labels),
+   then data — because clear+rewrite wipes any operator-added header.
+3. **Row order:** ascending by invoice number, numeric-aware (`"9" < "10"` — the column is a
+   string per DEC-023, so the sort is an in-memory natural-order comparator). Un-numbered
+   invoices (number is stamped on first APPROVED) sort last, by invoice date then id.
+4. **Dropdowns:** every mirror re-applies data-validation rules (one `batchUpdate`: clear all
+   validation from rows 2+, then `ONE_OF_LIST` rules) — Status = PENDING/APPROVED/PAID,
+   Category = the six categories, Property = the landlord's addresses (trimmed, deduped,
+   natural-sorted; a landlord with zero properties gets no Property rule). Requires the
+   tab's numeric `sheetId`, resolved per pass via `spreadsheets.get` (exact title match; a
+   miss fails with `SHEET_TAB_NOT_FOUND` **before** the destructive clear). Sheet edits
+   still never flow back (DEC-001) — dropdowns are a consistency aid.
 
 ## Target spreadsheet — per user
 
@@ -70,12 +82,15 @@ delete signal. A user with zero invoices and no deletes since last sync is not d
 
 1. `flushStart = new Date()` — captured **before** the read, so a mutation racing the flush
    re-triggers next run (eventual consistency, at-least-once).
-2. Read exportable invoices (filter + `include: { property: { address } }`, `orderBy
-   invoiceDate asc`).
-3. Build rows: `[header, ...dataRows]`. `overwriteRows(target, rows)` = **clear the tab, then
+2. Resolve the pinned tab's `sheetId` (`resolveSheetTabId` — fails fast before any write).
+3. Read exportable invoices (filter + `include: { property: { address } }`) and the
+   landlord's property addresses; sort invoices with `compareForExport` (invoice number
+   ascending, natural order, nulls last).
+4. Build rows: `[header, ...dataRows]`. `overwriteRows(target, rows)` = **clear the tab, then
    `values.update` at `A1`** (formula-injection-guarded, retry/backoff on 429/5xx reused from
-   the append path).
-4. Stamp: `User.sheetSyncedAt = flushStart` and `Invoice.sheetsSyncedAt = flushStart` for the
+   the append path). Then `applyColumnDropdowns(target, sheetId, dropdownSpecs(addresses))`
+   re-applies the validation rules (idempotent; a failure here also keeps the user dirty).
+5. Stamp: `User.sheetSyncedAt = flushStart` and `Invoice.sheetsSyncedAt = flushStart` for the
    mirrored ids. Stamping to `flushStart` (not `now()`) keeps the `SyncBadge` honest: an
    invoice edited during the flush has `updatedAt > sheetsSyncedAt` → shows "drifted" → picked
    up next run.

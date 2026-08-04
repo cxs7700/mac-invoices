@@ -42,6 +42,17 @@ env matrix in `docs/DEPLOYMENT.md`. The cron schedule lives in `.github/workflow
 - **Full mirror.** Every sync clears the tab and rewrites the header + every exportable invoice, so the
   sheet always reflects the DB — including edits and deletions. `SUBMITTED`/`REJECTED`/`CANCELLED`
   invoices are never written.
+- **Layout.** Columns: `Invoice #, Date, Description, Property, Amount, Category, Status, Notes,
+  Parts Ordered, Invoice Link` — rows ascend by invoice number (un-numbered ones last). The internal
+  id and vendor are not exported. Any personal formulas referencing the pre-2026-08 column letters
+  need a one-time fix after the first re-mirror.
+- **Dropdowns.** Status, Category, and Property carry in-sheet dropdowns, refreshed every sync
+  (Property options = your property addresses). Picking a value in the sheet does NOT update the app —
+  the next mirror overwrites manual edits; the dropdowns are a filtering/consistency aid. Empty rows
+  below the data show dropdown chevrons; that's expected (the rules cover future rows).
+- **Tab name matters.** The mirror pins the tab named by `GOOGLE_SHEET_TAB` (default `Invoices`),
+  matched exactly (case-sensitive). If the tab is renamed or missing, syncs fail with
+  `SHEET_TAB_NOT_FOUND` naming the expected tab — recreate/rename the tab and sync again.
 - **Change-gated.** The cron skips a landlord whose data is unchanged since their last sync (tracked by
   `User.sheetSyncedAt`), so frequent pings don't burn the Google write quota.
 - **At-least-once / idempotent.** If the rewrite lands but the DB stamp dies, the landlord stays "dirty"
