@@ -121,9 +121,20 @@
     "createInvoice": "Create invoice",
     "pageOf": "Page {{page}} of {{pageCount}}",
     "prev": "Prev",
-    "next": "Next"
+    "next": "Next",
+    "generatePdf": "Generate PDF",
+    "selectionHint": "Selection mode — choose invoices to export",
+    "selectedCount": "{{count}} selected",
+    "confirm": "Confirm",
+    "cancel": "Cancel",
+    "generatingPdf": "Generating…",
+    "pdfSuccessOne": "PDF downloaded — {{count}} invoice.",
+    "pdfSuccessOther": "PDF downloaded — {{count}} invoices.",
+    "pdfFailed": "PDF generation failed. Your selection is unchanged."
   },
   "invoiceTable": {
+    "select": "Select",
+    "selectInvoice": "Select invoice {{number}} — {{vendor}}",
     "number": "#",
     "job": "Job",
     "partsOrdered": "Parts ordered",

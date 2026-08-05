@@ -12,6 +12,9 @@ export type InvoiceListItem = {
   category: string | null
   status: string
   invoiceDate: string
+  // The raw scalar (the list join stops at user/_count); the PDF export
+  // resolves it to an address against the properties list.
+  propertyId: string | null
   partsOrdered: string | null
   updatedAt: string
   sheetsSyncedAt: string | null

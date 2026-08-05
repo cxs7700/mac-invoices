@@ -121,9 +121,20 @@
     "createInvoice": "创建发票",
     "pageOf": "第 {{page}} 页，共 {{pageCount}} 页",
     "prev": "上一页",
-    "next": "下一页"
+    "next": "下一页",
+    "generatePdf": "生成 PDF",
+    "selectionHint": "选择模式 — 勾选要导出的发票",
+    "selectedCount": "已选 {{count}} 张",
+    "confirm": "确认",
+    "cancel": "取消",
+    "generatingPdf": "生成中…",
+    "pdfSuccessOne": "PDF 已下载 — {{count}} 张发票。",
+    "pdfSuccessOther": "PDF 已下载 — {{count}} 张发票。",
+    "pdfFailed": "PDF 生成失败。所选发票保持不变。"
   },
   "invoiceTable": {
+    "select": "选择",
+    "selectInvoice": "选择发票 {{number}} — {{vendor}}",
     "number": "#",
     "job": "项目",
     "partsOrdered": "已订购的零件",
