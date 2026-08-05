@@ -1,5 +1,5 @@
 import type { PrismaClient } from '../../prisma/generated/client.ts'
-import { applyColumnDropdowns, overwriteRows, resolveSheetTabId } from '../integrations/sheets'
+import { applyColumnDropdowns, overwriteRows, resolveSheetTab } from '../integrations/sheets'
 import {
   compareForExport,
   dropdownSpecs,
@@ -77,7 +77,7 @@ export async function mirrorUserSheet(
   spreadsheetId: string,
 ): Promise<number> {
   const flushStart = new Date()
-  const sheetId = await resolveSheetTabId(spreadsheetId)
+  const tab = await resolveSheetTab(spreadsheetId)
 
   const [invoices, properties] = await Promise.all([
     prisma.invoice.findMany({
@@ -94,11 +94,7 @@ export async function mirrorUserSheet(
   invoices.sort(compareForExport)
   const dataRows = invoices.map(invoiceToRow)
   await overwriteRows(spreadsheetId, [EXPORT_HEADER, ...dataRows])
-  await applyColumnDropdowns(
-    spreadsheetId,
-    sheetId,
-    dropdownSpecs(properties.map((p) => p.address)),
-  )
+  await applyColumnDropdowns(spreadsheetId, tab, dropdownSpecs(properties.map((p) => p.address)))
 
   await prisma.$transaction([
     prisma.user.update({ where: { id: userId }, data: { sheetSyncedAt: flushStart } }),

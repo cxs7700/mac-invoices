@@ -144,21 +144,31 @@ async function withRetry<T>(call: () => Promise<T>): Promise<T> {
   throw sanitize(undefined)
 }
 
+/** The pinned tab's grid id plus the column indexes a Sheets "Table" has given
+ * a type (DOUBLE, DATE, DROPDOWN, …). Typed columns reject classic data
+ * validation ("not allowed on cells in typed columns"), so rule specs for them
+ * are skipped — their dropdowns come from the table's own column type. */
+export type SheetTab = { sheetId: number; typedColumnIndexes: number[] }
+
 /**
- * Resolve the pinned tab's numeric grid sheetId (gid) — required by
- * `setDataValidation`, which has no A1-notation form. The `spreadsheets.get`
- * runs inside the shared retry/sanitize policy, but the title match happens
- * OUT here: `sanitize` flattens anything thrown inside `withRetry` to a generic
- * code, and a tab-title miss must surface as its own distinct, actionable error
- * BEFORE any destructive write. An exact, case-sensitive title match is
- * intentional (tab names are operator-pinned via GOOGLE_SHEET_TAB). sheetId 0
- * (the first tab) is valid — only null/undefined mean "no match".
+ * Resolve the pinned tab — its numeric grid sheetId (gid, required by
+ * `setDataValidation`, which has no A1-notation form) and any Table-typed
+ * column indexes. The `spreadsheets.get` runs inside the shared retry/sanitize
+ * policy, but the title match happens OUT here: `sanitize` flattens anything
+ * thrown inside `withRetry` to a generic code, and a tab-title miss must
+ * surface as its own distinct, actionable error BEFORE any destructive write.
+ * An exact, case-sensitive title match is intentional (tab names are
+ * operator-pinned via GOOGLE_SHEET_TAB). sheetId 0 (the first tab) is valid —
+ * only null/undefined mean "no match".
  */
-export async function resolveSheetTabId(spreadsheetId: string): Promise<number> {
+export async function resolveSheetTab(spreadsheetId: string): Promise<SheetTab> {
   const sheets = getSheetsClient()
   const res = await withRetry(() =>
     sheets.spreadsheets.get(
-      { spreadsheetId, fields: 'sheets.properties(sheetId,title)' },
+      {
+        spreadsheetId,
+        fields: 'sheets(properties(sheetId,title),tables.columnProperties(columnIndex,columnType))',
+      },
       { timeout: 30_000 },
     ),
   )
@@ -171,7 +181,13 @@ export async function resolveSheetTabId(spreadsheetId: string): Promise<number> 
       502,
     )
   }
-  return sheetId
+  // The API omits columnIndex for column 0 (proto3 default) — hence the ?? 0.
+  const typedColumnIndexes = (match?.tables ?? []).flatMap((t) =>
+    (t.columnProperties ?? [])
+      .filter((c) => c.columnType != null)
+      .map((c) => c.columnIndex ?? 0),
+  )
+  return { sheetId, typedColumnIndexes }
 }
 
 /**
@@ -181,19 +197,24 @@ export async function resolveSheetTabId(spreadsheetId: string): Promise<number> 
  * shifted columns), then set a ONE_OF_LIST rule per spec from row 2 downward,
  * unbounded, so rows added by later syncs stay covered. Specs with empty value
  * lists set no rule (an empty ONE_OF_LIST is a Google 400) — the leading clear
- * still covers their columns. `strict` only affects interactive edits; the
- * mirror's own `values.update` writes bypass validation.
+ * still covers their columns. Specs on Table-typed columns are skipped the same
+ * way: Google rejects classic validation there, and the table's own column type
+ * (e.g. DROPDOWN) already provides the dropdown. `strict` only affects
+ * interactive edits; the mirror's own `values.update` writes bypass validation.
  */
 export async function applyColumnDropdowns(
   spreadsheetId: string,
-  sheetId: number,
+  tab: SheetTab,
   specs: ColumnDropdownSpec[],
 ): Promise<void> {
   const sheets = getSheetsClient()
+  const { sheetId } = tab
   const requests: sheets_v4.Schema$Request[] = [
     { setDataValidation: { range: { sheetId, startRowIndex: 1 } } },
     ...specs
-      .filter((spec) => spec.values.length > 0)
+      .filter(
+        (spec) => spec.values.length > 0 && !tab.typedColumnIndexes.includes(spec.columnIndex),
+      )
       .map((spec) => ({
         setDataValidation: {
           range: {

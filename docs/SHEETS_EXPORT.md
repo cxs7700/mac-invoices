@@ -47,7 +47,9 @@ env matrix in `docs/DEPLOYMENT.md`. The cron schedule lives in `.github/workflow
   id and vendor are not exported. Any personal formulas referencing the pre-2026-08 column letters
   need a one-time fix after the first re-mirror.
 - **Dropdowns.** Status, Category, and Property carry in-sheet dropdowns, refreshed every sync
-  (Property options = your property addresses). Picking a value in the sheet does NOT update the app —
+  (Property options = your property addresses). If the tab uses a Sheets *Table* with typed columns,
+  those columns keep the table's own dropdowns/types — the mirror skips them (classic validation is
+  not allowed on typed columns) and only applies rules to untyped columns. Picking a value in the sheet does NOT update the app —
   the next mirror overwrites manual edits; the dropdowns are a filtering/consistency aid. Empty rows
   below the data show dropdown chevrons; that's expected (the rules cover future rows).
 - **Tab name matters.** The mirror pins the tab named by `GOOGLE_SHEET_TAB` (default `Invoices`),

@@ -3,13 +3,13 @@ import { describe, it, expect, beforeAll, afterAll, afterEach, beforeEach, vi } 
 // Mock the Sheets seam — no live Google calls (DoD). "Sync now" full-mirrors via
 // overwriteRows; the other exports are stubbed so the app's settings routes still
 // import cleanly.
-const { overwriteRows, appendRows, checkAccess, serviceAccountEmail, resolveSheetTabId, applyColumnDropdowns } =
+const { overwriteRows, appendRows, checkAccess, serviceAccountEmail, resolveSheetTab, applyColumnDropdowns } =
   vi.hoisted(() => ({
     overwriteRows: vi.fn(async () => {}),
     appendRows: vi.fn(async () => {}),
     checkAccess: vi.fn(async () => {}),
     serviceAccountEmail: vi.fn(() => 'svc@x.iam.gserviceaccount.com'),
-    resolveSheetTabId: vi.fn(async () => 123),
+    resolveSheetTab: vi.fn(async () => ({ sheetId: 123, typedColumnIndexes: [] })),
     applyColumnDropdowns: vi.fn(async () => {}),
   }))
 vi.mock('../src/integrations/sheets', () => ({
@@ -17,7 +17,7 @@ vi.mock('../src/integrations/sheets', () => ({
   appendRows,
   checkAccess,
   serviceAccountEmail,
-  resolveSheetTabId,
+  resolveSheetTab,
   applyColumnDropdowns,
 }))
 

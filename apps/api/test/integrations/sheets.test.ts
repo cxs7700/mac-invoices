@@ -22,7 +22,7 @@ vi.mock('googleapis', () => ({
 import {
   appendRows,
   overwriteRows,
-  resolveSheetTabId,
+  resolveSheetTab,
   applyColumnDropdowns,
 } from '../../src/integrations/sheets'
 import { SheetFormula } from '../../src/integrations/sheetCells'
@@ -198,7 +198,7 @@ describe('sheets.overwriteRows (full mirror)', () => {
   })
 })
 
-describe('sheets.resolveSheetTabId', () => {
+describe('sheets.resolveSheetTab', () => {
   const tabs = (props: Array<{ sheetId: number | null; title: string }>) => ({
     data: { sheets: props.map((p) => ({ properties: p })) },
   })
@@ -210,27 +210,30 @@ describe('sheets.resolveSheetTabId', () => {
         { sheetId: 123, title: 'Invoices' },
       ]),
     )
-    await expect(resolveSheetTabId('SHEET-1')).resolves.toBe(123)
+    await expect(resolveSheetTab('SHEET-1')).resolves.toEqual({
+      sheetId: 123,
+      typedColumnIndexes: [],
+    })
     expect(getMock.mock.calls[0][0]).toEqual({
       spreadsheetId: 'SHEET-1',
-      fields: 'sheets.properties(sheetId,title)',
+      fields: 'sheets(properties(sheetId,title),tables.columnProperties(columnIndex,columnType))',
     })
     expect(getMock.mock.calls[0][1]).toMatchObject({ timeout: 30000 })
   })
 
   it('resolves a first-tab match whose sheetId is 0 (falsy) without throwing', async () => {
     getMock.mockResolvedValue(tabs([{ sheetId: 0, title: 'Invoices' }]))
-    await expect(resolveSheetTabId('S')).resolves.toBe(0)
+    await expect(resolveSheetTab('S')).resolves.toEqual({ sheetId: 0, typedColumnIndexes: [] })
   })
 
   it('title match is exact and case-sensitive', async () => {
     getMock.mockResolvedValue(tabs([{ sheetId: 5, title: 'invoices' }]))
-    await expect(resolveSheetTabId('S')).rejects.toMatchObject({ code: 'SHEET_TAB_NOT_FOUND' })
+    await expect(resolveSheetTab('S')).rejects.toMatchObject({ code: 'SHEET_TAB_NOT_FOUND' })
   })
 
   it('no matching title throws the DISTINCT code through the wrapper, naming the expected tab', async () => {
     getMock.mockResolvedValue(tabs([{ sheetId: 1, title: 'Other' }]))
-    const err = await resolveSheetTabId('S').catch((e) => e)
+    const err = await resolveSheetTab('S').catch((e) => e)
     // Not flattened to the generic SHEET_ERROR by sanitize — the match runs outside withRetry.
     expect(err).toMatchObject({ code: 'SHEET_TAB_NOT_FOUND', statusCode: 502 })
     expect(err.message).toContain('"Invoices"')
@@ -239,25 +242,52 @@ describe('sheets.resolveSheetTabId', () => {
 
   it('a null sheetId on the matching tab is treated as not found', async () => {
     getMock.mockResolvedValue(tabs([{ sheetId: null, title: 'Invoices' }]))
-    await expect(resolveSheetTabId('S')).rejects.toMatchObject({ code: 'SHEET_TAB_NOT_FOUND' })
+    await expect(resolveSheetTab('S')).rejects.toMatchObject({ code: 'SHEET_TAB_NOT_FOUND' })
+  })
+
+  it('collects Table-typed column indexes from the matched tab (columnIndex omitted = 0)', async () => {
+    getMock.mockResolvedValue({
+      data: {
+        sheets: [
+          {
+            properties: { sheetId: 0, title: 'Invoices' },
+            tables: [
+              {
+                columnProperties: [
+                  { columnType: 'DOUBLE' }, // column 0 — API omits columnIndex
+                  { columnIndex: 1, columnType: 'DATE' },
+                  { columnIndex: 2 }, // untyped — not collected
+                  { columnIndex: 5, columnType: 'DROPDOWN' },
+                  { columnIndex: 6, columnType: 'DROPDOWN' },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    })
+    await expect(resolveSheetTab('S')).resolves.toEqual({
+      sheetId: 0,
+      typedColumnIndexes: [0, 1, 5, 6],
+    })
   })
 
   it('retries the lookup on 429 then succeeds; a 400 is not retried', async () => {
     getMock
       .mockRejectedValueOnce({ code: 429 })
       .mockResolvedValueOnce(tabs([{ sheetId: 9, title: 'Invoices' }]))
-    await expect(resolveSheetTabId('S')).resolves.toBe(9)
+    await expect(resolveSheetTab('S')).resolves.toMatchObject({ sheetId: 9 })
     expect(getMock).toHaveBeenCalledTimes(2)
 
     getMock.mockReset().mockRejectedValue({ code: 400 })
-    await expect(resolveSheetTabId('S')).rejects.toMatchObject({ code: 'SHEET_ERROR' })
+    await expect(resolveSheetTab('S')).rejects.toMatchObject({ code: 'SHEET_ERROR' })
     expect(getMock).toHaveBeenCalledTimes(1)
   })
 })
 
 describe('sheets.applyColumnDropdowns', () => {
   it('sends one batchUpdate: a leading rows-2+ validation clear, then a ONE_OF_LIST rule per spec', async () => {
-    await applyColumnDropdowns('SHEET-1', 123, [
+    await applyColumnDropdowns('SHEET-1', { sheetId: 123, typedColumnIndexes: [] }, [
       { columnIndex: 6, values: ['PENDING', 'APPROVED', 'PAID'] },
       { columnIndex: 3, values: ['12 Main St'] },
     ])
@@ -301,7 +331,9 @@ describe('sheets.applyColumnDropdowns', () => {
   })
 
   it('a spec with an empty values list sets no rule — the leading clear still fires', async () => {
-    await applyColumnDropdowns('S', 0, [{ columnIndex: 3, values: [] }])
+    await applyColumnDropdowns('S', { sheetId: 0, typedColumnIndexes: [] }, [
+      { columnIndex: 3, values: [] },
+    ])
     const requests = batchUpdateMock.mock.calls[0][0].requestBody.requests
     expect(requests).toEqual([{ setDataValidation: { range: { sheetId: 0, startRowIndex: 1 } } }])
   })
@@ -311,14 +343,28 @@ describe('sheets.applyColumnDropdowns', () => {
       code: 403,
       message: 'denied for PRIVATE-SECRET-123',
     })
-    const err = await applyColumnDropdowns('S', 1, []).catch((e) => e)
+    const err = await applyColumnDropdowns('S', { sheetId: 1, typedColumnIndexes: [] }, []).catch(
+      (e) => e,
+    )
     expect(err).toMatchObject({ code: 'SHEET_PERMISSION_DENIED', statusCode: 502 })
     expect(JSON.stringify(err, Object.getOwnPropertyNames(err))).not.toContain('PRIVATE-SECRET-123')
   })
 
   it('retries a transient 503 on batchUpdate then resolves', async () => {
     batchUpdateMock.mockReset().mockRejectedValueOnce({ code: 503 }).mockResolvedValueOnce({})
-    await applyColumnDropdowns('S', 1, [{ columnIndex: 0, values: ['A'] }])
+    await applyColumnDropdowns('S', { sheetId: 1, typedColumnIndexes: [] }, [
+      { columnIndex: 0, values: ['A'] },
+    ])
     expect(batchUpdateMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('skips specs on Table-typed columns — Google rejects classic validation there', async () => {
+    await applyColumnDropdowns('S', { sheetId: 0, typedColumnIndexes: [5, 6] }, [
+      { columnIndex: 6, values: ['PENDING', 'APPROVED', 'PAID'] }, // typed → skipped
+      { columnIndex: 3, values: ['12 Main St'] }, // untyped → set
+    ])
+    const requests = batchUpdateMock.mock.calls[0][0].requestBody.requests
+    expect(requests).toHaveLength(2) // clear + property rule only
+    expect(requests[1].setDataValidation.range.startColumnIndex).toBe(3)
   })
 })

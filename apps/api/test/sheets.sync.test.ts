@@ -1,16 +1,16 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest'
 
 // Mock the Sheets seam — no live Google calls. overwriteRows is captured to prove
-// which users got a full mirror and with what rows; resolveSheetTabId and
+// which users got a full mirror and with what rows; resolveSheetTab and
 // applyColumnDropdowns cover the dropdown-validation step of every mirror.
-const { overwriteRows, resolveSheetTabId, applyColumnDropdowns } = vi.hoisted(() => ({
+const { overwriteRows, resolveSheetTab, applyColumnDropdowns } = vi.hoisted(() => ({
   overwriteRows: vi.fn(async () => {}),
-  resolveSheetTabId: vi.fn(async () => 123),
+  resolveSheetTab: vi.fn(async () => ({ sheetId: 123, typedColumnIndexes: [] })),
   applyColumnDropdowns: vi.fn(async () => {}),
 }))
 vi.mock('../src/integrations/sheets', () => ({
   overwriteRows,
-  resolveSheetTabId,
+  resolveSheetTab,
   applyColumnDropdowns,
   appendRows: vi.fn(),
   checkAccess: vi.fn(),
@@ -67,7 +67,7 @@ beforeAll(async () => {
 })
 beforeEach(() => {
   overwriteRows.mockReset().mockResolvedValue(undefined)
-  resolveSheetTabId.mockReset().mockResolvedValue(123)
+  resolveSheetTab.mockReset().mockResolvedValue({ sheetId: 123, typedColumnIndexes: [] })
   applyColumnDropdowns.mockReset().mockResolvedValue(undefined)
 })
 afterAll(async () => {
@@ -189,7 +189,7 @@ describe('continuous Sheets sync flush', () => {
       await runSheetsSyncFlush(app.prisma)
 
       const call = applyColumnDropdowns.mock.calls.find((c) => c[0] === l.target)!
-      expect(call[1]).toBe(123) // the resolved tab sheetId
+      expect(call[1]).toEqual({ sheetId: 123, typedColumnIndexes: [] }) // the resolved tab
       const specs = call[2] as Array<{ columnIndex: number; values: string[] }>
       expect(specs.find((s) => s.values.includes('PENDING'))?.values).toEqual([
         'PENDING',
@@ -226,7 +226,7 @@ describe('continuous Sheets sync flush', () => {
   it('a tab-lookup failure aborts BEFORE the destructive overwrite and leaves the user dirty', async () => {
     const l = await makeLandlord()
     await makeInvoice(l.id)
-    resolveSheetTabId.mockImplementation(async (target: string) => {
+    resolveSheetTab.mockImplementation(async (target: string) => {
       if (target === l.target) throw new Error('SHEET_TAB_NOT_FOUND')
       return 123
     })
