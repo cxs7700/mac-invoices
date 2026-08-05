@@ -14,7 +14,8 @@ const td = 'px-4 py-2.5'
  * checkbox and the whole row becomes a toggle hit target (the invoice-number
  * link keeps navigating). */
 export type InvoiceTableSelection = {
-  selectedIds: ReadonlySet<string>
+  // Structural: the page passes its selection Map directly (only .has is needed).
+  selectedIds: { has(id: string): boolean }
   disabled: boolean
   onToggle: (invoice: InvoiceListItem) => void
 }

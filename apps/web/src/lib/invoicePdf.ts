@@ -33,7 +33,7 @@ export type InvoicePdfPage = {
 
 /** Single source of truth for the per-page table layout — the future
  * sender/recipient sections extend this module, not call sites. */
-export const PDF_TABLE_COLUMNS = [
+const PDF_TABLE_COLUMNS = [
   { key: 'location', label: 'Location' },
   { key: 'description', label: 'Description' },
   { key: 'amount', label: 'Amount' },

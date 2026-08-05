@@ -253,11 +253,7 @@ export default function InvoiceList() {
               invoices={data.data}
               selection={
                 selectionMode
-                  ? {
-                      selectedIds: new Set(selected.keys()),
-                      disabled: generating,
-                      onToggle: toggleSelected,
-                    }
+                  ? { selectedIds: selected, disabled: generating, onToggle: toggleSelected }
                   : undefined
               }
             />
