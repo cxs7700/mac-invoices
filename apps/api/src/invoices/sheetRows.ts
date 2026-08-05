@@ -5,7 +5,7 @@
 import { InvoiceCategory, InvoiceStatus } from '@mac-invoices/shared'
 import { SheetFormula, type ColumnDropdownSpec, type SheetCell } from '../integrations/sheetCells'
 
-// The operator's ledger layout (DEC-025). `id` and `vendorName` are
+// The operator's ledger layout (DEC-026). `id` and `vendorName` are
 // internal-only and never exported; `invoiceLink` stays LAST. The mirror writes
 // these as a header row (row 1), then one data row per invoice; the operator
 // never maintains the header by hand (a full-mirror clear+rewrite would wipe
