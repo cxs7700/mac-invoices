@@ -86,6 +86,11 @@ describe('buildInvoicePdfModel', () => {
     expect(pages[1].table.location).toBe('—')
   })
 
+  it('falls back to — for an unparseable invoiceDate', () => {
+    const pages = buildInvoicePdfModel([inv({ invoiceDate: 'not-a-date' })], addresses)
+    expect(pages[0].date).toBe('—')
+  })
+
   it('formats amounts as en-US USD and falls back to — on invalid input', () => {
     const pages = buildInvoicePdfModel(
       [inv({ amount: '1234.5' }), inv({ id: 'inv-2', amount: 'not-a-number' })],

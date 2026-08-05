@@ -308,6 +308,14 @@ describe('InvoiceList — PDF selection mode', () => {
     expect(screen.getByText('INV-1').closest('a')?.getAttribute('href')).toBe('/invoices/a')
   })
 
+  it('clicking the invoice-number link itself does not toggle the selection', async () => {
+    renderList(vi.fn().mockResolvedValue(listResponse([row])))
+    await enterSelectionMode()
+    fireEvent.click(screen.getByText('INV-1'))
+    expect(screen.getByText('0 selected')).toBeDefined()
+    expect((screen.getByRole('checkbox') as HTMLInputElement).checked).toBe(false)
+  })
+
   it('gives checkboxes accessible names with an em-dash fallback for null numbers', async () => {
     renderList(
       vi.fn().mockResolvedValue(listResponse([row, { ...rowB, invoiceNumber: null }])),
@@ -453,6 +461,10 @@ describe('InvoiceList — PDF confirm flow', () => {
       expect(screen.getByRole('button', { name: /generating/i })).toHaveProperty('disabled', true),
     )
     expect(screen.getByRole('button', { name: 'Cancel' })).toHaveProperty('disabled', true)
+    const box = screen.getAllByRole('checkbox')[0] as HTMLInputElement
+    expect(box.disabled).toBe(true)
+    fireEvent.click(box)
+    expect(screen.getByText('1 selected')).toBeDefined()
     fireEvent.keyDown(window, { key: 'Escape' })
     // Esc must not exit the mode or clear the selection mid-generation.
     expect(screen.getAllByRole('checkbox').length).toBeGreaterThan(0)

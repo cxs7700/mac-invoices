@@ -82,6 +82,7 @@ export default function InvoiceList() {
     setSelected(new Map())
   }
   const toggleSelected = (inv: InvoiceListItem) => {
+    if (generating) return
     setSelected((prev) => {
       const next = new Map(prev)
       if (next.has(inv.id)) next.delete(inv.id)
@@ -104,7 +105,12 @@ export default function InvoiceList() {
   useEffect(() => {
     if (!selectionMode) return
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !generating) exitSelection()
+      if (e.key !== 'Escape' || generating || e.isComposing) return
+      // Esc inside a filter control (or an IME cancel) means "clear that
+      // input", not "throw away my cross-page selection".
+      const t = e.target
+      if (t instanceof HTMLElement && t.closest('input, select, textarea')) return
+      exitSelection()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -166,7 +172,7 @@ export default function InvoiceList() {
             <Button
               ref={generatePdfBtnRef}
               variant="outline"
-              disabled={exportM.isPending}
+              disabled={exportM.isPending || isPending || isError || !data?.data.length}
               onClick={enterSelection}
             >
               {t('invoiceList.generatePdf')}

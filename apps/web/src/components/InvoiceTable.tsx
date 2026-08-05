@@ -33,6 +33,9 @@ export function InvoiceTable({
     if (!selection || selection.disabled) return
     // Links and the checkbox itself keep their native behavior.
     if ((e.target as HTMLElement).closest('a, input, button')) return
+    // A click that concludes a text-selection drag is a copy, not a toggle.
+    const sel = window.getSelection()
+    if (sel && !sel.isCollapsed) return
     selection.onToggle(inv)
   }
 
