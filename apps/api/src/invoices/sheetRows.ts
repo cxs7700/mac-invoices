@@ -2,7 +2,7 @@
 // "Sync now" handler and the continuous-sync cron mirror so the two can never
 // drift. Pure (no DB / no Google client) and trivially unit-testable.
 
-import { InvoiceCategory, InvoiceStatus } from '@mac-invoices/shared'
+import { compareInvoiceOrder, InvoiceCategory, InvoiceStatus } from '@mac-invoices/shared'
 import { SheetFormula, type ColumnDropdownSpec, type SheetCell } from '../integrations/sheetCells'
 
 // The operator's ledger layout (DEC-026). `id` and `vendorName` are
@@ -84,24 +84,14 @@ export type InvoiceRowInput = {
 }
 
 /**
- * Sheet row order: ascending by invoice number, numeric-aware ("9" < "10";
- * DEC-023 keeps the column a string, so SQL string sort can't do this).
- * Un-numbered invoices (number is stamped on first APPROVED) sort last,
- * tiebroken by invoice date then id so their order is stable. Numbered ties
- * can't happen — the column is unique.
+ * Sheet row order — delegates to the shared natural-order rule so the Sheets
+ * mirror and the PDF export can never disagree on ordering.
  */
 export function compareForExport(
   a: Pick<InvoiceRowInput, 'id' | 'invoiceNumber' | 'invoiceDate'>,
   b: Pick<InvoiceRowInput, 'id' | 'invoiceNumber' | 'invoiceDate'>,
 ): number {
-  if (a.invoiceNumber != null && b.invoiceNumber != null) {
-    return collator.compare(a.invoiceNumber, b.invoiceNumber)
-  }
-  if (a.invoiceNumber != null) return -1
-  if (b.invoiceNumber != null) return 1
-  const byDate = a.invoiceDate.getTime() - b.invoiceDate.getTime()
-  if (byDate !== 0) return byDate
-  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0
+  return compareInvoiceOrder(a, b)
 }
 
 const columnIndex = (c: (typeof EXPORT_COLUMNS)[number]) => EXPORT_COLUMNS.indexOf(c)
