@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { SubmissionStatus, ImageType } from '@mac-invoices/shared'
 import { apiClient } from '@/lib/apiClient'
 
-// Public (no-session) hooks for the contractor link page. Authorization is the
+// Public (no-session) hooks for the vendor link page. Authorization is the
 // path token alone; apiClient still sends credentials but there is no cookie.
 
 const base = (token: string) => `/api/submissions/${encodeURIComponent(token)}`
@@ -30,7 +30,7 @@ export async function uploadSubmissionPhoto(
 }
 
 /**
- * The contractor's own submissions + statuses. This query doubles as the token
+ * The vendor's own submissions + statuses. This query doubles as the token
  * validity check: a 404 ApiError means the link is no longer active.
  */
 export function useSubmissionStatus(token: string) {

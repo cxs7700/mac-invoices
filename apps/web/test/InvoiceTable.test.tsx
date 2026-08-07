@@ -10,7 +10,7 @@ const base = {
   partsOrdered: null,
   imageCount: 1,
   vendorEmail: null,
-  contractor: null,
+  vendor: null,
 }
 
 const item = (description: string, sortOrder = 0) => ({

@@ -4,7 +4,7 @@
     "dashboard": "Dashboard",
     "invoices": "Invoices",
     "properties": "Properties",
-    "contractors": "Contractors",
+    "vendors": "Vendors",
     "settings": "Settings",
     "soon": "Soon"
   },
@@ -26,7 +26,14 @@
   "settings": {
     "title": "Settings",
     "language": { "title": "Language" },
-    "profile": { "title": "Profile", "firstName": "First name", "lastName": "Last name", "email": "Email", "saved": "Profile saved.", "save": "Save" },
+    "profile": {
+      "title": "Profile",
+      "firstName": "First name",
+      "lastName": "Last name",
+      "email": "Email",
+      "saved": "Profile saved.",
+      "save": "Save"
+    },
     "security": { "title": "Security" },
     "sheets": { "title": "Google Sheets connection" },
     "theme": { "title": "Theme", "light": "Light", "system": "System", "dark": "Dark" }
@@ -237,7 +244,7 @@
     "beforeApproving": "before approving.",
     "confirmApprove": "Confirm approve",
     "cancel": "Cancel",
-    "reasonLabel": "Reason (shown to the contractor)",
+    "reasonLabel": "Reason (shown to the vendor)",
     "reasonPlaceholder": "e.g. Amount doesn't match the receipt",
     "confirmReject": "Confirm reject",
     "approve": "Approve",
@@ -354,18 +361,19 @@
     "saving": "Saving…",
     "saveChanges": "Save changes"
   },
-  "contractors": {
-    "title": "Contractors",
-    "subtitle": "Add a contractor and share their link — they submit invoices from their phone, no login.",
+  "vendors": {
+    "title": "Vendors",
+    "subtitle": "Add a vendor and share their link — they submit invoices from their phone, no login.",
     "nameLabel": "Name",
-    "contactLabel": "Contact (phone or email)",
+    "phone": "Phone",
+    "email": "Email",
     "adding": "Adding…",
-    "addButton": "Add contractor",
-    "loadError": "Couldn't load contractors.",
+    "addButton": "Add vendor",
+    "loadError": "Couldn't load vendors.",
     "loading": "Loading…",
-    "empty": "No contractors yet. Add one to get started."
+    "empty": "No vendors yet. Add one to get started."
   },
-  "contractorCard": {
+  "vendorCard": {
     "linkActive": "Link active",
     "linkRevoked": "Link revoked",
     "copyNow": "Copy this link now — it won't be shown again.",
@@ -380,10 +388,10 @@
   "notifications": {
     "title": "Notifications",
     "unreadAria": "Notifications ({{count}} unread)",
-    "empty": "No contractor activity yet.",
-    "fallbackContractor": "A contractor"
+    "empty": "No vendor activity yet.",
+    "fallbackVendor": "A vendor"
   },
-  "contractorSubmit": {
+  "vendorSubmit": {
     "title": "Submit an invoice",
     "loading": "Loading…",
     "inactiveTitle": "This link is no longer active",

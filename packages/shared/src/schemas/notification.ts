@@ -5,7 +5,7 @@ import { z } from 'zod'
 export const NotificationItemSchema = z.object({
   id: z.string(),
   type: z.string(),
-  contractorName: z.string().nullable(),
+  vendorName: z.string().nullable(),
   invoiceId: z.string(),
   summary: z.string(),
   createdAt: z.coerce.date(),

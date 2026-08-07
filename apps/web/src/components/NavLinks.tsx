@@ -7,7 +7,7 @@ const NAV: NavItem[] = [
   { key: 'dashboard', to: '/dashboard', match: (p) => p === '/' || p.startsWith('/dashboard') },
   { key: 'invoices', to: '/invoices', match: (p) => p.startsWith('/invoices') },
   { key: 'properties', to: '/properties', match: (p) => p.startsWith('/properties') },
-  { key: 'contractors', to: '/contractors', match: (p) => p.startsWith('/contractors') },
+  { key: 'vendors', to: '/vendors', match: (p) => p.startsWith('/vendors') },
   { key: 'settings', to: '/settings', match: (p) => p.startsWith('/settings') },
 ]
 

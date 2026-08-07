@@ -22,7 +22,7 @@ function Shell({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-background px-4 py-8">
       <div className="mx-auto w-full max-w-md space-y-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-xl font-bold text-foreground">{t('contractorSubmit.title')}</h1>
+          <h1 className="text-xl font-bold text-foreground">{t('vendorSubmit.title')}</h1>
           {/* Public page: no session, so the toggle persists locally only. */}
           <LanguageSwitcher />
         </div>
@@ -32,7 +32,7 @@ function Shell({ children }: { children: React.ReactNode }) {
   )
 }
 
-export default function ContractorSubmit() {
+export default function VendorSubmit() {
   const { token } = useParams()
   const { t } = useTranslation()
   const status = useSubmissionStatus(token!)
@@ -48,7 +48,7 @@ export default function ContractorSubmit() {
   if (status.isPending) {
     return (
       <Shell>
-        <p className="text-muted-foreground">{t('contractorSubmit.loading')}</p>
+        <p className="text-muted-foreground">{t('vendorSubmit.loading')}</p>
       </Shell>
     )
   }
@@ -57,8 +57,8 @@ export default function ContractorSubmit() {
     return (
       <Shell>
         <div className="rounded-lg border border-border bg-card p-6 text-center">
-          <p className="font-medium text-foreground">{t('contractorSubmit.inactiveTitle')}</p>
-          <p className="mt-1 text-sm text-muted-foreground">{t('contractorSubmit.inactiveBody')}</p>
+          <p className="font-medium text-foreground">{t('vendorSubmit.inactiveTitle')}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{t('vendorSubmit.inactiveBody')}</p>
         </div>
       </Shell>
     )
@@ -72,10 +72,10 @@ export default function ContractorSubmit() {
   const submitError =
     submit.error instanceof ApiError
       ? submit.error.status === 429
-        ? t('contractorSubmit.rateLimited')
+        ? t('vendorSubmit.rateLimited')
         : submit.error.message
       : submit.error
-        ? t('contractorSubmit.genericError')
+        ? t('vendorSubmit.genericError')
         : null
 
   const resetForm = () => {
@@ -86,7 +86,9 @@ export default function ContractorSubmit() {
   }
 
   const addPhoto = (url: string) =>
-    setPhotos((prev) => (prev.length >= MAX_INVOICE_IMAGES ? prev : [...prev, { url, type: 'OTHER' }]))
+    setPhotos((prev) =>
+      prev.length >= MAX_INVOICE_IMAGES ? prev : [...prev, { url, type: 'OTHER' }],
+    )
   const removePhoto = (url: string) => setPhotos((prev) => prev.filter((p) => p.url !== url))
   const setPhotoType = (url: string, type: ImageTypeT) =>
     setPhotos((prev) => prev.map((p) => (p.url === url ? { ...p, type } : p)))
@@ -119,17 +121,17 @@ export default function ContractorSubmit() {
     <Shell>
       {justSubmitted ? (
         <div className="rounded-lg border border-status-paid bg-status-paid/30 p-5 text-center">
-          <p className="font-medium text-foreground">{t('contractorSubmit.submittedTitle')}</p>
-          <p className="mt-1 text-sm text-muted-foreground">{t('contractorSubmit.submittedBody')}</p>
+          <p className="font-medium text-foreground">{t('vendorSubmit.submittedTitle')}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{t('vendorSubmit.submittedBody')}</p>
           <Button className="mt-4" onClick={startNew}>
-            {t('contractorSubmit.submitAnother')}
+            {t('vendorSubmit.submitAnother')}
           </Button>
         </div>
       ) : (
         <form onSubmit={onSubmit} className="space-y-4 rounded-lg border border-border bg-card p-5">
           <div>
             <label htmlFor="amount" className="text-sm font-medium text-foreground">
-              {t('contractorSubmit.amount')}
+              {t('vendorSubmit.amount')}
             </label>
             <input
               id="amount"
@@ -144,7 +146,7 @@ export default function ContractorSubmit() {
           </div>
           <div>
             <label htmlFor="invoiceDate" className="text-sm font-medium text-foreground">
-              {t('contractorSubmit.date')}
+              {t('vendorSubmit.date')}
             </label>
             <input
               id="invoiceDate"
@@ -156,7 +158,7 @@ export default function ContractorSubmit() {
           </div>
           <div>
             <label htmlFor="description" className="text-sm font-medium text-foreground">
-              {t('contractorSubmit.description')}
+              {t('vendorSubmit.description')}
             </label>
             <textarea
               id="description"
@@ -167,7 +169,9 @@ export default function ContractorSubmit() {
             />
           </div>
           <div>
-            <span className="text-sm font-medium text-foreground">{t('contractorSubmit.photosLabel')}</span>
+            <span className="text-sm font-medium text-foreground">
+              {t('vendorSubmit.photosLabel')}
+            </span>
             {photos.length > 0 && (
               <ul className="mt-2 space-y-2">
                 {photos.map((p, i) => (
@@ -176,11 +180,11 @@ export default function ContractorSubmit() {
                     className="flex items-center justify-between gap-2 rounded-md border border-border bg-background px-3 py-2"
                   >
                     <span className="text-sm text-foreground">
-                      {t('contractorSubmit.photoN', { n: i + 1 })}
+                      {t('vendorSubmit.photoN', { n: i + 1 })}
                     </span>
                     <div className="flex items-center gap-2">
                       <select
-                        aria-label={t('contractorSubmit.photoTypeLabel', { n: i + 1 })}
+                        aria-label={t('vendorSubmit.photoTypeLabel', { n: i + 1 })}
                         value={p.type}
                         onChange={(e) => setPhotoType(p.url, e.target.value as ImageTypeT)}
                         className="rounded-md border border-input bg-background px-2 py-1 text-xs"
@@ -196,7 +200,7 @@ export default function ContractorSubmit() {
                         onClick={() => removePhoto(p.url)}
                         className="text-xs font-medium text-destructive underline"
                       >
-                        {t('contractorSubmit.removePhoto')}
+                        {t('vendorSubmit.removePhoto')}
                       </button>
                     </div>
                   </li>
@@ -212,13 +216,15 @@ export default function ContractorSubmit() {
             </div>
             {atCap ? (
               <p className="mt-1 text-xs text-muted-foreground">
-                {t('contractorSubmit.photosAtCap', { max: MAX_INVOICE_IMAGES })}
+                {t('vendorSubmit.photosAtCap', { max: MAX_INVOICE_IMAGES })}
               </p>
             ) : photos.length === 0 ? (
-              <p className="mt-1 text-xs text-muted-foreground">{t('contractorSubmit.photoRequired')}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {t('vendorSubmit.photoRequired')}
+              </p>
             ) : (
               <p className="mt-1 text-xs text-muted-foreground">
-                {t('contractorSubmit.photosCount', { count: photos.length, max: MAX_INVOICE_IMAGES })}
+                {t('vendorSubmit.photosCount', { count: photos.length, max: MAX_INVOICE_IMAGES })}
               </p>
             )}
           </div>
@@ -228,15 +234,17 @@ export default function ContractorSubmit() {
             </p>
           )}
           <Button type="submit" className="w-full" disabled={!canSubmit || submit.isPending}>
-            {submit.isPending ? t('contractorSubmit.submitting') : t('contractorSubmit.submit')}
+            {submit.isPending ? t('vendorSubmit.submitting') : t('vendorSubmit.submit')}
           </Button>
         </form>
       )}
 
       <div>
-        <h2 className="mb-2 text-sm font-semibold text-foreground">{t('contractorSubmit.yourSubmissions')}</h2>
+        <h2 className="mb-2 text-sm font-semibold text-foreground">
+          {t('vendorSubmit.yourSubmissions')}
+        </h2>
         {submissions.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{t('contractorSubmit.noSubmissions')}</p>
+          <p className="text-sm text-muted-foreground">{t('vendorSubmit.noSubmissions')}</p>
         ) : (
           <ul className="space-y-2">
             {submissions.map((s) => (
@@ -280,11 +288,15 @@ function SubmissionRow({
         <div className="mt-2 text-xs">
           {s.rejectionReason && (
             <p className="text-destructive">
-              {t('contractorSubmit.rejectedPrefix')} {s.rejectionReason}
+              {t('vendorSubmit.rejectedPrefix')} {s.rejectionReason}
             </p>
           )}
-          <button type="button" onClick={onResubmit} className="mt-1 font-medium text-primary underline">
-            {t('contractorSubmit.resubmit')}
+          <button
+            type="button"
+            onClick={onResubmit}
+            className="mt-1 font-medium text-primary underline"
+          >
+            {t('vendorSubmit.resubmit')}
           </button>
         </div>
       )}
@@ -296,7 +308,7 @@ function SubmissionRow({
           disabled={withdrawing}
           onClick={onWithdraw}
         >
-          {t('contractorSubmit.withdraw')}
+          {t('vendorSubmit.withdraw')}
         </Button>
       )}
     </li>

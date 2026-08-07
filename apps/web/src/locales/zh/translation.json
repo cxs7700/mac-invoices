@@ -4,7 +4,7 @@
     "dashboard": "仪表板",
     "invoices": "发票",
     "properties": "房产",
-    "contractors": "承包商",
+    "vendors": "供应商",
     "settings": "设置",
     "soon": "即将推出"
   },
@@ -26,7 +26,14 @@
   "settings": {
     "title": "设置",
     "language": { "title": "语言" },
-    "profile": { "title": "个人资料", "firstName": "名字", "lastName": "姓氏", "email": "邮箱", "saved": "资料已保存。", "save": "保存" },
+    "profile": {
+      "title": "个人资料",
+      "firstName": "名字",
+      "lastName": "姓氏",
+      "email": "邮箱",
+      "saved": "资料已保存。",
+      "save": "保存"
+    },
     "security": { "title": "安全" },
     "sheets": { "title": "Google 表格连接" },
     "theme": { "title": "主题", "light": "浅色", "system": "跟随系统", "dark": "深色" }
@@ -237,7 +244,7 @@
     "beforeApproving": "后再批准。",
     "confirmApprove": "确认批准",
     "cancel": "取消",
-    "reasonLabel": "原因（将展示给承包商）",
+    "reasonLabel": "原因（将展示给供应商）",
     "reasonPlaceholder": "例如：金额与收据不符",
     "confirmReject": "确认拒绝",
     "approve": "批准",
@@ -354,18 +361,19 @@
     "saving": "保存中…",
     "saveChanges": "保存更改"
   },
-  "contractors": {
-    "title": "承包商",
-    "subtitle": "添加承包商并分享其链接 — 他们可在手机上提交发票，无需登录。",
+  "vendors": {
+    "title": "供应商",
+    "subtitle": "添加供应商并分享其链接 — 他们可在手机上提交发票，无需登录。",
     "nameLabel": "名称",
-    "contactLabel": "联系方式（电话或邮箱）",
+    "phone": "电话",
+    "email": "邮箱",
     "adding": "添加中…",
-    "addButton": "添加承包商",
-    "loadError": "无法加载承包商。",
+    "addButton": "添加供应商",
+    "loadError": "无法加载供应商。",
     "loading": "加载中…",
-    "empty": "暂无承包商。添加一个开始使用。"
+    "empty": "暂无供应商。添加一个开始使用。"
   },
-  "contractorCard": {
+  "vendorCard": {
     "linkActive": "链接有效",
     "linkRevoked": "链接已撤销",
     "copyNow": "立即复制此链接 — 它不会再次显示。",
@@ -380,10 +388,10 @@
   "notifications": {
     "title": "通知",
     "unreadAria": "通知（{{count}} 条未读）",
-    "empty": "暂无承包商动态。",
-    "fallbackContractor": "某承包商"
+    "empty": "暂无供应商动态。",
+    "fallbackVendor": "某供应商"
   },
-  "contractorSubmit": {
+  "vendorSubmit": {
     "title": "提交发票",
     "loading": "加载中…",
     "inactiveTitle": "此链接已失效",

@@ -35,7 +35,7 @@ const recentInvoice = {
   invoiceDate: '2026-02-01',
   updatedAt: '2026-02-01',
   sheetsSyncedAt: null,
-  contractor: null,
+  vendor: null,
 }
 
 const renderDash = () =>

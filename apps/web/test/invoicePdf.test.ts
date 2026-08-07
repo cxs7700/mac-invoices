@@ -38,7 +38,9 @@ vi.mock('jspdf-autotable', () => ({
   }),
 }))
 
-const item = (over: Partial<{ description: string; quantity: number; total: string; sortOrder: number }> = {}) => ({
+const item = (
+  over: Partial<{ description: string; quantity: number; total: string; sortOrder: number }> = {},
+) => ({
   description: 'Fix sink',
   quantity: 1,
   total: '120.00',
@@ -56,7 +58,7 @@ const inv = (over: Partial<PdfInvoiceInput> = {}): PdfInvoiceInput => ({
   status: 'PENDING',
   invoiceDate: '2026-03-05T00:00:00.000Z',
   propertyId: 'prop-1',
-  contractor: null,
+  vendor: null,
   ...over,
 })
 
@@ -66,7 +68,15 @@ const landlord: PdfLandlord = { firstName: 'Jane', lastName: 'Doe', email: 'jane
 describe('buildInvoicePdfModel', () => {
   it('builds one page per invoice with address, items, status, balance', () => {
     const pages = buildInvoicePdfModel(
-      [inv(), inv({ id: 'inv-2', invoiceNumber: '2', items: [item({ description: 'Paint', total: '80.50' })], amount: '80.50' })],
+      [
+        inv(),
+        inv({
+          id: 'inv-2',
+          invoiceNumber: '2',
+          items: [item({ description: 'Paint', total: '80.50' })],
+          amount: '80.50',
+        }),
+      ],
       addresses,
       landlord,
     )
@@ -83,42 +93,65 @@ describe('buildInvoicePdfModel', () => {
   })
 
   it('every page carries the same Bill-To (the landlord), regardless of which invoice', () => {
-    const pages = buildInvoicePdfModel(
-      [inv({ id: 'a' }), inv({ id: 'b' })],
-      addresses,
-      landlord,
-    )
+    const pages = buildInvoicePdfModel([inv({ id: 'a' }), inv({ id: 'b' })], addresses, landlord)
     expect(pages[0].billTo).toEqual({ name: 'Jane Doe', email: 'jane@example.com' })
     expect(pages[1].billTo).toEqual({ name: 'Jane Doe', email: 'jane@example.com' })
   })
 
   it('Bill-To falls back to the email when the landlord has no name set', () => {
-    const pages = buildInvoicePdfModel([inv()], addresses, { firstName: null, lastName: null, email: 'x@example.com' })
+    const pages = buildInvoicePdfModel([inv()], addresses, {
+      firstName: null,
+      lastName: null,
+      email: 'x@example.com',
+    })
     expect(pages[0].billTo.name).toBe('x@example.com')
   })
 
-  it('Sender is the contractor when the invoice has one', () => {
+  it('Sender is the attribution vendor when the invoice has one', () => {
     const pages = buildInvoicePdfModel(
-      [inv({ contractor: { name: 'Joe the Plumber', contact: '555-1234' } })],
+      [inv({ vendor: { name: 'Joe the Plumber', phone: '555-1234', email: null } })],
       addresses,
       landlord,
     )
     expect(pages[0].sender).toEqual({ name: 'Joe the Plumber', contact: '555-1234' })
   })
 
-  it('Sender falls back to vendorName/vendorEmail when there is no contractor', () => {
-    const pages = buildInvoicePdfModel([inv({ contractor: null })], addresses, landlord)
+  it('Sender joins phone and email when the vendor has both', () => {
+    const pages = buildInvoicePdfModel(
+      [inv({ vendor: { name: 'Joe the Plumber', phone: '555-1234', email: 'joe@example.com' } })],
+      addresses,
+      landlord,
+    )
+    expect(pages[0].sender).toEqual({
+      name: 'Joe the Plumber',
+      contact: '555-1234 · joe@example.com',
+    })
+  })
+
+  it('Sender falls back to vendorName/vendorEmail when there is no attribution vendor', () => {
+    const pages = buildInvoicePdfModel([inv({ vendor: null })], addresses, landlord)
     expect(pages[0].sender).toEqual({ name: 'Acme Plumbing', contact: 'acme@example.com' })
   })
 
   it('Sender contact falls back to — when vendorEmail is null', () => {
-    const pages = buildInvoicePdfModel([inv({ contractor: null, vendorEmail: null })], addresses, landlord)
+    const pages = buildInvoicePdfModel(
+      [inv({ vendor: null, vendorEmail: null })],
+      addresses,
+      landlord,
+    )
     expect(pages[0].sender.contact).toBe('—')
   })
 
   it('renders items in sortOrder regardless of input order', () => {
     const pages = buildInvoicePdfModel(
-      [inv({ items: [item({ description: 'Second', sortOrder: 1 }), item({ description: 'First', sortOrder: 0 })] })],
+      [
+        inv({
+          items: [
+            item({ description: 'Second', sortOrder: 1 }),
+            item({ description: 'First', sortOrder: 0 }),
+          ],
+        }),
+      ],
       addresses,
       landlord,
     )
@@ -160,7 +193,10 @@ describe('buildInvoicePdfModel', () => {
 
   it('formats item totals as en-US USD and falls back to — on invalid input', () => {
     const pages = buildInvoicePdfModel(
-      [inv({ items: [item({ total: '1234.5' })] }), inv({ id: 'inv-2', items: [item({ total: 'not-a-number' })] })],
+      [
+        inv({ items: [item({ total: '1234.5' })] }),
+        inv({ id: 'inv-2', items: [item({ total: 'not-a-number' })] }),
+      ],
       addresses,
       landlord,
     )
