@@ -49,7 +49,8 @@
     "createAccount": "创建账户",
     "creatingAccount": "创建中…",
     "serverError": "无法连接服务器",
-    "signingIn": "登录中…"
+    "signingIn": "登录中…",
+    "signupDisabled": "当前未开放注册。"
   },
   "status": {
     "PENDING": "待处理",

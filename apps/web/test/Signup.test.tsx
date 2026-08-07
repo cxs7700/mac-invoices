@@ -69,6 +69,21 @@ describe('auth card toggle', () => {
     })
   })
 
+  it('normalizes a mixed-case email before submitting (resolver transform reaches mutate)', async () => {
+    renderLogin()
+    fireEvent.click(screen.getByRole('button', { name: 'Switch to sign up' }))
+
+    fireEvent.input(screen.getByLabelText('Invite code'), { target: { value: 'the-code' } })
+    fireEvent.input(screen.getByLabelText('Email'), { target: { value: 'Ada@Example.COM' } })
+    fireEvent.input(screen.getByLabelText('Password'), { target: { value: 'a-good-password' } })
+    fireEvent.input(screen.getByLabelText('First name'), { target: { value: 'Ada' } })
+    fireEvent.input(screen.getByLabelText('Last name'), { target: { value: 'Lovelace' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
+
+    await waitFor(() => expect(signupMutate).toHaveBeenCalled())
+    expect(signupMutate.mock.calls[0][0].email).toBe('ada@example.com')
+  })
+
   it('blocks submission and reports a too-short password', async () => {
     renderLogin()
     fireEvent.click(screen.getByRole('button', { name: 'Switch to sign up' }))

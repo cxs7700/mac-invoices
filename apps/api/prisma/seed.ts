@@ -10,7 +10,12 @@ import type { Prisma } from './generated/client.ts'
 const here = path.dirname(fileURLToPath(import.meta.url))
 
 const LANDLORD_ID = process.env.LANDLORD_USER_ID ?? 'landlord_seed_user'
-const LANDLORD_EMAIL = process.env.LANDLORD_EMAIL ?? 'landlord@example.com'
+// Normalized the same way login normalizes a submitted email (trim + lowercase,
+// see EmailSchema in packages/shared) — login does an exact-match `findUnique`,
+// so an uppercase LANDLORD_EMAIL would seed a row that can never log in.
+// Re-running the seed self-heals a misconfigured (uppercase) env var instead of
+// relying solely on the docs/DEPLOYMENT.md warning.
+const LANDLORD_EMAIL = (process.env.LANDLORD_EMAIL ?? 'landlord@example.com').trim().toLowerCase()
 const DEV_DEFAULT_PASSWORD = 'changeme-dev'
 
 // Map the legacy CSV status string onto the §5 InvoiceStatus enum; unknown → PENDING.

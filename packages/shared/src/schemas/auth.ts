@@ -25,8 +25,12 @@ export const SignupSchema = z.object({
   inviteCode: z.string().min(1),
   email: EmailSchema,
   password: z.string().min(8),
-  firstName: z.string().trim().min(1).max(100),
-  lastName: z.string().trim().min(1).max(100),
+  // 50, not 100: must match UpdateProfileSchema's firstName/lastName bound
+  // (packages/shared/src/schemas/settings.ts) — Settings always sends
+  // firstName on save, so a longer signup value would 400 on every future
+  // profile save, including one that only touches email.
+  firstName: z.string().trim().min(1).max(50),
+  lastName: z.string().trim().min(1).max(50),
 })
 
 export type SignupInput = z.infer<typeof SignupSchema>

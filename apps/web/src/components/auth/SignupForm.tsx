@@ -20,10 +20,15 @@ export function SignupForm() {
   } = useForm<SignupInput>({ resolver: zodResolver(SignupSchema) as Resolver<SignupInput> })
 
   // ApiError carries the server's message, so EMAIL_TAKEN ("An account with
-  // this email already exists") and INVALID_INVITE_CODE surface as-is.
+  // this email already exists") and INVALID_INVITE_CODE surface as-is. The
+  // one server string that IS translated client-side is SIGNUP_DISABLED — the
+  // API's "Signup is not enabled" is always English, so render the localized
+  // key instead of the raw server message.
   const serverError =
     signup.error instanceof ApiError
-      ? signup.error.message
+      ? signup.error.code === 'SIGNUP_DISABLED'
+        ? t('login.signupDisabled')
+        : signup.error.message
       : signup.error
         ? t('login.serverError')
         : null

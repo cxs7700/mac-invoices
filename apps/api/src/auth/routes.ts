@@ -9,8 +9,15 @@ import { createSession, invalidateSession, sessionIdFromToken } from './session'
 import { requireAuth, sessionCookieOptions, SESSION_COOKIE } from './requireAuth'
 
 async function authRoutes(app: FastifyInstance) {
-  // Scoped rate limiting; applied per-route via config.rateLimit below.
-  await app.register(rateLimit, { global: false })
+  // Scoped rate limiting; applied per-route via config.rateLimit below. Match
+  // settings/routes.ts and submissions/routes.ts: without an
+  // errorResponseBuilder, a 429 here returns the plugin's default body instead
+  // of the app's { error: { code, message } } envelope.
+  await app.register(rateLimit, {
+    global: false,
+    errorResponseBuilder: () =>
+      new AppError('TOO_MANY_REQUESTS', 'Too many attempts; try again later', 429),
+  })
 
   app.post(
     '/api/auth/login',

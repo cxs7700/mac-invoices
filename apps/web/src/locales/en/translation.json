@@ -49,7 +49,8 @@
     "createAccount": "Create account",
     "creatingAccount": "Creating account…",
     "serverError": "Could not reach the server",
-    "signingIn": "Signing in…"
+    "signingIn": "Signing in…",
+    "signupDisabled": "Signup is not currently open."
   },
   "status": {
     "PENDING": "Pending",
