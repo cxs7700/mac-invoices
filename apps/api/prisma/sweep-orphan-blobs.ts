@@ -8,7 +8,7 @@ import {
 } from '../src/integrations/storage'
 
 // SEC-005: reclaim orphaned upload-token blobs — uploads that were never attached
-// to an invoice (a landlord cancelled, a contractor abandoned a submission, or a
+// to an invoice (a landlord cancelled, a vendor abandoned a submission, or a
 // 6th upload hit the cap). They are never row-referenced and otherwise accumulate
 // forever. A blob is an orphan when no InvoiceImage row references its pathname.
 //

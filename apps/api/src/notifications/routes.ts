@@ -24,7 +24,7 @@ async function notificationRoutes(fastify: FastifyInstance) {
   // Public + secret-gated; deliberately NOT behind requireAuth.
   fastify.post('/api/cron/notify-digest', notifyDigest)
 
-  // In-app feed (authed): the landlord's own contractor-activity notifications.
+  // In-app feed (authed): the landlord's own vendor-activity notifications.
   const auth = { preHandler: requireAuth }
   fastify.get('/api/notifications', auth, listFeed)
   fastify.post('/api/notifications/seen', auth, markSeen)

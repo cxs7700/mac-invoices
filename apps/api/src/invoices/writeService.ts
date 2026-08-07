@@ -49,23 +49,23 @@ function itemRows(invoiceId: string, items: readonly InvoiceItemInput[]) {
 }
 
 // --- Status transition guard (KTD-3) ---------------------------------------
-// SUBMITTED is the contractor-submission entry state. The guard governs that
+// SUBMITTED is the vendor-submission entry state. The guard governs that
 // lifecycle specifically; legacy transitions among the pre-existing statuses
 // keep their prior freedom (e.g. reopening a PAID invoice clears paidDate), so
 // the landlord's existing flows are not regressed (R-8). Actor kind is derived
-// from the `contractor:` actorId namespace — no extra parameter threads through
+// from the `vendor:` actorId namespace — no extra parameter threads through
 // the shared updateInvoice signature.
 
-type ActorKind = 'landlord' | 'contractor'
+type ActorKind = 'landlord' | 'vendor'
 
 function actorKindOf(actorId: string): ActorKind {
-  return actorId.startsWith('contractor:') ? 'contractor' : 'landlord'
+  return actorId.startsWith('vendor:') ? 'vendor' : 'landlord'
 }
 
 /**
  * Throw 422 on an illegal status transition. Rules:
  * - Nothing may move *into* SUBMITTED (it is created only by a submission).
- * - From SUBMITTED a contractor may only withdraw (→ CANCELLED); a landlord may
+ * - From SUBMITTED a vendor may only withdraw (→ CANCELLED); a landlord may
  *   only approve (→ APPROVED, requires a category) or reject (→ REJECTED,
  *   requires a reason).
  * - Entering APPROVED from any state requires a category to be set.
@@ -91,7 +91,7 @@ export function assertTransitionAllowed(
     throw new AppError('INVALID_TRANSITION', `A ${from.toLowerCase()} invoice cannot change status`, 422)
   }
   if (from === 'SUBMITTED') {
-    if (actorKindOf(actorId) === 'contractor') {
+    if (actorKindOf(actorId) === 'vendor') {
       if (to === 'CANCELLED') return
       throw new AppError('INVALID_TRANSITION', `A submission cannot move from SUBMITTED to ${to}`, 422)
     }
@@ -172,7 +172,7 @@ async function nextInvoiceNumber(tx: Prisma.TransactionClient): Promise<string> 
   const rows = await tx.invoice.findMany({ select: { invoiceNumber: true } })
   let max = 0
   for (const { invoiceNumber } of rows) {
-    // invoiceNumber is nullable now (contractor submissions are unnumbered until
+    // invoiceNumber is nullable now (vendor submissions are unnumbered until
     // approved) — skip nulls when scanning for the max.
     if (!invoiceNumber) continue
     const n = Number.parseInt(invoiceNumber, 10)
@@ -192,13 +192,15 @@ function gateImageRef(url: string, ownerId: string): void {
   }
 }
 
-// A contractor has two namespaced strings, deliberately kept distinct (KTD-7/8):
-// the ledger actor id (`contractor:<id>`) and the blob-prefix owner (`c_<id>`).
-// Centralized here so the submit path, the contractor edit path, the public
+// A vendor has two namespaced strings, deliberately kept distinct (KTD-7/8):
+// the ledger actor id (`vendor:<id>`) and the blob-prefix owner (`c_<id>`).
+// Centralized here so the submit path, the vendor edit path, the public
 // upload-token route, and the events resolver all derive them one way and never
 // conflate them with each other or with the landlord owner id.
-export const contractorActorId = (contractorId: string) => `contractor:${contractorId}`
-export const contractorBlobOwner = (contractorId: string) => `c_${contractorId}`
+export const vendorActorId = (vendorId: string) => `vendor:${vendorId}`
+// The blob path prefix stays `c_` deliberately: it is embedded in the storage
+// keys of every image already uploaded. Renaming it would orphan them.
+export const vendorBlobOwner = (vendorId: string) => `c_${vendorId}`
 
 /** Within a transaction: write the single InvoiceImage row + an IMAGE_ATTACHED event. */
 async function writeImageAttachment(
@@ -280,25 +282,25 @@ export async function createInvoice(
 }
 
 /**
- * Create a contractor submission: an invoice OWNED by the landlord but submitted
- * by (and attributed in the ledger to) the contractor. The three identities are
+ * Create a vendor submission: an invoice OWNED by the landlord but submitted
+ * by (and attributed in the ledger to) the vendor. The three identities are
  * distinct (KTD-7/8): `ownerUserId` is the landlord (`user.connect` + the event's
- * ownerUserId), the event `actorId` is `contractor:<id>`, and the image gate uses
- * the contractor's blob prefix `c_<id>` (the uploader). The row lands SUBMITTED,
+ * ownerUserId), the event `actorId` is `vendor:<id>`, and the image gate uses
+ * the vendor's blob prefix `c_<id>` (the uploader). The row lands SUBMITTED,
  * uncategorized, and unnumbered (a number is assigned on approval — KTD-11). At
  * least one photo is required (the proof) up to the cap; EACH is gated to the
- * contractor's own uploads — a single foreign URL rejects the whole submission.
+ * vendor's own uploads — a single foreign URL rejects the whole submission.
  */
 export async function createSubmission(
   prisma: PrismaClient,
-  args: { ownerUserId: string; contractorId: string; vendorName: string },
+  args: { ownerUserId: string; vendorId: string; vendorName: string },
   input: { amount: number; description: string; invoiceDate: Date; images: InvoiceImageInput[] },
 ) {
-  const actorId = contractorActorId(args.contractorId)
-  const blobOwner = contractorBlobOwner(args.contractorId)
+  const actorId = vendorActorId(args.vendorId)
+  const blobOwner = vendorBlobOwner(args.vendorId)
   for (const image of input.images) gateImageRef(image.url, blobOwner)
   return prisma.$transaction(async (tx) => {
-    // R6: the public contractor form stays single amount+description — stored
+    // R6: the public vendor form stays single amount+description — stored
     // as one InvoiceItem (quantity 1, total = amount), matching the shape
     // every pre-items invoice was backfilled into.
     const invoice = await tx.invoice.create({
@@ -310,7 +312,7 @@ export async function createSubmission(
         invoiceDate: input.invoiceDate,
         status: 'SUBMITTED',
         user: { connect: { id: args.ownerUserId } },
-        submittedByContractor: { connect: { id: args.contractorId } },
+        submittedByVendor: { connect: { id: args.vendorId } },
         items: {
           createMany: {
             data: [{ description: input.description, quantity: 1, total: input.amount, sortOrder: 0 }],
@@ -330,26 +332,26 @@ export async function createSubmission(
 }
 
 /**
- * Contractor edit/withdraw of their OWN still-SUBMITTED submission. This is a
+ * Vendor edit/withdraw of their OWN still-SUBMITTED submission. This is a
  * distinct path from updateInvoice — NOT a parameterization of it — because
- * updateInvoice scopes ownership by `userId` (the landlord), which a contractor
- * never is. Scoping is by `submittedByContractorId`, and the write is a
+ * updateInvoice scopes ownership by `userId` (the landlord), which a vendor
+ * never is. Scoping is by `submittedByVendorId`, and the write is a
  * compare-and-set: the `updateMany` re-asserts `status: 'SUBMITTED'`, so if the
  * landlord approved/rejected in the meantime the update matches zero rows and we
  * return a uniform 409 (landlord action wins the race). The same 409 covers
- * "not yours" and "doesn't exist", so a contractor can't probe other rows.
+ * "not yours" and "doesn't exist", so a vendor can't probe other rows.
  */
-export async function contractorUpdateSubmission(
+export async function vendorUpdateSubmission(
   prisma: PrismaClient,
-  args: { contractorId: string; invoiceId: string },
+  args: { vendorId: string; invoiceId: string },
   input: { amount?: number; description?: string; invoiceDate?: Date; withdraw?: boolean },
 ) {
-  const actorId = contractorActorId(args.contractorId)
+  const actorId = vendorActorId(args.vendorId)
   const locked = () => new AppError('CONFLICT', 'This submission can no longer be changed', 409)
   return prisma.$transaction(async (tx) => {
     const scope = {
       id: args.invoiceId,
-      submittedByContractorId: args.contractorId,
+      submittedByVendorId: args.vendorId,
       status: 'SUBMITTED' as const,
     }
     const before = await tx.invoice.findFirst({ where: scope })
@@ -478,7 +480,7 @@ export async function updateInvoice(
       // Keep rejectionReason consistent with the status: set it on entering
       // REJECTED, clear any stale reason on every other transition.
       data.rejectionReason = next === 'REJECTED' ? (input.rejectionReason ?? null) : null
-      // KTD-11: a contractor submission carries no number until it is approved —
+      // KTD-11: a vendor submission carries no number until it is approved —
       // so withdrawn/rejected submissions never leave gaps in the ledger. Assign
       // the next sequential number on the first transition into APPROVED.
       if (next === 'APPROVED' && before.invoiceNumber === null) {
@@ -511,7 +513,7 @@ export async function updateInvoice(
 
     // Ownership already verified via the scoped pre-read. When the status is
     // transitioning, re-assert the from-status in the write (compare-and-set) so
-    // a concurrent transition (e.g. a contractor withdrawing the same instant
+    // a concurrent transition (e.g. a vendor withdrawing the same instant
     // the landlord approves) can't be silently overwritten — the loser 409s and
     // exactly one terminal state results. Field-only edits update by id directly.
     if (data.status !== undefined) {

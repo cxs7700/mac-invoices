@@ -37,7 +37,7 @@ async function invoiceRoutes(fastify: FastifyInstance) {
   fastify.post('/api/invoices/image-upload-token', auth, handlers.createImageUploadToken)
   fastify.get<{ Params: GetInvoiceParams }>('/api/invoices/:id', auth, handlers.getInvoice)
   fastify.get<{ Params: GetInvoiceParams }>('/api/invoices/:id/events', auth, handlers.listInvoiceEvents)
-  // Image gallery collection (landlord-only, own-invoice scoped — a contractor 404s).
+  // Image gallery collection (landlord-only, own-invoice scoped — a vendor 404s).
   fastify.get<{ Params: GetInvoiceParams }>('/api/invoices/:id/images', auth, handlers.listInvoiceImages)
   fastify.post<{ Params: GetInvoiceParams }>('/api/invoices/:id/images', auth, handlers.addInvoiceImage)
   fastify.delete<{ Params: ImageParams }>('/api/invoices/:id/images/:imageId', auth, handlers.removeInvoiceImage)

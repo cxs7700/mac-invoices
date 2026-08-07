@@ -1,14 +1,16 @@
 import type { FastifyRequest, FastifyReply } from 'fastify'
 import type { PrismaClient } from '../../prisma/generated/client.ts'
 
-// The landlord's in-app notification feed. Reads contractor-authored events from
+// The landlord's in-app notification feed. Reads vendor-authored events from
 // the InvoiceEvent ledger (the same source the email digest uses) scoped to the
 // landlord (ownerUserId), newest first. Unlike the email digest, the feed ALSO
 // surfaces edits (FIELD_EDITED) and withdrawals — activity the SUBMITTED queue
 // alone doesn't show. Unread = an event newer than the landlord's
 // `notificationsSeenAt` marker.
 
-const CONTRACTOR = 'contractor:'
+// Must stay in lockstep with vendorActorId() in invoices/writeService.ts and with
+// the stored value — the rename migration rewrote historical rows to this prefix.
+const VENDOR = 'vendor:'
 const FEED_LIMIT = 50
 
 type FeedRow = {
@@ -20,12 +22,12 @@ type FeedRow = {
   createdAt: Date
 }
 
-/** Where-clause for this landlord's contractor-authored events. */
+/** Where-clause for this landlord's vendor-authored events. */
 function feedWhere(ownerUserId: string) {
-  return { ownerUserId, actorId: { startsWith: CONTRACTOR } }
+  return { ownerUserId, actorId: { startsWith: VENDOR } }
 }
 
-/** Human-readable one-liner for a contractor event (no contractor name embedded). */
+/** Human-readable one-liner for a vendor event (no vendor name embedded). */
 function summarize(e: FeedRow): string {
   if (e.type === 'CREATED') return 'submitted an invoice'
   if (e.type === 'FIELD_EDITED') return 'edited a submission'
@@ -54,20 +56,20 @@ export async function listFeed(request: FastifyRequest, reply: FastifyReply) {
     take: FEED_LIMIT,
   })) as FeedRow[]
 
-  // Resolve contractor names, scoped to this landlord (no cross-owner name leak).
-  const contractorIds = [...new Set(rows.map((e) => e.actorId.slice(CONTRACTOR.length)))]
-  const contractors = contractorIds.length
-    ? await prisma.contractor.findMany({
-        where: { id: { in: contractorIds }, landlordId: ownerUserId },
+  // Resolve vendor names, scoped to this landlord (no cross-owner name leak).
+  const vendorIds = [...new Set(rows.map((e) => e.actorId.slice(VENDOR.length)))]
+  const vendors = vendorIds.length
+    ? await prisma.vendor.findMany({
+        where: { id: { in: vendorIds }, landlordId: ownerUserId },
         select: { id: true, name: true },
       })
     : []
-  const nameById = new Map(contractors.map((c) => [c.id, c.name]))
+  const nameById = new Map(vendors.map((v) => [v.id, v.name]))
 
   const data = rows.map((e) => ({
     id: e.id,
     type: e.type,
-    contractorName: nameById.get(e.actorId.slice(CONTRACTOR.length)) ?? null,
+    vendorName: nameById.get(e.actorId.slice(VENDOR.length)) ?? null,
     invoiceId: e.invoiceId,
     summary: summarize(e),
     createdAt: e.createdAt,

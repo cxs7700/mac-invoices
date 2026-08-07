@@ -7,7 +7,7 @@ type Params = { id: string }
 /**
  * Property management routes (landlord-only). Every route requires auth and is
  * scoped to the session user (the landlord) in the handler — the same
- * ownership-scoped, no-existence-leak pattern as contractors/invoices.
+ * ownership-scoped, no-existence-leak pattern as vendors/invoices.
  */
 async function propertyRoutes(fastify: FastifyInstance) {
   const auth = { preHandler: requireAuth }

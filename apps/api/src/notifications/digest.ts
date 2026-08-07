@@ -1,7 +1,7 @@
 import type { PrismaClient } from '../../prisma/generated/client.ts'
 import { sendEmail } from '../integrations/email'
 
-// The landlord digest flush. Reads un-notified, email-eligible contractor events
+// The landlord digest flush. Reads un-notified, email-eligible vendor events
 // from the InvoiceEvent ledger (no new write-path instrumentation), groups by
 // landlord, and for each landlord SENDS the digest THEN stamps the events
 // `notifiedAt` — a death between the two re-sends next run (at-least-once; a
@@ -9,11 +9,13 @@ import { sendEmail } from '../integrations/email'
 // boundary: one provider failure leaves that landlord's events un-notified and
 // does not crash the job or block other landlords.
 
-const CONTRACTOR = 'contractor:'
+// Must stay in lockstep with vendorActorId() in invoices/writeService.ts and with
+// the stored value — the rename migration rewrote historical rows to this prefix.
+const VENDOR = 'vendor:'
 
-/** Escape a value before interpolating it into the digest email HTML. Contractor
+/** Escape a value before interpolating it into the digest email HTML. Vendor
  * names are landlord-authored today, but escaping keeps the email a safe sink if
- * a contractor-controlled naming flow is ever added (defense in depth). */
+ * a vendor-controlled naming flow is ever added (defense in depth). */
 function escapeHtml(s: string): string {
   return s.replace(
     /[&<>"']/g,
@@ -29,7 +31,7 @@ type Eligible = {
   detail: unknown
 }
 
-/** A contractor-authored event is email-eligible if it's a submission (CREATED)
+/** A vendor-authored event is email-eligible if it's a submission (CREATED)
  * or a withdrawal (STATUS_CHANGED → CANCELLED). Edits (FIELD_EDITED) are not. */
 function isWithdrawal(e: Eligible): boolean {
   return e.type === 'STATUS_CHANGED' && (e.detail as { to?: string } | null)?.to === 'CANCELLED'
@@ -41,7 +43,7 @@ export async function runDigestFlush(prisma: PrismaClient): Promise<FlushSummary
   const events = (await prisma.invoiceEvent.findMany({
     where: {
       notifiedAt: null,
-      actorId: { startsWith: CONTRACTOR },
+      actorId: { startsWith: VENDOR },
       type: { in: ['CREATED', 'STATUS_CHANGED'] },
     },
     select: { id: true, ownerUserId: true, actorId: true, type: true, detail: true },
@@ -88,16 +90,16 @@ export async function runDigestFlush(prisma: PrismaClient): Promise<FlushSummary
   return { landlords: byLandlord.size, events: eligible.length, sent, failed }
 }
 
-/** Build a landlord's digest (contractor names resolved, scoped to that landlord). */
+/** Build a landlord's digest (vendor names resolved, scoped to that landlord). */
 async function buildDigest(prisma: PrismaClient, landlordId: string, group: Eligible[]) {
-  const contractorIds = [...new Set(group.map((e) => e.actorId.slice(CONTRACTOR.length)))]
-  const contractors = await prisma.contractor.findMany({
-    where: { id: { in: contractorIds }, landlordId }, // landlord-scoped: no cross-owner name leak
+  const vendorIds = [...new Set(group.map((e) => e.actorId.slice(VENDOR.length)))]
+  const vendors = await prisma.vendor.findMany({
+    where: { id: { in: vendorIds }, landlordId }, // landlord-scoped: no cross-owner name leak
     select: { id: true, name: true },
   })
-  const nameById = new Map(contractors.map((c) => [c.id, c.name]))
+  const nameById = new Map(vendors.map((v) => [v.id, v.name]))
   const nameOf = (e: Eligible) =>
-    escapeHtml(nameById.get(e.actorId.slice(CONTRACTOR.length)) ?? 'A contractor')
+    escapeHtml(nameById.get(e.actorId.slice(VENDOR.length)) ?? 'A vendor')
 
   const submissions = group.filter((e) => e.type === 'CREATED')
   const withdrawals = group.filter(isWithdrawal)
@@ -114,7 +116,7 @@ async function buildDigest(prisma: PrismaClient, landlordId: string, group: Elig
     ...withdrawals.map((e) => `<li>${nameOf(e)} withdrew a submission</li>`),
   ].join('')
   const html =
-    `<p>Contractor activity awaiting your review:</p><ul>${lines}</ul>` +
+    `<p>Vendor activity awaiting your review:</p><ul>${lines}</ul>` +
     `<p><a href="${reviewUrl}">Review submissions</a></p>`
 
   return { subject, html }
