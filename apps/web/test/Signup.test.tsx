@@ -33,7 +33,7 @@ describe('auth card toggle', () => {
 
   it('swaps to the signup form when the Sign up tab is clicked', () => {
     renderLogin()
-    fireEvent.click(screen.getByRole('button', { name: 'Sign up' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Switch to sign up' }))
 
     expect(screen.getByLabelText('Invite code')).toBeTruthy()
     expect(screen.getByLabelText('First name')).toBeTruthy()
@@ -43,14 +43,14 @@ describe('auth card toggle', () => {
 
   it('swaps back to login', () => {
     renderLogin()
-    fireEvent.click(screen.getByRole('button', { name: 'Sign up' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Log in' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Switch to sign up' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Switch to log in' }))
     expect(screen.queryByLabelText('Invite code')).toBeNull()
   })
 
   it('submits the full signup payload', async () => {
     renderLogin()
-    fireEvent.click(screen.getByRole('button', { name: 'Sign up' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Switch to sign up' }))
 
     fireEvent.input(screen.getByLabelText('Invite code'), { target: { value: 'the-code' } })
     fireEvent.input(screen.getByLabelText('Email'), { target: { value: 'ada@example.com' } })
@@ -71,7 +71,7 @@ describe('auth card toggle', () => {
 
   it('blocks submission and reports a too-short password', async () => {
     renderLogin()
-    fireEvent.click(screen.getByRole('button', { name: 'Sign up' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Switch to sign up' }))
 
     fireEvent.input(screen.getByLabelText('Invite code'), { target: { value: 'the-code' } })
     fireEvent.input(screen.getByLabelText('Email'), { target: { value: 'ada@example.com' } })

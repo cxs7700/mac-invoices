@@ -29,6 +29,7 @@ export default function Login() {
           <button
             type="button"
             className={tabClass(mode === 'login')}
+            aria-label={t('login.switchToLogIn')}
             aria-pressed={mode === 'login'}
             onClick={() => setMode('login')}
           >
@@ -37,6 +38,7 @@ export default function Login() {
           <button
             type="button"
             className={tabClass(mode === 'signup')}
+            aria-label={t('login.switchToSignUp')}
             aria-pressed={mode === 'signup'}
             onClick={() => setMode('signup')}
           >

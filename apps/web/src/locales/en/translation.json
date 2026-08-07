@@ -36,6 +36,8 @@
     "signUpWelcome": "Create your account to get started.",
     "logIn": "Log in",
     "signUp": "Sign up",
+    "switchToLogIn": "Switch to log in",
+    "switchToSignUp": "Switch to sign up",
     "google": "Continue with Google",
     "googleAria": "Continue with Google (coming soon)",
     "or": "or",
