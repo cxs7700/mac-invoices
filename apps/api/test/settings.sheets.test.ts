@@ -37,6 +37,20 @@ const save = (spreadsheetId: string) =>
 const test = () => app.inject({ method: 'POST', url: '/api/settings/sheets/test', headers: { cookie: cookie() } })
 
 describe('Sheets settings', () => {
+  it('C2: GET status returns null targetSpreadsheetId for a non-landlord user with no saved sheet, even when GOOGLE_SHEET_ID is set (no cross-tenant leak)', async () => {
+    process.env.GOOGLE_SHEET_ID = 'SHEET-ENV-DEFAULT'
+    try {
+      // `u` is a fresh non-landlord tenant (createSecondUser) — assert its
+      // precondition (no saved sheet) before relying on the env-fallback gate.
+      const before = await app.prisma.user.findUniqueOrThrow({ where: { id: u.user.id } })
+      expect(before.sheetSpreadsheetId).toBeNull()
+      const body = (await get()).json()
+      expect(body.targetSpreadsheetId).toBeNull()
+    } finally {
+      delete process.env.GOOGLE_SHEET_ID
+    }
+  })
+
   it('GET status: configured + service-account email, never the key (AE5)', async () => {
     const res = await get()
     expect(res.statusCode).toBe(200)

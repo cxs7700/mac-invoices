@@ -6,6 +6,7 @@ import { hashPassword, verifyPassword } from '../auth/password'
 import { sessionIdFromToken } from '../auth/session'
 import { SESSION_COOKIE } from '../auth/requireAuth'
 import { serviceAccountEmail, checkAccess } from '../integrations/sheets'
+import { resolveEffectiveSpreadsheetId } from '../lib/sheetTarget'
 
 // Landlord self-serve settings, all scoped to the session user. Responses never
 // include the password hash or any secret (DEC-019 / R10).
@@ -105,13 +106,14 @@ export async function changePassword(request: FastifyRequest, reply: FastifyRepl
   return reply.code(204).send()
 }
 
-/** The landlord's effective Sheets target: their saved id, else the env default. */
+/** The session user's effective Sheets target: their saved id, else the env
+ * default (seeded landlord only — see resolveEffectiveSpreadsheetId). */
 async function effectiveTarget(request: FastifyRequest): Promise<string | null> {
   const user = await request.server.prisma.user.findUniqueOrThrow({
     where: { id: request.user.id },
     select: { sheetSpreadsheetId: true },
   })
-  return user.sheetSpreadsheetId ?? process.env.GOOGLE_SHEET_ID ?? null
+  return resolveEffectiveSpreadsheetId(request.user.id, user.sheetSpreadsheetId)
 }
 
 /**

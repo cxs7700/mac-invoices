@@ -17,6 +17,7 @@ import { parseBody } from '../lib/validate'
 import { money } from '../lib/money'
 import { issueUploadToken, signedReadUrl } from '../integrations/storage'
 import { assertCronSecret } from '../lib/cronAuth'
+import { resolveEffectiveSpreadsheetId } from '../lib/sheetTarget'
 import * as writeService from './writeService'
 import { mirrorUserSheet, runSheetsSyncFlush } from './sheetSync'
 import type { GetInvoiceParams, ImageParams, ListInvoicesQuery } from './types.ts'
@@ -410,7 +411,7 @@ export async function exportInvoices(request: FastifyRequest, reply: FastifyRepl
       select: { sheetSpreadsheetId: true },
     })
   )?.sheetSpreadsheetId
-  const spreadsheetId = saved ?? process.env.GOOGLE_SHEET_ID
+  const spreadsheetId = resolveEffectiveSpreadsheetId(request.user.id, saved ?? null)
   if (!spreadsheetId) {
     throw new AppError(
       'SHEET_NOT_CONNECTED',

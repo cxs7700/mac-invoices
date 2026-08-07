@@ -59,6 +59,15 @@ beforeAll(async () => {
   landlord = await loginCookie(app)
   user = await createSecondUser(app)
   process.env.GOOGLE_SHEET_ID = 'SHEET-TEST'
+  // C2: the env fallback is gated to the seeded LANDLORD_USER_ID only — `user`
+  // is a non-landlord tenant, so give it a SAVED target instead of relying on
+  // GOOGLE_SHEET_ID. This keeps every content/filtering/scoping test below
+  // (which only cares that mirroring happens, not which resolution path found
+  // the target) unaffected by that gate.
+  await app.prisma.user.update({
+    where: { id: user.user.id },
+    data: { sheetSpreadsheetId: 'SHEET-TEST' },
+  })
 })
 afterAll(async () => {
   await app.prisma.invoice.deleteMany({ where: { invoiceNumber: { startsWith: NONCE } } })
@@ -132,19 +141,56 @@ describe('POST /api/invoices/export — "Sync now" full mirror', () => {
     expect(numbers).not.toContain(`${NONCE}landlords`)
   })
 
-  it('400s SHEET_NOT_CONNECTED when no target resolves (body id is not an override)', async () => {
-    delete process.env.GOOGLE_SHEET_ID
-    await create('x', user.cookie)
+  it('400s SHEET_NOT_CONNECTED when no target resolves for a non-landlord user, even with GOOGLE_SHEET_ID unset', async () => {
+    // A fresh non-landlord user with no saved sheet — `user` (above) now
+    // always has a saved target, so this needs its own fixture.
+    const noSheet = await createSecondUser(app)
+    try {
+      delete process.env.GOOGLE_SHEET_ID
+      await create('x', noSheet.cookie)
 
-    const bad = await exportAs(user.cookie)
-    expect(bad.statusCode).toBe(400)
-    expect(bad.json().error.code).toBe('SHEET_NOT_CONNECTED')
+      const bad = await exportAs(noSheet.cookie)
+      expect(bad.statusCode).toBe(400)
+      expect(bad.json().error.code).toBe('SHEET_NOT_CONNECTED')
 
-    // The body spreadsheetId is accepted by the schema but no longer overrides the
-    // owner-scoped target — still 400 with no env/saved target.
-    const stillBad = await exportAs(user.cookie, { spreadsheetId: 'BODY-SHEET' })
-    expect(stillBad.statusCode).toBe(400)
-    expect(overwriteRows).not.toHaveBeenCalled()
+      // The body spreadsheetId is accepted by the schema but no longer overrides the
+      // owner-scoped target — still 400 with no env/saved target.
+      const stillBad = await exportAs(noSheet.cookie, { spreadsheetId: 'BODY-SHEET' })
+      expect(stillBad.statusCode).toBe(400)
+      expect(overwriteRows).not.toHaveBeenCalled()
+    } finally {
+      await noSheet.cleanup()
+    }
+  })
+
+  it('C2: a non-landlord user with no saved sheet gets SHEET_NOT_CONNECTED even when GOOGLE_SHEET_ID IS set — no cross-tenant fallback', async () => {
+    // Regression test for the C2 finding: before the fix, ANY user with no
+    // saved sheetSpreadsheetId inherited the shared env default, so a new
+    // tenant's first Export would clear-and-rewrite the incumbent landlord's
+    // spreadsheet. The env fallback must now be gated to LANDLORD_USER_ID.
+    process.env.GOOGLE_SHEET_ID = 'SHEET-TEST'
+    const noSheet = await createSecondUser(app)
+    try {
+      await create('gated', noSheet.cookie)
+      const res = await exportAs(noSheet.cookie)
+      expect(res.statusCode).toBe(400)
+      expect(res.json().error.code).toBe('SHEET_NOT_CONNECTED')
+      expect(overwriteRows).not.toHaveBeenCalled()
+    } finally {
+      await noSheet.cleanup()
+    }
+  })
+
+  it('C2: the seeded landlord still gets the GOOGLE_SHEET_ID env default when they have no saved sheet', async () => {
+    process.env.GOOGLE_SHEET_ID = 'SHEET-TEST'
+    const before = await app.prisma.user.findUniqueOrThrow({
+      where: { id: process.env.LANDLORD_USER_ID ?? 'landlord_seed_user' },
+      select: { sheetSpreadsheetId: true },
+    })
+    expect(before.sheetSpreadsheetId).toBeNull() // precondition: no saved sheet
+    const res = await exportAs(landlord)
+    expect(res.statusCode).toBe(200)
+    expect(overwriteRows.mock.calls.at(-1)![0]).toBe('SHEET-TEST')
   })
 
   it('propagates a sanitized Sheets failure (no partial-count bookkeeping)', async () => {
@@ -204,6 +250,13 @@ describe('POST /api/invoices/export — rate limit', () => {
     rlCookie = u.cookie
     rlCleanup = u.cleanup
     process.env.GOOGLE_SHEET_ID = 'SHEET-RL'
+    // C2: rlUser is not the seeded landlord, so it no longer inherits the env
+    // default — give it a saved target so this suite (about the rate limit,
+    // not target resolution) still exercises a successful export.
+    await rlApp.prisma.user.update({
+      where: { id: u.user.id },
+      data: { sheetSpreadsheetId: 'SHEET-RL' },
+    })
   })
   afterAll(async () => {
     await rlCleanup()
