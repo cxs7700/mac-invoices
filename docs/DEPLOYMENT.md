@@ -64,6 +64,24 @@ DATABASE_URL="<prisma-postgres-url>" npm run db:deploy
 > SELECT COUNT(*) FROM "invoices" WHERE "attachmentUrl" IS NOT NULL;  -- must be 0
 > ```
 
+> **`20260807120000_per_tenant_invoice_numbering` follows the normal order: migrate FIRST, then deploy.**
+> It only swaps a unique index (global `invoiceNumber` → composite `(userId, invoiceNumber)`) and rewrites
+> no rows. Between migrating and deploying, the still-running old code's global number scan yields a value
+> that satisfies the new constraint, and same-tenant duplicates still conflict — so the window is safe.
+> Contrast `drop_invoice_description`, which is destructive and inverts this rule.
+>
+> **Before applying, confirm the index name against the hosted DB** — the migration drops it by name
+> (`DROP INDEX "invoices_invoiceNumber_key"`), and nobody has verified the hosted database uses that
+> exact name (only the local dev DB has been checked). It almost certainly matches — the name traces to
+> the original `20260621053731_phase2_v5_data_model` migration and Prisma applies migrations
+> deterministically — but confirm before touching production:
+> ```sql
+> SELECT indexname FROM pg_indexes WHERE tablename = 'invoices';
+> ```
+> Look for `invoices_invoiceNumber_key` in the result. If it's missing or named differently, **stop and
+> investigate before running `db:deploy`** — though a mismatch would fail the migration atomically inside
+> its transaction, not corrupt anything.
+
 ## 4. Seed the landlord (one-off, strong password)
 
 The seed upserts the landlord login and **fails closed** if `LANDLORD_PASSWORD` is unset, and
