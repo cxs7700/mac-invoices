@@ -9,7 +9,7 @@ import type {
 import { MAX_INVOICE_IMAGES } from '@mac-invoices/shared'
 import { AppError } from '../middleware/errorHandler'
 import { isOwnedBy, deleteBlob } from '../integrations/storage'
-import { freshLinkData } from '../vendors/handlers'
+import { freshLinkData, isUniqueViolation } from '../vendors/handlers'
 
 // --- Item totals (KTD: amount is a server-computed sum, Decimal-safe) ------
 // Sum in integer cents, not floats — each item's `total` is already
@@ -271,11 +271,36 @@ export async function resolveVendorId(
   })
   if (existing) return existing.id
 
+  // TOCTOU: two concurrent creates (e.g. a double-click) can both miss the
+  // lookup above and both attempt to insert. The DB's case-insensitive
+  // per-landlord unique index (migration 20260807200000) is the real guard —
+  // the loser's insert throws P2002, which is not an error here but the
+  // signal that a concurrent write won: re-read and return ITS row instead
+  // of creating a duplicate. A P2002 with no matching row on re-read is
+  // unexpected (not this race) — rethrow rather than looping.
+  //
+  // A failed statement aborts the rest of a Postgres transaction (any further
+  // command 25P02s) until a ROLLBACK — including ROLLBACK TO SAVEPOINT — runs,
+  // so the create is wrapped in a SAVEPOINT: on P2002 we roll back to it (not
+  // the whole `tx`, which the caller still owns and needs to keep using) and
+  // only then issue the re-read on the now-usable transaction.
   const { columns } = freshLinkData()
-  const created = await tx.vendor.create({
-    data: { landlordId, name, phone: null, email: null, revokedAt: new Date(), ...columns },
-  })
-  return created.id
+  const savepoint = 'resolve_vendor_id_create'
+  await tx.$executeRawUnsafe(`SAVEPOINT ${savepoint}`)
+  try {
+    const created = await tx.vendor.create({
+      data: { landlordId, name, phone: null, email: null, revokedAt: new Date(), ...columns },
+    })
+    return created.id
+  } catch (err) {
+    if (!isUniqueViolation(err)) throw err
+    await tx.$executeRawUnsafe(`ROLLBACK TO SAVEPOINT ${savepoint}`)
+    const winner = await tx.vendor.findFirst({
+      where: { landlordId, name: { equals: name, mode: 'insensitive' } },
+    })
+    if (!winner) throw err
+    return winner.id
+  }
 }
 
 /**

@@ -14,7 +14,10 @@ const storage = vi.hoisted(() => {
     ownerOf: (url: string) => /^owners\/([^/]+)\//.exec(path(url))?.[1] ?? null,
     isOwnedBy: (url: string, owner: string) => path(url).startsWith(`owners/${owner}/`),
     deleteBlob: vi.fn(async () => {}),
-    issueUploadToken: vi.fn(async (ownerId: string) => ({ token: 'client-token', pathname: `owners/${ownerId}/p` })),
+    issueUploadToken: vi.fn(async (ownerId: string) => ({
+      token: 'client-token',
+      pathname: `owners/${ownerId}/p`,
+    })),
     signedReadUrl: vi.fn(() => 'https://signed/url'),
   }
 })
@@ -28,8 +31,11 @@ let landlord: Awaited<ReturnType<typeof createSecondUser>>
 
 const tokenOf = (link: string) => link.split('/submit/')[1]
 
-/** Create a vendor (as the landlord) and return { id, token, blobOwner }. */
-async function makeVendor(name = 'Joe') {
+/** Create a vendor (as the landlord) and return { id, token, blobOwner }. Name
+ * defaults to a fresh unique value per call: vendor names are now unique per
+ * landlord (case-insensitively — migration 20260807200000), and this file
+ * creates several vendors under the one shared landlord. */
+async function makeVendor(name = `Joe-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`) {
   const res = await app.inject({
     method: 'POST',
     url: '/api/vendors',
@@ -109,7 +115,10 @@ describe('POST /api/submissions/:token', () => {
     const rows = await app.prisma.invoiceImage.findMany({ where: { invoiceId: ok.json().id } })
     expect(rows).toHaveLength(5)
 
-    const six = [...five, { url: `https://blob.example/owners/${c.blobOwner}/p5.jpg`, type: 'OTHER' }]
+    const six = [
+      ...five,
+      { url: `https://blob.example/owners/${c.blobOwner}/p5.jpg`, type: 'OTHER' },
+    ]
     expect((await submit(c.token, submitBody({ images: six }, c.blobOwner))).statusCode).toBe(400)
   })
 
@@ -126,13 +135,21 @@ describe('POST /api/submissions/:token', () => {
 
   it('rejects a future or too-old invoiceDate', async () => {
     const c = await makeVendor()
-    expect((await submit(c.token, submitBody({ invoiceDate: '2099-01-01' }, c.blobOwner))).statusCode).toBe(400)
-    expect((await submit(c.token, submitBody({ invoiceDate: '2000-01-01' }, c.blobOwner))).statusCode).toBe(400)
+    expect(
+      (await submit(c.token, submitBody({ invoiceDate: '2099-01-01' }, c.blobOwner))).statusCode,
+    ).toBe(400)
+    expect(
+      (await submit(c.token, submitBody({ invoiceDate: '2000-01-01' }, c.blobOwner))).statusCode,
+    ).toBe(400)
   })
 
   it('a revoked or unknown token returns a uniform 404 and creates nothing', async () => {
     const c = await makeVendor()
-    await app.inject({ method: 'POST', url: `/api/vendors/${c.id}/revoke`, headers: { cookie: landlord.cookie } })
+    await app.inject({
+      method: 'POST',
+      url: `/api/vendors/${c.id}/revoke`,
+      headers: { cookie: landlord.cookie },
+    })
     const revoked = await submit(c.token, submitBody({}, c.blobOwner))
     const unknown = await submit('inv_deadbeef_nope', submitBody())
     expect(revoked.statusCode).toBe(404)

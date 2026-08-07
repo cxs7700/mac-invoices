@@ -45,7 +45,10 @@ export function freshLinkData() {
 
 type Params = { id: string }
 
-const isUniqueViolation = (err: unknown): boolean =>
+/** True for a Prisma unique-constraint violation (P2002) — shared with
+ * writeService.resolveVendorId, which uses it to detect a concurrent
+ * auto-create race on the (landlordId, lower(name)) index. */
+export const isUniqueViolation = (err: unknown): boolean =>
   typeof err === 'object' && err !== null && (err as { code?: unknown }).code === 'P2002'
 
 /** Find a vendor scoped to the landlord, or 404 (no existence leak). */

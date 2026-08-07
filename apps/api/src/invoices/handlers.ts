@@ -225,6 +225,10 @@ export async function getInvoice(
     include: {
       user: userSelect,
       items: { orderBy: { sortOrder: 'asc' } },
+      // Attribution vendor (Invoice.vendorId) — additive, so the detail
+      // response agrees with listInvoices. `submitterName` below keeps its
+      // existing, distinct meaning (the no-login-link submitter).
+      vendor: { select: { name: true, phone: true, email: true } },
       submittedByVendor: { select: { name: true } },
       _count: { select: { images: true } },
     },
@@ -237,6 +241,7 @@ export async function getInvoice(
   // Surface the submitter's name on the detail (R11 — "by whom"); strip the
   // joined relation object in favour of a flat field. imageCount drives the
   // add-photo indicator + gallery presence without embedding the image rows here.
+  // `vendor` (attribution) passes through as-is via `...rest`.
   const { submittedByVendor, _count, ...rest } = invoice
   return reply.send({
     ...rest,

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { buildApp } from '../src/app'
 import { loginCookie, createSecondUser } from './helpers/auth'
+import { resolveVendorId } from '../src/invoices/writeService'
 
 // U6 invoice↔vendor linking: attribution (Invoice.vendorId), auto-create on an
 // unknown vendorName, case-insensitive reuse scoped per landlord, and the
@@ -14,6 +15,8 @@ let otherLandlordId: string
 
 const post = (payload: object, cookie: string) =>
   app.inject({ method: 'POST', url: '/api/invoices', payload, headers: { cookie } })
+const patch = (id: string, payload: object, cookie: string) =>
+  app.inject({ method: 'PATCH', url: `/api/invoices/${id}`, payload, headers: { cookie } })
 
 const invoiceIds: string[] = []
 const vendorNames = [
@@ -24,6 +27,9 @@ const vendorNames = [
   'Whatever',
   'Vendor Link Test',
   'Self Submit Vendor',
+  'Race Vendor',
+  'Patch Relink Old',
+  'Patch Relink New',
 ]
 
 async function cleanup() {
@@ -208,5 +214,91 @@ describe('vendor vs submittedByVendor response keys (list)', () => {
     expect(row.vendor.name).toBe('Self Submit Vendor')
     expect(row.submittedByVendor).not.toBeNull()
     expect(row.submittedByVendor.name).toBe('Self Submit Vendor')
+  })
+})
+
+// Fix round 1/5, Finding 1: the auto-create find-then-create in resolveVendorId
+// is now backed by a case-insensitive per-landlord unique index (migration
+// 20260807200000_vendor_unique_name_per_landlord), so a concurrent race can no
+// longer create two vendor rows. This test forces the real race: two genuinely
+// concurrent `resolveVendorId` calls, each in its own `prisma.$transaction`,
+// naming the SAME new vendor for the SAME landlord. At READ COMMITTED, both
+// transactions' initial lookups can see no matching row and both attempt the
+// INSERT; Postgres serializes the two INSERTs on the unique index, so the
+// second to commit gets a real P2002 from the database — not a mocked one —
+// and resolveVendorId's catch-and-reread branch must recover it to the
+// winner's row rather than erroring or leaving a duplicate.
+describe('concurrent auto-create race (TOCTOU, Fix round 1/5 Finding 1)', () => {
+  it('two concurrent auto-creates of the same new vendor name resolve to one row', async () => {
+    const prisma = app.prisma
+    const [idA, idB] = await Promise.all([
+      prisma.$transaction((tx) => resolveVendorId(tx, landlordId, undefined, 'Race Vendor')),
+      prisma.$transaction((tx) => resolveVendorId(tx, landlordId, undefined, 'Race Vendor')),
+    ])
+
+    const rows = await prisma.vendor.findMany({
+      where: { landlordId, name: { equals: 'Race Vendor', mode: 'insensitive' } },
+    })
+    expect(rows).toHaveLength(1)
+    expect(idA).toBe(rows[0].id)
+    expect(idB).toBe(rows[0].id)
+  })
+})
+
+// Fix round 1/5, Finding 2: the updateInvoice re-link guard (writeService
+// ~536-544) had no direct coverage. Positive case: a PATCH that changes
+// vendorName re-links to the right (possibly auto-created) vendor. Negative
+// case: a PATCH that touches something unrelated (a status transition) must
+// leave vendorId exactly as it was — the regression this guards against is a
+// status-only PATCH silently re-linking or spuriously auto-creating a vendor.
+describe('PATCH re-link guard (Fix round 1/5 Finding 2)', () => {
+  it('a PATCH that changes vendorName re-links the invoice, auto-creating a new vendor', async () => {
+    const created = await post(
+      {
+        vendorName: 'Patch Relink Old',
+        category: 'REPAIRS',
+        invoiceDate: '2026-02-01',
+        items: [{ description: 'work', quantity: 1, total: 50 }],
+      },
+      landlordCookie,
+    )
+    invoiceIds.push(created.json().id)
+    const oldVendorId = created.json().vendorId
+
+    const res = await patch(created.json().id, { vendorName: 'Patch Relink New' }, landlordCookie)
+    expect(res.statusCode).toBe(200)
+
+    const newVendor = await app.prisma.vendor.findFirst({
+      where: { landlordId, name: 'Patch Relink New' },
+    })
+    expect(newVendor).not.toBeNull()
+    expect(res.json().vendorId).toBe(newVendor?.id)
+    expect(res.json().vendorId).not.toBe(oldVendorId)
+  })
+
+  it('a PATCH that only changes status leaves vendorId exactly as it was', async () => {
+    const created = await post(
+      {
+        vendorName: 'Patch Relink Old',
+        category: 'REPAIRS',
+        invoiceDate: '2026-02-01',
+        items: [{ description: 'work', quantity: 1, total: 50 }],
+      },
+      landlordCookie,
+    )
+    invoiceIds.push(created.json().id)
+    const originalVendorId = created.json().vendorId
+    expect(originalVendorId).not.toBeNull()
+
+    const res = await patch(created.json().id, { status: 'PAID' }, landlordCookie)
+    expect(res.statusCode).toBe(200)
+    expect(res.json().status).toBe('PAID')
+    expect(res.json().vendorId).toBe(originalVendorId)
+
+    // No spurious vendor was auto-created by the status-only PATCH.
+    const vendorRows = await app.prisma.vendor.findMany({
+      where: { landlordId, name: { equals: 'Patch Relink Old', mode: 'insensitive' } },
+    })
+    expect(vendorRows).toHaveLength(1)
   })
 })

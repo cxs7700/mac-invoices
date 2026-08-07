@@ -9,12 +9,15 @@ import { generateLinkToken, parseLinkToken, validateLinkToken } from '../src/ven
 const app = buildApp()
 let landlordId: string
 
+// Name varies per call: vendor names are now unique per landlord
+// (case-insensitively — migration 20260807200000), and this file creates
+// several vendors under the one shared `landlordId`.
 async function makeVendor() {
   const link = generateLinkToken()
   const v = await app.prisma.vendor.create({
     data: {
       landlordId,
-      name: 'Joe',
+      name: `Joe-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       phone: 'x',
       tokenLookupId: link.lookupId,
       tokenHash: link.tokenHash,

@@ -1,8 +1,10 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 
 const storage = vi.hoisted(() => ({
-  ownerOf: (url: string) => /^owners\/([^/]+)\//.exec(url.replace(/^https?:\/\/[^/]+\//, ''))?.[1] ?? null,
-  isOwnedBy: (url: string, owner: string) => url.replace(/^https?:\/\/[^/]+\//, '').startsWith(`owners/${owner}/`),
+  ownerOf: (url: string) =>
+    /^owners\/([^/]+)\//.exec(url.replace(/^https?:\/\/[^/]+\//, ''))?.[1] ?? null,
+  isOwnedBy: (url: string, owner: string) =>
+    url.replace(/^https?:\/\/[^/]+\//, '').startsWith(`owners/${owner}/`),
   deleteBlob: vi.fn(async () => {}),
   issueUploadToken: vi.fn(async (o: string) => ({ token: 't', pathname: `owners/${o}/p` })),
   signedReadUrl: vi.fn(() => 'https://signed/url'),
@@ -17,7 +19,10 @@ let landlord: Awaited<ReturnType<typeof createSecondUser>>
 let propId: string // required-on-approval: the landlord assigns this when approving
 const tokenOf = (link: string) => link.split('/submit/')[1]
 
-async function makeVendor(name = 'Joe') {
+// Name defaults to a fresh unique value per call: vendor names are now
+// unique per landlord (case-insensitively — migration 20260807200000), and
+// this file creates several vendors under the one shared landlord.
+async function makeVendor(name = `Joe-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`) {
   const r = await app.inject({
     method: 'POST',
     url: '/api/vendors',
@@ -53,7 +58,11 @@ const approve = (id: string) =>
 beforeAll(async () => {
   await app.ready()
   landlord = await createSecondUser(app)
-  propId = (await app.prisma.property.create({ data: { landlordId: landlord.user.id, name: 'P', address: 'A' } })).id
+  propId = (
+    await app.prisma.property.create({
+      data: { landlordId: landlord.user.id, name: 'P', address: 'A' },
+    })
+  ).id
 })
 afterAll(async () => {
   await app.prisma.invoice.deleteMany({ where: { userId: landlord.user.id } })
@@ -75,7 +84,9 @@ describe('vendor edit (U7)', () => {
     expect(Number(row.amount)).toBe(250)
 
     // FIELD_EDITED is attributed to the vendor.
-    const ev = await app.prisma.invoiceEvent.findFirstOrThrow({ where: { invoiceId: id, type: 'FIELD_EDITED' } })
+    const ev = await app.prisma.invoiceEvent.findFirstOrThrow({
+      where: { invoiceId: id, type: 'FIELD_EDITED' },
+    })
     expect(ev.actorId).toBe(`vendor:${c.id}`)
 
     // After approval the submission is locked: the same edit is a 409.
@@ -105,7 +116,11 @@ describe('vendor edit (U7)', () => {
       where: { invoiceId: id, type: 'FIELD_EDITED' },
     })
     expect(ev.actorId).toBe(`vendor:${c.id}`)
-    expect(ev.detail).toEqual({ field: 'description', old: 'work', new: 'Replaced the whole panel' })
+    expect(ev.detail).toEqual({
+      field: 'description',
+      old: 'work',
+      new: 'Replaced the whole panel',
+    })
 
     // A no-op re-submit of the same description records nothing new.
     const before = await app.prisma.invoiceEvent.count({ where: { invoiceId: id } })
@@ -127,7 +142,8 @@ describe('vendor edit (U7)', () => {
       payload: { status: 'REJECTED', rejectionReason: 'Wrong amount' },
       headers: { cookie: landlord.cookie },
     })
-    const list = (await app.inject({ method: 'GET', url: `/api/submissions/${c.token}` })).json().data
+    const list = (await app.inject({ method: 'GET', url: `/api/submissions/${c.token}` })).json()
+      .data
     expect(list).toHaveLength(2)
     const rejected = list.find((r: { id: string }) => r.id === rejectMe)
     expect(rejected.status).toBe('REJECTED')
@@ -142,8 +158,16 @@ describe('vendor edit (U7)', () => {
     const c = await makeVendor()
     const id = await submit(c.id, c.token)
     const [a, b] = await Promise.all([
-      app.inject({ method: 'PATCH', url: `/api/submissions/${c.token}/${id}`, payload: { amount: 200 } }),
-      app.inject({ method: 'PATCH', url: `/api/submissions/${c.token}/${id}`, payload: { amount: 300 } }),
+      app.inject({
+        method: 'PATCH',
+        url: `/api/submissions/${c.token}/${id}`,
+        payload: { amount: 200 },
+      }),
+      app.inject({
+        method: 'PATCH',
+        url: `/api/submissions/${c.token}/${id}`,
+        payload: { amount: 300 },
+      }),
     ])
     expect(a.statusCode).toBe(200)
     expect(b.statusCode).toBe(200)

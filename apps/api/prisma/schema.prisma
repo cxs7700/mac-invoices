@@ -55,6 +55,16 @@ model User {
 // `phone` and `email` are both nullable: the invoice-form auto-create path
 // writes a name-only vendor. The "at least one contact" rule is enforced in
 // Zod (CreateVendorSchema) for landlord-entered vendors only.
+//
+// A raw expression index — `UNIQUE ("landlordId", lower("name"))`, migration
+// 20260807200000_vendor_unique_name_per_landlord — enforces case-insensitive
+// per-landlord name uniqueness at the DB level, backing writeService's
+// find-then-create auto-vendor path against a double-click/concurrent race.
+// It is deliberately NOT modeled here as `@@unique([landlordId, name])`:
+// Prisma's schema DSL can't express a `lower()` expression index, and a
+// case-SENSITIVE `@@unique` would be a different constraint that puts this
+// schema out of sync with the DB (which `migrate dev` would then try to
+// "fix" by dropping the real index).
 model Vendor {
   id            String    @id @default(cuid())
   landlordId    String
