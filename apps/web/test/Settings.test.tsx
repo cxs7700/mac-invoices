@@ -91,4 +91,15 @@ describe('Settings page', () => {
     render(<Settings />)
     expect(screen.getByText(/share it as Editor/)).toBeDefined()
   })
+
+  it('does not let the browser prefill the current-password field', () => {
+    render(<Settings />)
+    // "current-password" here would be exactly the value that causes the
+    // prefill — with it, the re-auth gating a password change is satisfied by
+    // the browser rather than by the person at the keyboard.
+    expect(screen.getByLabelText('Current password').getAttribute('autocomplete')).toBe(
+      'new-password',
+    )
+    expect(screen.getByLabelText('New password').getAttribute('autocomplete')).toBe('new-password')
+  })
 })

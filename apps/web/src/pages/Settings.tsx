@@ -81,11 +81,19 @@ function SecuritySection() {
       <div className="space-y-3">
         <div>
           <label htmlFor="current" className="text-sm font-medium text-foreground">Current password</label>
-          <input id="current" type="password" value={current} onChange={(e) => setCurrent(e.target.value)} className={inputClass} />
+          {/*
+            autoComplete="new-password" on a field labelled "Current password"
+            reads oddly on purpose. "current-password" is precisely the value
+            that makes browsers prefill it, and a prefilled current-password box
+            means the re-authentication gating a password change is satisfied by
+            the browser rather than by the person at the keyboard. Do not
+            "correct" this to current-password.
+          */}
+          <input id="current" type="password" autoComplete="new-password" value={current} onChange={(e) => setCurrent(e.target.value)} className={inputClass} />
         </div>
         <div>
           <label htmlFor="next" className="text-sm font-medium text-foreground">New password</label>
-          <input id="next" type="password" value={next} onChange={(e) => setNext(e.target.value)} className={inputClass} />
+          <input id="next" type="password" autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)} className={inputClass} />
           <p className="mt-1 text-xs text-muted-foreground">At least 8 characters.</p>
         </div>
         {change.isSuccess && (

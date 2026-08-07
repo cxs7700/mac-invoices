@@ -140,4 +140,31 @@ describe('auth card toggle', () => {
     // The confirmation is a client-side concern; the server contract never sees it.
     expect(signupMutate.mock.calls[0][0]).not.toHaveProperty('confirmPassword')
   })
+
+  it('tells the browser not to offer saved credentials on the signup password fields', () => {
+    renderLogin()
+    fireEvent.click(screen.getByRole('button', { name: 'Switch to sign up' }))
+
+    // autocomplete="off" is ignored by browsers on password inputs; the value
+    // that actually suppresses saved-credential fill is "new-password".
+    expect(screen.getByLabelText('Password').getAttribute('autocomplete')).toBe('new-password')
+    expect(screen.getByLabelText('Confirm password').getAttribute('autocomplete')).toBe(
+      'new-password',
+    )
+  })
+
+  it('still allows ordinary address-book autofill for the signup email', () => {
+    renderLogin()
+    fireEvent.click(screen.getByRole('button', { name: 'Switch to sign up' }))
+    // An email is a contact detail, not a credential — suppressing it would
+    // remove a real convenience for no security gain.
+    expect(screen.getByLabelText('Email').getAttribute('autocomplete')).toBe('email')
+  })
+
+  it('leaves the login form free to offer saved credentials', () => {
+    renderLogin()
+    // Login is deliberately untouched: offering the saved credential there is
+    // correct. Assert we did not "helpfully" suppress it.
+    expect(screen.getByLabelText('Password').getAttribute('autocomplete')).not.toBe('new-password')
+  })
 })

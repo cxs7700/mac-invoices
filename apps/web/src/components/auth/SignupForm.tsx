@@ -93,7 +93,13 @@ export function SignupForm() {
         <label htmlFor="signup-email" className="block text-sm font-medium mb-1">
           {t('login.email')}
         </label>
-        <input id="signup-email" type="email" className={fieldClass} {...register('email')} />
+        <input
+          id="signup-email"
+          type="email"
+          autoComplete="email"
+          className={fieldClass}
+          {...register('email')}
+        />
         {errors.email && (
           <p className="mt-1 text-sm text-destructive" role="alert">
             {errors.email.message}
@@ -108,6 +114,10 @@ export function SignupForm() {
         <input
           id="signup-password"
           type="password"
+          // "new-password", not "off": browsers deliberately ignore `off` on
+          // password inputs. This is what stops a saved credential being
+          // offered while the user is creating a different account.
+          autoComplete="new-password"
           className={fieldClass}
           {...register('password')}
         />
@@ -125,6 +135,7 @@ export function SignupForm() {
         <input
           id="signup-confirm-password"
           type="password"
+          autoComplete="new-password"
           className={fieldClass}
           {...register('confirmPassword')}
         />
