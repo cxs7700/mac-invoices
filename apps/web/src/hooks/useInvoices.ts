@@ -1,13 +1,18 @@
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { apiClient } from '@/lib/apiClient'
 
+export type InvoiceItem = { id: string; description: string; quantity: number; total: string; sortOrder: number }
+
 export type InvoiceListItem = {
   id: string
   // Nullable: a contractor submission is unnumbered/uncategorized until the
   // landlord approves/categorizes it on review.
   invoiceNumber: string | null
   vendorName: string
-  description: string
+  vendorEmail: string | null
+  // Itemized line list, ordered by sortOrder — replaces the old single
+  // `description` field. `amount` is the server-computed sum of item totals.
+  items: InvoiceItem[]
   amount: string
   category: string | null
   status: string
@@ -21,6 +26,9 @@ export type InvoiceListItem = {
   // Number of attached photos (from the API _count) — drives the add-photo
   // indicator without fetching the image rows.
   imageCount: number
+  // The submitting contractor's info (PDF Sender section); null for a
+  // landlord-entered invoice (the PDF falls back to vendorName/vendorEmail).
+  contractor: { name: string; contact: string } | null
 }
 
 export type InvoiceListResponse = {

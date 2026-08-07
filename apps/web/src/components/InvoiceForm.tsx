@@ -1,4 +1,4 @@
-import { useForm, type Resolver } from 'react-hook-form'
+import { useForm, useFieldArray, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Link } from 'react-router'
@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { CreateInvoiceSchema, InvoiceCategory, propertyLabel, type CreateInvoiceInput } from '@mac-invoices/shared'
 import { Button } from '@/components/ui/button'
 import { useProperties } from '@/hooks/useProperties'
+import { formatMoney } from '@/lib/format'
 
 // Derived from the shared enum so the options stay in sync with the schema.
 const CATEGORIES = InvoiceCategory.options
@@ -42,14 +43,27 @@ export function InvoiceForm({
 
   const {
     register,
+    control,
     handleSubmit,
+    watch,
     formState: { errors },
   } = useForm<FormInput, unknown, CreateInvoiceInput>({
     // zod v4 + @hookform/resolvers types don't line up with the 3-generic useForm;
     // the resolver behaves correctly at runtime, so assert the matching shape.
     resolver: zodResolver(CreateInvoiceSchema) as Resolver<FormInput, unknown, CreateInvoiceInput>,
-    defaultValues: { currency: 'USD', category: 'OTHER', ...defaultValues },
+    defaultValues: {
+      currency: 'USD',
+      category: 'OTHER',
+      items: [{ description: '', quantity: 1, total: 0 }],
+      ...defaultValues,
+    },
   })
+  const { fields, append, remove } = useFieldArray({ control, name: 'items' })
+  const watchedItems = watch('items')
+  const computedTotal = (watchedItems ?? []).reduce(
+    (sum, item) => sum + (Number(item?.total) || 0),
+    0,
+  )
 
   return (
     <form
@@ -68,44 +82,104 @@ export function InvoiceForm({
       </div>
 
       <div>
-        <label htmlFor="description" className="block text-sm font-medium mb-1">
-          {t('invoiceForm.description')}
-        </label>
-        <input id="description" className={fieldClass} {...register('description')} />
-        {errors.description && (
-          <p className="mt-1 text-sm text-destructive">{errors.description.message}</p>
+        <div className="mb-1 flex items-center justify-between">
+          <span className="block text-sm font-medium">{t('invoiceForm.items.title')}</span>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => append({ description: '', quantity: 1, total: 0 })}
+          >
+            {t('invoiceForm.items.add')}
+          </Button>
+        </div>
+        <div className="space-y-3">
+          {fields.map((field, index) => (
+            <div key={field.id} className="grid grid-cols-[1fr_5rem_7rem_auto] items-start gap-2">
+              <div>
+                <label htmlFor={`items.${index}.description`} className="sr-only">
+                  {t('invoiceForm.items.description')}
+                </label>
+                <input
+                  id={`items.${index}.description`}
+                  placeholder={t('invoiceForm.items.description')}
+                  className={fieldClass}
+                  {...register(`items.${index}.description`)}
+                />
+                {errors.items?.[index]?.description && (
+                  <p className="mt-1 text-sm text-destructive">
+                    {errors.items[index]?.description?.message}
+                  </p>
+                )}
+              </div>
+              <div>
+                <label htmlFor={`items.${index}.quantity`} className="sr-only">
+                  {t('invoiceForm.items.quantity')}
+                </label>
+                <input
+                  id={`items.${index}.quantity`}
+                  type="number"
+                  step="1"
+                  placeholder={t('invoiceForm.items.quantity')}
+                  className={fieldClass}
+                  {...register(`items.${index}.quantity`, { valueAsNumber: true })}
+                />
+                {errors.items?.[index]?.quantity && (
+                  <p className="mt-1 text-sm text-destructive">
+                    {errors.items[index]?.quantity?.message}
+                  </p>
+                )}
+              </div>
+              <div>
+                <label htmlFor={`items.${index}.total`} className="sr-only">
+                  {t('invoiceForm.items.total')}
+                </label>
+                <input
+                  id={`items.${index}.total`}
+                  type="number"
+                  step="0.01"
+                  placeholder={t('invoiceForm.items.total')}
+                  className={fieldClass}
+                  {...register(`items.${index}.total`, { valueAsNumber: true })}
+                />
+                {errors.items?.[index]?.total && (
+                  <p className="mt-1 text-sm text-destructive">
+                    {errors.items[index]?.total?.message}
+                  </p>
+                )}
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={fields.length <= 1}
+                aria-label={t('invoiceForm.items.remove')}
+                onClick={() => remove(index)}
+              >
+                {t('invoiceForm.items.remove')}
+              </Button>
+            </div>
+          ))}
+        </div>
+        {errors.items && typeof errors.items.message === 'string' && (
+          <p className="mt-1 text-sm text-destructive">{errors.items.message}</p>
         )}
+        <p className="mt-2 text-sm font-medium">
+          {t('invoiceForm.items.computedTotal')}: {formatMoney(computedTotal)}
+        </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label htmlFor="amount" className="block text-sm font-medium mb-1">
-            {t('invoiceForm.amount')}
-          </label>
-          <input
-            id="amount"
-            type="number"
-            step="0.01"
-            className={fieldClass}
-            {...register('amount', { valueAsNumber: true })}
-          />
-          {errors.amount && (
-            <p className="mt-1 text-sm text-destructive">{errors.amount.message}</p>
-          )}
-        </div>
-
-        <div>
-          <label htmlFor="category" className="block text-sm font-medium mb-1">
-            {t('invoiceForm.category')}
-          </label>
-          <select id="category" className={fieldClass} {...register('category')}>
-            {CATEGORIES.map((c) => (
-              <option key={c} value={c}>
-                {t(`category.${c}`)}
-              </option>
-            ))}
-          </select>
-        </div>
+      <div>
+        <label htmlFor="category" className="block text-sm font-medium mb-1">
+          {t('invoiceForm.category')}
+        </label>
+        <select id="category" className={fieldClass} {...register('category')}>
+          {CATEGORIES.map((c) => (
+            <option key={c} value={c}>
+              {t(`category.${c}`)}
+            </option>
+          ))}
+        </select>
       </div>
 
       <div>

@@ -188,7 +188,12 @@
     "invoiceDate": "开票日期",
     "paidDate": "支付日期",
     "rejectionReason": "拒绝原因",
-    "description": "说明",
+    "items": {
+      "title": "项目",
+      "description": "说明",
+      "quantity": "数量",
+      "total": "总计"
+    },
     "notes": "备注",
     "partsOrdered": "已订购的零件",
     "actions": "操作",
@@ -232,8 +237,15 @@
   },
   "invoiceForm": {
     "vendor": "供应商",
-    "description": "说明",
-    "amount": "金额",
+    "items": {
+      "title": "项目",
+      "description": "说明",
+      "quantity": "数量",
+      "total": "总计",
+      "add": "添加项目",
+      "remove": "移除",
+      "computedTotal": "发票总额"
+    },
     "category": "类别",
     "invoiceDate": "开票日期",
     "property": "房产",

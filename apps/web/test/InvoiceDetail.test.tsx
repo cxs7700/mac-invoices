@@ -9,7 +9,7 @@ const invoice = {
   invoiceNumber: 'INV-1',
   vendorName: 'Acme',
   vendorEmail: null,
-  description: 'Fix sink',
+  items: [{ id: 'i1', description: 'Fix sink', quantity: 1, total: '149.99', sortOrder: 0 }],
   amount: '149.99',
   currency: 'USD',
   category: 'REPAIRS',
@@ -64,7 +64,9 @@ describe('InvoiceDetail', () => {
   it('renders the invoice record', async () => {
     setup()
     await waitFor(() => expect(screen.getByText('Invoice INV-1')).toBeDefined())
-    expect(screen.getByText('$149.99')).toBeDefined()
+    // Appears twice: the top amount summary and the item row's total.
+    expect(screen.getAllByText('$149.99')).toHaveLength(2)
+    expect(screen.getByText('Fix sink')).toBeDefined()
     expect(screen.getByText('left key under mat')).toBeDefined()
   })
 

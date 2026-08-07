@@ -96,8 +96,33 @@ export default function InvoiceDetail() {
             </div>
           )}
 
+          <div className="mt-4">
+            <div className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">
+              {t('invoiceDetail.items.title')}
+            </div>
+            <table className="w-full text-sm">
+              <thead className="border-b border-border text-left text-muted-foreground">
+                <tr>
+                  <th className="py-1 font-medium">{t('invoiceDetail.items.description')}</th>
+                  <th className="py-1 font-medium text-right">{t('invoiceDetail.items.quantity')}</th>
+                  <th className="py-1 font-medium text-right">{t('invoiceDetail.items.total')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...invoice.items]
+                  .sort((a, b) => a.sortOrder - b.sortOrder)
+                  .map((item) => (
+                    <tr key={item.id} className="border-b border-border last:border-0">
+                      <td className="py-1.5">{item.description}</td>
+                      <td className="py-1.5 text-right tabular-nums">{item.quantity}</td>
+                      <td className="py-1.5 text-right tabular-nums">{formatMoney(item.total)}</td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+
           <div className="mt-4 space-y-3">
-            <Field label={t('invoiceDetail.description')} value={invoice.description} />
             <Field label={t('invoiceDetail.notes')} value={invoice.notes} />
             <Field label={t('invoiceDetail.partsOrdered')} value={invoice.partsOrdered} />
           </div>

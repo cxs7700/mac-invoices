@@ -188,7 +188,12 @@
     "invoiceDate": "Invoice date",
     "paidDate": "Paid date",
     "rejectionReason": "Rejection reason",
-    "description": "Description",
+    "items": {
+      "title": "Items",
+      "description": "Description",
+      "quantity": "Qty",
+      "total": "Total"
+    },
     "notes": "Notes",
     "partsOrdered": "Parts ordered",
     "actions": "Actions",
@@ -232,8 +237,15 @@
   },
   "invoiceForm": {
     "vendor": "Vendor",
-    "description": "Description",
-    "amount": "Amount",
+    "items": {
+      "title": "Items",
+      "description": "Description",
+      "quantity": "Qty",
+      "total": "Total",
+      "add": "Add item",
+      "remove": "Remove",
+      "computedTotal": "Invoice total"
+    },
     "category": "Category",
     "invoiceDate": "Invoice date",
     "property": "Property",

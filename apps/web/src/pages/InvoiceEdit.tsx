@@ -14,8 +14,9 @@ function toDefaults(invoice: Invoice) {
   return {
     vendorName: invoice.vendorName,
     vendorEmail: invoice.vendorEmail ?? undefined,
-    description: invoice.description,
-    amount: Number(invoice.amount),
+    items: [...invoice.items]
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .map((i) => ({ description: i.description, quantity: i.quantity, total: Number(i.total) })),
     currency: invoice.currency,
     // A contractor submission may be uncategorized; default the form to OTHER so
     // the required category select has a valid value (the landlord can change it).

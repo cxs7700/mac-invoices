@@ -9,7 +9,7 @@ const invoice = {
   invoiceNumber: 'INV-1',
   vendorName: 'Acme',
   vendorEmail: null,
-  description: 'Fix sink',
+  items: [{ id: 'i1', description: 'Fix sink', quantity: 1, total: '149.99', sortOrder: 0 }],
   amount: '149.99',
   currency: 'USD',
   category: 'REPAIRS',
@@ -60,7 +60,8 @@ describe('InvoiceEdit', () => {
     await waitFor(() =>
       expect((screen.getByLabelText('Vendor') as HTMLInputElement).value).toBe('Acme'),
     )
-    expect((screen.getByLabelText('Amount') as HTMLInputElement).value).toBe('149.99')
+    expect((screen.getByLabelText('Description') as HTMLInputElement).value).toBe('Fix sink')
+    expect((screen.getByLabelText('Total') as HTMLInputElement).value).toBe('149.99')
     // The number is system-assigned: no editable field, but it stays visible in
     // the heading.
     expect(screen.queryByLabelText('Invoice number')).toBeNull()
@@ -73,7 +74,7 @@ describe('InvoiceEdit', () => {
       expect((screen.getByLabelText('Vendor') as HTMLInputElement).value).toBe('Acme'),
     )
 
-    fireEvent.change(screen.getByLabelText('Amount'), { target: { value: '200' } })
+    fireEvent.change(screen.getByLabelText('Total'), { target: { value: '200' } })
     fireEvent.click(screen.getByRole('button', { name: /save changes/i }))
 
     await waitFor(() =>

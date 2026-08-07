@@ -4,7 +4,6 @@ import { apiClient } from '@/lib/apiClient'
 import type { InvoiceListItem } from './useInvoices'
 
 export type Invoice = InvoiceListItem & {
-  vendorEmail: string | null
   currency: string
   propertyId: string | null
   paidDate: string | null

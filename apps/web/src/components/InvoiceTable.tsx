@@ -1,5 +1,6 @@
 import { Link } from 'react-router'
 import { useTranslation } from 'react-i18next'
+import { summarizeItems } from '@mac-invoices/shared'
 import type { InvoiceListItem } from '@/hooks/useInvoices'
 import { StatusBadge } from './StatusBadge'
 import { SyncBadge } from './SyncBadge'
@@ -84,7 +85,7 @@ export function InvoiceTable({
                   {inv.invoiceNumber}
                 </Link>
               </td>
-              <td className={`${td} max-w-xs truncate`}>{inv.description}</td>
+              <td className={`${td} max-w-xs truncate`}>{summarizeItems(inv.items)}</td>
               <td className={`${td} max-w-xs truncate`}>{inv.partsOrdered || '—'}</td>
               <td className={td}>{inv.vendorName}</td>
               <td className={td}>{formatDate(inv.invoiceDate)}</td>

@@ -9,7 +9,17 @@ const base = {
   sheetsSyncedAt: null,
   partsOrdered: null,
   imageCount: 1,
+  vendorEmail: null,
+  contractor: null,
 }
+
+const item = (description: string, sortOrder = 0) => ({
+  id: `${description}-${sortOrder}`,
+  description,
+  quantity: 1,
+  total: '100.00',
+  sortOrder,
+})
 
 const rows: InvoiceListItem[] = [
   {
@@ -17,7 +27,7 @@ const rows: InvoiceListItem[] = [
     id: 'a',
     invoiceNumber: 'INV-1',
     vendorName: 'Acme',
-    description: 'Fix sink',
+    items: [item('Fix sink')],
     amount: '100.00',
     category: 'REPAIRS',
     status: 'PENDING',
@@ -29,7 +39,7 @@ const rows: InvoiceListItem[] = [
     id: 'b',
     invoiceNumber: 'INV-2',
     vendorName: 'Best',
-    description: 'Rewire',
+    items: [item('Rewire')],
     amount: '200.00',
     category: 'REPAIRS',
     status: 'PAID',
@@ -60,6 +70,26 @@ describe('InvoiceTable', () => {
     const r2 = screen.getByText('INV-2').closest('tr')!
     expect(within(r2).getByText('—')).toBeDefined()
   })
+
+  it('renders a joined summary of item descriptions', () => {
+    const multi: InvoiceListItem = {
+      ...base,
+      id: 'c',
+      invoiceNumber: 'INV-3',
+      vendorName: 'Multi',
+      items: [item('Drywall', 0), item('Paint', 1)],
+      amount: '300.00',
+      category: 'REPAIRS',
+      status: 'PENDING',
+      invoiceDate: '2026-01-25',
+    }
+    render(
+      <MemoryRouter>
+        <InvoiceTable invoices={[multi]} />
+      </MemoryRouter>,
+    )
+    expect(screen.getByText('Drywall, Paint')).toBeDefined()
+  })
 })
 
 describe('InvoiceTable add-photo indicator (AE3)', () => {
@@ -68,7 +98,7 @@ describe('InvoiceTable add-photo indicator (AE3)', () => {
     id: 'x',
     invoiceNumber: 'INV-9',
     vendorName: 'V',
-    description: 'D',
+    items: [item('D')],
     amount: '10.00',
     category: 'OTHER',
     status: 'PAID',
