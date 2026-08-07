@@ -82,6 +82,11 @@ DATABASE_URL="<target-db-url>" LANDLORD_PASSWORD="<strong-secret>" \
   npm run db:seed
 ```
 
+> **`LANDLORD_EMAIL` must be lowercase.** Email is normalized to trimmed lowercase at the
+> schema boundary for both login and signup, so an address seeded with uppercase cannot be
+> logged into. If an existing deploy has uppercase in `LANDLORD_EMAIL`, lowercase it and
+> re-run the seed when shipping this change.
+
 ## 5. Set environment variables in Vercel
 
 Project → **Settings → Environment Variables**. Set for **Production** (and **Preview** if
@@ -119,6 +124,7 @@ Each of these has a safe "off" behavior; add them when you turn the feature on. 
 
 | Variable(s) | Enables | Behavior if unset |
 |---|---|---|
+| `SIGNUP_INVITE_CODE` | invite-gated signup at `/login` → Sign up | **unset = signup is disabled** (`503 SIGNUP_DISABLED`), which is the default. One shared code for everyone; rotating it invalidates it for all invitees. Treat as sensitive. |
 | `GOOGLE_SERVICE_ACCOUNT_KEY` (JSON), `GOOGLE_SHEET_ID`, `GOOGLE_SHEET_TAB` (default `Invoices`) | Google Sheets export | the export endpoint returns `503 *_NOT_CONFIGURED`; the rest of the app is unaffected. Share the target sheet as **Editor** with the key's `client_email`. |
 | `BLOB_READ_WRITE_TOKEN` | invoice photo capture (upload + view) | auto-injected once a **Vercel Blob store** is linked to the project; photo upload fails until then. |
 | `RESEND_API_KEY`, `EMAIL_FROM`, `CRON_SECRET` | the landlord notification digest | see [Contractor notifications](#contractor-notifications-landlord-digest) below — the in-app feed works regardless; email no-ops without `RESEND_API_KEY`. |
