@@ -43,6 +43,7 @@
     "or": "or",
     "email": "Email",
     "password": "Password",
+    "confirmPassword": "Confirm password",
     "inviteCode": "Invite code",
     "firstName": "First name",
     "lastName": "Last name",

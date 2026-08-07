@@ -43,6 +43,7 @@
     "or": "或",
     "email": "邮箱",
     "password": "密码",
+    "confirmPassword": "确认密码",
     "inviteCode": "邀请码",
     "firstName": "名",
     "lastName": "姓",

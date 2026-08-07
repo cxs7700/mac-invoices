@@ -2,7 +2,7 @@ import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { SignupSchema, type SignupInput } from '@mac-invoices/shared'
+import { SignupFormSchema, type SignupFormInput } from '@mac-invoices/shared'
 import { ApiError } from '@/lib/apiClient'
 import { useSignup } from '@/hooks/useAuth'
 import { Button } from '@/components/ui/button'
@@ -17,7 +17,9 @@ export function SignupForm() {
     handleSubmit,
     setFocus,
     formState: { errors },
-  } = useForm<SignupInput>({ resolver: zodResolver(SignupSchema) as Resolver<SignupInput> })
+  } = useForm<SignupFormInput>({
+    resolver: zodResolver(SignupFormSchema) as Resolver<SignupFormInput>,
+  })
 
   // ApiError carries the server's message, so EMAIL_TAKEN ("An account with
   // this email already exists") and INVALID_INVITE_CODE surface as-is. The
@@ -34,11 +36,16 @@ export function SignupForm() {
         : null
 
   const onSubmit = handleSubmit(
-    (input) => signup.mutate(input, { onSuccess: () => navigate('/', { replace: true }) }),
+    ({ confirmPassword: _confirmPassword, ...payload }) => {
+      // `confirmPassword` is a client-side check only — the API parses
+      // SignupSchema, which has no such field. Dropping it here keeps the
+      // request shape exactly the server's contract.
+      signup.mutate(payload, { onSuccess: () => navigate('/', { replace: true }) })
+    },
     (errs) => {
-      const first = (['inviteCode', 'email', 'password', 'firstName', 'lastName'] as const).find(
-        (f) => errs[f],
-      )
+      const first = (
+        ['inviteCode', 'email', 'password', 'confirmPassword', 'firstName', 'lastName'] as const
+      ).find((f) => errs[f])
       if (first) setFocus(first)
     },
   )
@@ -107,6 +114,23 @@ export function SignupForm() {
         {errors.password && (
           <p className="mt-1 text-sm text-destructive" role="alert">
             {errors.password.message}
+          </p>
+        )}
+      </div>
+
+      <div>
+        <label htmlFor="signup-confirm-password" className="block text-sm font-medium mb-1">
+          {t('login.confirmPassword')}
+        </label>
+        <input
+          id="signup-confirm-password"
+          type="password"
+          className={fieldClass}
+          {...register('confirmPassword')}
+        />
+        {errors.confirmPassword && (
+          <p className="mt-1 text-sm text-destructive" role="alert">
+            {errors.confirmPassword.message}
           </p>
         )}
       </div>

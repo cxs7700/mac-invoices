@@ -55,6 +55,7 @@ describe('auth card toggle', () => {
     fireEvent.input(screen.getByLabelText('Invite code'), { target: { value: 'the-code' } })
     fireEvent.input(screen.getByLabelText('Email'), { target: { value: 'ada@example.com' } })
     fireEvent.input(screen.getByLabelText('Password'), { target: { value: 'a-good-password' } })
+    fireEvent.input(screen.getByLabelText('Confirm password'), { target: { value: 'a-good-password' } })
     fireEvent.input(screen.getByLabelText('First name'), { target: { value: 'Ada' } })
     fireEvent.input(screen.getByLabelText('Last name'), { target: { value: 'Lovelace' } })
     fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
@@ -76,6 +77,7 @@ describe('auth card toggle', () => {
     fireEvent.input(screen.getByLabelText('Invite code'), { target: { value: 'the-code' } })
     fireEvent.input(screen.getByLabelText('Email'), { target: { value: 'Ada@Example.COM' } })
     fireEvent.input(screen.getByLabelText('Password'), { target: { value: 'a-good-password' } })
+    fireEvent.input(screen.getByLabelText('Confirm password'), { target: { value: 'a-good-password' } })
     fireEvent.input(screen.getByLabelText('First name'), { target: { value: 'Ada' } })
     fireEvent.input(screen.getByLabelText('Last name'), { target: { value: 'Lovelace' } })
     fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
@@ -91,11 +93,51 @@ describe('auth card toggle', () => {
     fireEvent.input(screen.getByLabelText('Invite code'), { target: { value: 'the-code' } })
     fireEvent.input(screen.getByLabelText('Email'), { target: { value: 'ada@example.com' } })
     fireEvent.input(screen.getByLabelText('Password'), { target: { value: 'short' } })
+    fireEvent.input(screen.getByLabelText('Confirm password'), { target: { value: 'short' } })
     fireEvent.input(screen.getByLabelText('First name'), { target: { value: 'Ada' } })
     fireEvent.input(screen.getByLabelText('Last name'), { target: { value: 'Lovelace' } })
     fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
 
     await waitFor(() => expect(screen.getAllByRole('alert').length).toBeGreaterThan(0))
     expect(signupMutate).not.toHaveBeenCalled()
+  })
+
+  it('renders a confirmation field on the signup form', () => {
+    renderLogin()
+    fireEvent.click(screen.getByRole('button', { name: 'Switch to sign up' }))
+    expect(screen.getByLabelText('Confirm password')).toBeTruthy()
+  })
+
+  it('blocks submission when the two passwords differ', async () => {
+    renderLogin()
+    fireEvent.click(screen.getByRole('button', { name: 'Switch to sign up' }))
+
+    fireEvent.input(screen.getByLabelText('Invite code'), { target: { value: 'the-code' } })
+    fireEvent.input(screen.getByLabelText('Email'), { target: { value: 'ada@example.com' } })
+    fireEvent.input(screen.getByLabelText('Password'), { target: { value: 'a-good-password' } })
+    fireEvent.input(screen.getByLabelText('Confirm password'), { target: { value: 'a-different-password' } })
+    fireEvent.input(screen.getByLabelText('First name'), { target: { value: 'Ada' } })
+    fireEvent.input(screen.getByLabelText('Last name'), { target: { value: 'Lovelace' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
+
+    await waitFor(() => expect(screen.getByText('Passwords do not match')).toBeTruthy())
+    expect(signupMutate).not.toHaveBeenCalled()
+  })
+
+  it('does not send confirmPassword to the API', async () => {
+    renderLogin()
+    fireEvent.click(screen.getByRole('button', { name: 'Switch to sign up' }))
+
+    fireEvent.input(screen.getByLabelText('Invite code'), { target: { value: 'the-code' } })
+    fireEvent.input(screen.getByLabelText('Email'), { target: { value: 'ada@example.com' } })
+    fireEvent.input(screen.getByLabelText('Password'), { target: { value: 'a-good-password' } })
+    fireEvent.input(screen.getByLabelText('Confirm password'), { target: { value: 'a-good-password' } })
+    fireEvent.input(screen.getByLabelText('First name'), { target: { value: 'Ada' } })
+    fireEvent.input(screen.getByLabelText('Last name'), { target: { value: 'Lovelace' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
+
+    await waitFor(() => expect(signupMutate).toHaveBeenCalled())
+    // The confirmation is a client-side concern; the server contract never sees it.
+    expect(signupMutate.mock.calls[0][0]).not.toHaveProperty('confirmPassword')
   })
 })
