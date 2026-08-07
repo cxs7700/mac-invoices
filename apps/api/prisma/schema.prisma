@@ -83,7 +83,11 @@ model Invoice {
   // Nullable: contractor submissions are created before a number is assigned.
   // The sequential number is stamped on the first APPROVED transition (KTD-11)
   // so withdrawn/rejected submissions never leave gaps in the landlord's ledger.
-  invoiceNumber          String?          @unique
+  // Sequential per OWNER, not globally: see @@unique([userId, invoiceNumber])
+  // below. Nullable because a contractor submission carries no number until it
+  // is approved (KTD-11); Postgres treats NULLs as never-equal, so a user may
+  // hold many unnumbered invoices at once.
+  invoiceNumber          String?
   vendorName             String
   vendorEmail            String?
   // Server-computed sum of `items[].total`, recomputed inside the same
@@ -123,6 +127,10 @@ model Invoice {
   @@index([userId, invoiceDate])
   @@index([submittedByContractorId])
   @@index([propertyId])
+  // Per-tenant numbering: two landlords may each hold invoice "1". A global
+  // unique here would leak across tenants — a collision with ANOTHER user's
+  // number returned 409, which is a working existence oracle (DEC-029(j)).
+  @@unique([userId, invoiceNumber])
   @@map("invoices")
 }
 

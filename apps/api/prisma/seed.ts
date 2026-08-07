@@ -114,7 +114,11 @@ const seedInvoices = async () => {
     }
 
     await prisma.invoice.upsert({
-      where: { invoiceNumber: data.invoiceNumber },
+      // invoiceNumber is unique per OWNER now, not globally, so the selector is
+      // the composite key. The seed only ever writes the landlord's invoices.
+      where: {
+        userId_invoiceNumber: { userId: LANDLORD_ID, invoiceNumber: data.invoiceNumber },
+      },
       update: {},
       create: data,
     })
