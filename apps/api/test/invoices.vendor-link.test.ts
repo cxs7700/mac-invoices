@@ -30,6 +30,8 @@ const vendorNames = [
   'Race Vendor',
   'Patch Relink Old',
   'Patch Relink New',
+  'Old Name',
+  'New Name',
 ]
 
 async function cleanup() {
@@ -276,10 +278,20 @@ describe('PATCH re-link guard (Fix round 1/5 Finding 2)', () => {
     expect(res.json().vendorId).not.toBe(oldVendorId)
   })
 
-  it('a PATCH that only changes status leaves vendorId exactly as it was', async () => {
+  // Fix round 2/5: a status-only PATCH must NOT re-resolve vendorId, but that
+  // only diverges from "re-resolve with the unchanged name" when the invoice's
+  // vendorName snapshot and the vendor's current name have drifted apart —
+  // which is normal (vendorName is a historical snapshot, taken at write time;
+  // renaming the vendor afterward doesn't retroactively update it). Without
+  // that drift, re-resolving with the same name would just find the same
+  // vendor again and the assertions would pass whether or not the guard
+  // exists. So: create, rename the vendor out from under the stale snapshot,
+  // THEN patch status-only — this fails loudly if the guard is removed (see
+  // "Fix round 2/5" in the report for the guard-removed/-restored proof).
+  it('a PATCH that only changes status leaves vendorId untouched even after the vendor was renamed (stale vendorName snapshot)', async () => {
     const created = await post(
       {
-        vendorName: 'Patch Relink Old',
+        vendorName: 'Old Name',
         category: 'REPAIRS',
         invoiceDate: '2026-02-01',
         items: [{ description: 'work', quantity: 1, total: 50 }],
@@ -287,18 +299,41 @@ describe('PATCH re-link guard (Fix round 1/5 Finding 2)', () => {
       landlordCookie,
     )
     invoiceIds.push(created.json().id)
-    const originalVendorId = created.json().vendorId
-    expect(originalVendorId).not.toBeNull()
+    const vendorId = created.json().vendorId
+    expect(vendorId).not.toBeNull()
+    expect(created.json().vendorName).toBe('Old Name')
+
+    // Rename the vendor directly. The invoice's vendorName column keeps
+    // reading "Old Name" — a stale snapshot by design.
+    const renamed = await app.inject({
+      method: 'PATCH',
+      url: `/api/vendors/${vendorId}`,
+      payload: { name: 'New Name' },
+      headers: { cookie: landlordCookie },
+    })
+    expect(renamed.statusCode).toBe(200)
+    expect(renamed.json().name).toBe('New Name')
 
     const res = await patch(created.json().id, { status: 'PAID' }, landlordCookie)
     expect(res.statusCode).toBe(200)
     expect(res.json().status).toBe('PAID')
-    expect(res.json().vendorId).toBe(originalVendorId)
 
-    // No spurious vendor was auto-created by the status-only PATCH.
-    const vendorRows = await app.prisma.vendor.findMany({
-      where: { landlordId, name: { equals: 'Patch Relink Old', mode: 'insensitive' } },
+    // The guard: resolveVendorId is never called on a status-only PATCH, so
+    // vendorId is untouched — still X, the renamed vendor.
+    expect(res.json().vendorId).toBe(vendorId)
+
+    // Exactly one vendor exists across both names for this landlord: no
+    // second "Old Name" row was auto-created from the stale snapshot.
+    const landlordVendors = await app.prisma.vendor.findMany({
+      where: { landlordId, name: { in: ['Old Name', 'New Name'] } },
     })
-    expect(vendorRows).toHaveLength(1)
+    expect(landlordVendors).toHaveLength(1)
+    expect(landlordVendors[0].id).toBe(vendorId)
+    expect(landlordVendors[0].name).toBe('New Name')
+
+    const stale = await app.prisma.vendor.findFirst({
+      where: { landlordId, name: { equals: 'Old Name', mode: 'insensitive' } },
+    })
+    expect(stale).toBeNull()
   })
 })
