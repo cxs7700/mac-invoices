@@ -39,8 +39,8 @@ The obvious fix does not work: `autocomplete="off"` is deliberately ignored by e
 
 ## Requirements
 
-- R1. Creating an account never offers or inserts a saved credential into either signup password field.
-- R2. The Settings "Current password" field is never pre-populated; the person changing the password must type it.
+- R1. Creating an account discourages the browser from offering or inserting a saved credential into either signup password field, via `autocomplete="new-password"`. This is a hint honored by browser-native and most extension password managers, not an absolute guarantee — a manager configured to ignore it, or invoked on user command, can still fill the field.
+- R2. The Settings "Current password" field is marked so it is not pre-populated by default (`autocomplete="new-password"`); the person changing the password is expected to type it. As with R1, this is a hint the browser honors, not a mechanism that prevents a password manager from filling it regardless.
 - R3. Signup requires the password to be entered twice, and will not submit while the two differ.
 - R4. When the two differ, the error appears next to the confirmation field.
 - R5. The signup API contract is unchanged — it neither requires nor depends on a confirmation value.
