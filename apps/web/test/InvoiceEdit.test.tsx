@@ -9,6 +9,7 @@ const invoice = {
   invoiceNumber: 'INV-1',
   vendorName: 'Acme',
   vendorEmail: null,
+  vendorId: 'v1',
   items: [{ id: 'i1', description: 'Fix sink', quantity: 1, total: '149.99', sortOrder: 0 }],
   amount: '149.99',
   currency: 'USD',
@@ -85,5 +86,40 @@ describe('InvoiceEdit', () => {
       ).toBe(true),
     )
     await waitFor(() => expect(screen.getByText('DETAIL')).toBeDefined())
+  })
+
+  it('round-trips a pre-existing vendorId on save when the vendor name is untouched', async () => {
+    const fetchMock = setup()
+    await waitFor(() =>
+      expect((screen.getByLabelText('Vendor') as HTMLInputElement).value).toBe('Acme'),
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /save changes/i }))
+
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(
+          (c) => c[1]?.method === 'PATCH' && String(c[1]?.body).includes('"vendorId":"v1"'),
+        ),
+      ).toBe(true),
+    )
+  })
+
+  it('clears the pre-existing vendorId on save when the vendor name is edited', async () => {
+    const fetchMock = setup()
+    await waitFor(() =>
+      expect((screen.getByLabelText('Vendor') as HTMLInputElement).value).toBe('Acme'),
+    )
+
+    fireEvent.change(screen.getByLabelText('Vendor'), { target: { value: 'Acme Annex' } })
+    fireEvent.click(screen.getByRole('button', { name: /save changes/i }))
+
+    await waitFor(() =>
+      expect(fetchMock.mock.calls.some((c) => c[1]?.method === 'PATCH')).toBe(true),
+    )
+    const patchCall = fetchMock.mock.calls.find((c) => c[1]?.method === 'PATCH')
+    const body = JSON.parse(String(patchCall?.[1]?.body))
+    expect(body.vendorId).toBeUndefined()
+    expect(body.vendorName).toBe('Acme Annex')
   })
 })

@@ -3,9 +3,15 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Link } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { CreateInvoiceSchema, InvoiceCategory, propertyLabel, type CreateInvoiceInput } from '@mac-invoices/shared'
+import {
+  CreateInvoiceSchema,
+  InvoiceCategory,
+  propertyLabel,
+  type CreateInvoiceInput,
+} from '@mac-invoices/shared'
 import { Button } from '@/components/ui/button'
 import { useProperties } from '@/hooks/useProperties'
+import { useVendors } from '@/hooks/useVendors'
 import { formatMoney } from '@/lib/format'
 
 // Derived from the shared enum so the options stay in sync with the schema.
@@ -41,11 +47,17 @@ export function InvoiceForm({
   const properties = propData?.data ?? []
   const noProperties = !propsLoading && !propsError && properties.length === 0
 
+  // A fetch failure must never block invoice creation — render the field with
+  // an empty option list rather than hiding it or blocking submission.
+  const { data: vendorData } = useVendors()
+  const vendors = vendorData?.data ?? []
+
   const {
     register,
     control,
     handleSubmit,
     watch,
+    setValue,
     formState: { errors },
   } = useForm<FormInput, unknown, CreateInvoiceInput>({
     // zod v4 + @hookform/resolvers types don't line up with the 3-generic useForm;
@@ -75,7 +87,29 @@ export function InvoiceForm({
         <label htmlFor="vendorName" className="block text-sm font-medium mb-1">
           {t('invoiceForm.vendor')}
         </label>
-        <input id="vendorName" className={fieldClass} {...register('vendorName')} />
+        <input
+          id="vendorName"
+          list="vendor-options"
+          autoComplete="off"
+          className={fieldClass}
+          {...register('vendorName', {
+            // Typing after a pick must drop the stale id, or the invoice would
+            // be linked to a vendor whose name no longer matches what was
+            // typed. Matched by exact string equality — the server already
+            // resolves case-insensitively, so a client-side near-match would
+            // set an id the user did not actually choose.
+            onChange: (e) => {
+              const match = vendors.find((v) => v.name === e.target.value)
+              setValue('vendorId', match?.id, { shouldDirty: true })
+            },
+          })}
+        />
+        <datalist id="vendor-options">
+          {vendors.map((v) => (
+            <option key={v.id} value={v.name} />
+          ))}
+        </datalist>
+        <input type="hidden" {...register('vendorId')} />
         {errors.vendorName && (
           <p className="mt-1 text-sm text-destructive">{errors.vendorName.message}</p>
         )}
@@ -213,7 +247,9 @@ export function InvoiceForm({
           <p className="mt-1 text-sm text-muted-foreground">{t('invoiceForm.loadingProperties')}</p>
         )}
         {propsError && (
-          <p className="mt-1 text-sm text-muted-foreground">{t('invoiceForm.loadPropertiesError')}</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {t('invoiceForm.loadPropertiesError')}
+          </p>
         )}
         {noProperties && (
           <p className="mt-1 text-sm text-muted-foreground">

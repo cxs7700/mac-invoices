@@ -14,6 +14,7 @@ function toDefaults(invoice: Invoice) {
   return {
     vendorName: invoice.vendorName,
     vendorEmail: invoice.vendorEmail ?? undefined,
+    vendorId: invoice.vendorId ?? undefined,
     items: [...invoice.items]
       .sort((a, b) => a.sortOrder - b.sortOrder)
       .map((i) => ({ description: i.description, quantity: i.quantity, total: Number(i.total) })),

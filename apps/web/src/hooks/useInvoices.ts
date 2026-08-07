@@ -37,6 +37,9 @@ export type InvoiceListItem = {
   // and on a self-submission too; the PDF falls back to vendorName/vendorEmail
   // only when this is null (no vendor could be resolved).
   vendor: { name: string; phone: string | null; email: string | null } | null
+  // Raw scalar FK behind `vendor` above — needed client-side so the edit form
+  // can round-trip a pre-existing pick without re-matching by name.
+  vendorId: string | null
 }
 
 export type InvoiceListResponse = {
