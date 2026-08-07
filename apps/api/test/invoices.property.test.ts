@@ -18,7 +18,11 @@ const patch = (id: string, payload: object, cookie: string) =>
 const listBy = (qs: string, cookie: string) =>
   app.inject({ method: 'GET', url: `/api/invoices?${qs}`, headers: { cookie } })
 
-const base = { vendorName: 'V', description: 'work', amount: 100, invoiceDate: '2026-03-01' }
+const base = {
+  vendorName: 'V',
+  items: [{ description: 'work', quantity: 1, total: 100 }],
+  invoiceDate: '2026-03-01',
+}
 // A SUBMITTED row (contractor-style: no category, no property) created directly.
 const submitted = (n: string) =>
   app.prisma.invoice.create({

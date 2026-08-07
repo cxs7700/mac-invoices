@@ -17,7 +17,7 @@ const inv: InvoiceRowInput = {
   status: 'PENDING',
   invoiceDate: new Date('2026-08-03T00:00:00Z'),
   category: 'REPAIRS',
-  description: 'Repair entire building',
+  items: [{ description: 'Repair entire building', sortOrder: 0 }],
   notes: null,
   partsOrdered: null,
   property: null,
@@ -60,6 +60,17 @@ describe('export layout', () => {
     expect(row[6]).toBe('PENDING') // status
     expect(row[7]).toBe('call first') // notes
     expect(row[8]).toBe('PVC elbow') // partsOrdered
+  })
+
+  it('joins every item description for a multi-item invoice, in sortOrder', () => {
+    const row = invoiceToRow({
+      ...inv,
+      items: [
+        { description: 'Paint', sortOrder: 0 },
+        { description: 'Ceiling drywall', sortOrder: 1 },
+      ],
+    })
+    expect(row[2]).toBe('Paint, Ceiling drywall')
   })
 
   it('renders null notes/category/partsOrdered/number as empty strings', () => {

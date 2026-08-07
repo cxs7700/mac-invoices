@@ -33,8 +33,7 @@ const createdIds: string[] = []
 const body = (n: string, over: Record<string, unknown> = {}) => ({
   invoiceNumber: `${PREFIX}${n}`,
   vendorName: 'Vendor',
-  description: 'Work',
-  amount: 100,
+  items: [{ description: 'Work', quantity: 1, total: 100 }],
   category: 'OTHER',
   invoiceDate: '2026-02-01',
   ...over,

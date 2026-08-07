@@ -15,6 +15,7 @@
     "db:reset": "prisma migrate reset --force",
     "db:seed": "prisma db seed",
     "db:backfill-events": "tsx prisma/backfill-events.ts",
+    "db:backfill-invoice-items": "tsx prisma/backfill-invoice-items.ts",
     "db:sweep-orphan-blobs": "tsx prisma/sweep-orphan-blobs.ts"
   },
   "dependencies": {

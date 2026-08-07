@@ -4,11 +4,15 @@ import { z } from 'zod'
 export const Locale = z.enum(['en', 'zh'])
 export type Locale = z.infer<typeof Locale>
 
-// Landlord self-serve settings. Profile edits the display name (email is the
-// unique login id with no verification flow, so it is read-only) and/or the UI
-// locale. Both optional so the language switcher can PATCH just `{ locale }`.
+// Landlord self-serve settings. Profile edits first/last name, email, and/or
+// the UI locale — all optional so the language switcher can PATCH just
+// `{ locale }`. Email has no confirmation/verification loop (a typo can lock
+// the landlord out); the unique constraint on `users.email` still returns 409
+// on a collision via the existing central P2002 handling.
 export const UpdateProfileSchema = z.object({
-  name: z.string().trim().min(1).max(100).optional(),
+  firstName: z.string().trim().min(1).max(50).optional(),
+  lastName: z.string().trim().min(1).max(50).optional(),
+  email: z.string().trim().email().optional(),
   locale: Locale.optional(),
 })
 export type UpdateProfileInput = z.infer<typeof UpdateProfileSchema>
@@ -22,11 +26,16 @@ export const ChangePasswordSchema = z.object({
 })
 export type ChangePasswordInput = z.infer<typeof ChangePasswordSchema>
 
-// The account shape the settings UI reads (never the password hash).
+// The account shape the settings UI reads (never the password hash). `name` is
+// kept (derived server-side from firstName+lastName) so the many read paths
+// that only need a generic display name (event actors, invoice embeds) are
+// unaffected by the profile split.
 export const AccountSchema = z.object({
   id: z.string(),
   email: z.string(),
   name: z.string().nullable(),
+  firstName: z.string().nullable(),
+  lastName: z.string().nullable(),
   role: z.string(),
   locale: z.string(),
 })

@@ -2,14 +2,29 @@ import { describe, it, expect } from 'vitest'
 import { UpdateProfileSchema } from '../src/schemas/settings'
 
 describe('UpdateProfileSchema', () => {
-  it('accepts a trimmed name', () => {
-    const r = UpdateProfileSchema.safeParse({ name: '  Pat  ' })
+  it('accepts a trimmed first/last name', () => {
+    const r = UpdateProfileSchema.safeParse({ firstName: '  Pat  ', lastName: ' Doe ' })
     expect(r.success).toBe(true)
-    if (r.success) expect(r.data.name).toBe('Pat')
+    if (r.success) {
+      expect(r.data.firstName).toBe('Pat')
+      expect(r.data.lastName).toBe('Doe')
+    }
   })
 
   it('rejects empty and over-long names', () => {
-    expect(UpdateProfileSchema.safeParse({ name: '   ' }).success).toBe(false)
-    expect(UpdateProfileSchema.safeParse({ name: 'a'.repeat(101) }).success).toBe(false)
+    expect(UpdateProfileSchema.safeParse({ firstName: '   ' }).success).toBe(false)
+    expect(UpdateProfileSchema.safeParse({ firstName: 'a'.repeat(51) }).success).toBe(false)
+    expect(UpdateProfileSchema.safeParse({ lastName: '   ' }).success).toBe(false)
+    expect(UpdateProfileSchema.safeParse({ lastName: 'a'.repeat(51) }).success).toBe(false)
+  })
+
+  it('accepts a partial body with only one field (PATCH contract)', () => {
+    expect(UpdateProfileSchema.safeParse({ email: 'new@example.com' }).success).toBe(true)
+    expect(UpdateProfileSchema.safeParse({ firstName: 'Pat' }).success).toBe(true)
+    expect(UpdateProfileSchema.safeParse({ locale: 'zh' }).success).toBe(true)
+  })
+
+  it('rejects a malformed email', () => {
+    expect(UpdateProfileSchema.safeParse({ email: 'not-an-email' }).success).toBe(false)
   })
 })

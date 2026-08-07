@@ -11,8 +11,7 @@ let cookie: string
 const validBody = {
   invoiceNumber: `${PREFIX}1`,
   vendorName: 'Acme Plumbing',
-  description: 'Replaced a valve',
-  amount: 149.99,
+  items: [{ description: 'Replaced a valve', quantity: 1, total: 149.99 }],
   category: 'REPAIRS',
   invoiceDate: '2026-01-15',
 }
@@ -44,7 +43,7 @@ describe('POST /api/invoices', () => {
     expect(res.statusCode).toBe(401)
   })
 
-  it('creates an invoice owned by the session user', async () => {
+  it('creates an invoice owned by the session user, amount = sum of item totals', async () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/invoices',
@@ -60,6 +59,33 @@ describe('POST /api/invoices', () => {
     expect(body.status).toBe('PENDING')
     expect(body.amount).toBe('149.99')
     expect(body.userId).toBe(process.env.LANDLORD_USER_ID)
+    expect(body.items).toHaveLength(1)
+    expect(body.items[0]).toMatchObject({ description: 'Replaced a valve', quantity: 1 })
+  })
+
+  it('sums multiple item totals into amount, in sortOrder', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/invoices',
+      payload: {
+        ...validBody,
+        invoiceNumber: `${PREFIX}multi`,
+        items: [
+          { description: 'Drywall', quantity: 1, total: 200 },
+          { description: 'Paint', quantity: 2, total: 50.5 },
+        ],
+      },
+      headers: { cookie },
+    })
+    expect(res.statusCode).toBe(201)
+    const body = res.json()
+    // Prisma's Decimal renders without a forced 2dp (trailing zeros drop) —
+    // compare numerically, not by exact string.
+    expect(Number(body.amount)).toBe(250.5)
+    expect(body.items.map((i: { description: string }) => i.description)).toEqual([
+      'Drywall',
+      'Paint',
+    ])
   })
 
   it('ignores a client-supplied userId and uses the session user', async () => {
@@ -77,7 +103,7 @@ describe('POST /api/invoices', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/invoices',
-      payload: { ...validBody, invoiceNumber: `${PREFIX}3`, amount: -5, category: 'NOPE' },
+      payload: { ...validBody, invoiceNumber: `${PREFIX}3`, items: [], category: 'NOPE' },
       headers: { cookie },
     })
     expect(res.statusCode).toBe(400)
@@ -89,8 +115,7 @@ describe('POST /api/invoices', () => {
     // Body intentionally omits invoiceNumber — the server assigns it.
     const autoBody = {
       vendorName: 'Auto Co',
-      description: 'Auto numbered work',
-      amount: 10,
+      items: [{ description: 'Auto numbered work', quantity: 1, total: 10 }],
       category: 'OTHER',
       invoiceDate: '2026-03-01',
     }
@@ -153,6 +178,7 @@ describe('GET /api/invoices/:id', () => {
     })
     expect(found.statusCode).toBe(200)
     expect(found.json().invoiceNumber).toBe(`${PREFIX}get`)
+    expect(found.json().items).toHaveLength(1)
 
     const missing = await app.inject({
       method: 'GET',

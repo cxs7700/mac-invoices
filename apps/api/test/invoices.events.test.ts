@@ -13,8 +13,7 @@ const createdIds: string[] = []
 const body = (n: string, over: Record<string, unknown> = {}) => ({
   invoiceNumber: `${PREFIX}${n}`,
   vendorName: 'Vendor',
-  description: 'Work',
-  amount: 100,
+  items: [{ description: 'Work', quantity: 1, total: 100 }],
   category: 'OTHER',
   invoiceDate: '2026-02-01',
   ...over,
@@ -70,7 +69,12 @@ describe('update records events', () => {
 
   it('AE2: an amount edit records FIELD_EDITED old->new; an untracked-field edit records nothing', async () => {
     const inv = await createOwn('amount')
-    await app.inject({ method: 'PATCH', url: `/api/invoices/${inv.id}`, payload: { amount: 250 }, headers: { cookie } })
+    await app.inject({
+      method: 'PATCH',
+      url: `/api/invoices/${inv.id}`,
+      payload: { items: [{ description: 'Work', quantity: 1, total: 250 }] },
+      headers: { cookie },
+    })
     let events = await eventsFor(inv.id)
     const edits = events.filter((e) => e.type === 'FIELD_EDITED')
     expect(edits).toHaveLength(1)
@@ -84,10 +88,11 @@ describe('update records events', () => {
 
   it('records one event per changed tracked field, and none for a no-op edit', async () => {
     const inv = await createOwn('multi')
+    const items300 = [{ description: 'Work', quantity: 1, total: 300 }]
     await app.inject({
       method: 'PATCH',
       url: `/api/invoices/${inv.id}`,
-      payload: { amount: 300, vendorName: 'New Vendor' },
+      payload: { items: items300, vendorName: 'New Vendor' },
       headers: { cookie },
     })
     let events = await eventsFor(inv.id)
@@ -98,7 +103,7 @@ describe('update records events', () => {
     await app.inject({
       method: 'PATCH',
       url: `/api/invoices/${inv.id}`,
-      payload: { amount: 300, vendorName: 'New Vendor' },
+      payload: { items: items300, vendorName: 'New Vendor' },
       headers: { cookie },
     })
     events = await eventsFor(inv.id)
@@ -148,7 +153,7 @@ describe('update records events', () => {
 
 describe('delete writes a surviving tombstone', () => {
   it('AE3: deletion records a DELETED event whose snapshot survives the row', async () => {
-    const inv = await createOwn('del', { amount: 149.99 })
+    const inv = await createOwn('del', { items: [{ description: 'Work', quantity: 1, total: 149.99 }] })
     const del = await app.inject({ method: 'DELETE', url: `/api/invoices/${inv.id}`, headers: { cookie } })
     expect(del.statusCode).toBe(204)
 
@@ -189,7 +194,12 @@ describe('GET /api/invoices/:id/events', () => {
 
   it('returns the events oldest-first with a resolved actor', async () => {
     const inv = await createOwn('feed')
-    await app.inject({ method: 'PATCH', url: `/api/invoices/${inv.id}`, payload: { amount: 200 }, headers: { cookie } })
+    await app.inject({
+      method: 'PATCH',
+      url: `/api/invoices/${inv.id}`,
+      payload: { items: [{ description: 'Work', quantity: 1, total: 200 }] },
+      headers: { cookie },
+    })
     const res = await app.inject({ method: 'GET', url: `/api/invoices/${inv.id}/events`, headers: { cookie } })
     expect(res.statusCode).toBe(200)
     const data = res.json().data as Array<{ type: string; actor: { id: string; name: string | null } }>

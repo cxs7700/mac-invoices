@@ -11,7 +11,16 @@ model User {
   id           String       @id @default(cuid())
   email        String       @unique
   passwordHash String
+  // Generic display name, kept in sync with firstName+lastName on every
+  // profile write (`[firstName, lastName].filter(Boolean).join(' ')`). Read by
+  // consumers that only need a display string (event actor names, the invoice
+  // `user` embed) — they don't need the split and are unaffected by it.
   name         String?
+  // Split name fields for the PDF Bill-To section and the editable profile
+  // form. Nullable: pre-split users are backfilled by
+  // `prisma/backfill-invoice-items.ts`; a user with no name has both null.
+  firstName    String?
+  lastName     String?
   role         Role         @default(LANDLORD)
   // Per-landlord Google Sheets export target; the export prefers this over the
   // GOOGLE_SHEET_ID env default. Null = use the env default. Continuous sync
@@ -77,7 +86,12 @@ model Invoice {
   invoiceNumber          String?          @unique
   vendorName             String
   vendorEmail            String?
+  // Legacy free-text summary — superseded by `items` (InvoiceItem). Dropped in
+  // a later, separate migration once the item-aware code is deployed and
+  // confirmed serving (see docs/DEPLOYMENT.md §3 destructive-migration order).
   description            String
+  // Server-computed sum of `items[].total`, recomputed inside the same
+  // transaction that writes the items — never accepted as client input.
   amount                 Decimal          @db.Decimal(10, 2)
   currency               String           @default("USD")
   // Nullable: a contractor submission carries no category — the landlord sets
@@ -107,6 +121,7 @@ model Invoice {
   submittedByContractorId String?
   submittedByContractor   Contractor?     @relation(fields: [submittedByContractorId], references: [id], onDelete: SetNull)
   images                 InvoiceImage[]
+  items                  InvoiceItem[]
 
   @@index([userId, status])
   @@index([userId, invoiceDate])
@@ -130,6 +145,25 @@ model Property {
 
   @@index([landlordId])
   @@map("properties")
+}
+
+// One itemized line on an invoice (description, quantity, total). `total` is
+// entered directly — quantity is informational and does not multiply a unit
+// price (there is no price field). `sortOrder` preserves entry order since
+// items have no other natural ordering. The invoice's `amount` is the
+// server-computed sum of its items' totals (see Invoice.amount).
+model InvoiceItem {
+  id          String   @id @default(cuid())
+  invoiceId   String
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  description String
+  quantity    Int
+  total       Decimal  @db.Decimal(10, 2)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  @@index([invoiceId])
+  @@map("invoice_items")
 }
 
 // Photos associated with an invoice (e.g. cash, parts, or check). The actual

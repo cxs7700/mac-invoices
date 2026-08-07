@@ -14,8 +14,7 @@ async function create(n: string, status: 'PENDING' | 'PAID', c = cookie) {
     payload: {
       invoiceNumber: `${NONCE}${n}`,
       vendorName: `${NONCE}v`,
-      description: 'Work',
-      amount: 10,
+      items: [{ description: 'Work', quantity: 1, total: 10 }],
       category: 'OTHER',
       invoiceDate: '2026-02-01',
     },

@@ -2,7 +2,7 @@
 // "Sync now" handler and the continuous-sync cron mirror so the two can never
 // drift. Pure (no DB / no Google client) and trivially unit-testable.
 
-import { compareInvoiceOrder, InvoiceCategory, InvoiceStatus } from '@mac-invoices/shared'
+import { compareInvoiceOrder, summarizeItems, InvoiceCategory, InvoiceStatus } from '@mac-invoices/shared'
 import { SheetFormula, type ColumnDropdownSpec, type SheetCell } from '../integrations/sheetCells'
 
 // The operator's ledger layout (DEC-026). `id` and `vendorName` are
@@ -77,7 +77,7 @@ export type InvoiceRowInput = {
   status: string
   invoiceDate: Date
   category: string | null
-  description: string
+  items: { description: string; sortOrder: number }[]
   notes: string | null
   partsOrdered: string | null
   property: { address: string } | null
@@ -119,7 +119,9 @@ export function invoiceToRow(inv: InvoiceRowInput): SheetCell[] {
   const cell: Record<(typeof EXPORT_COLUMNS)[number], SheetCell> = {
     invoiceNumber: inv.invoiceNumber ?? '',
     invoiceDate: ymd(inv.invoiceDate),
-    description: inv.description,
+    // Unbounded join — a Sheets cell has room for the full item list, unlike
+    // the UI table's default-capped summary.
+    description: summarizeItems(inv.items, inv.items.length),
     propertyAddress: inv.property?.address ?? '',
     amount: inv.amount.toNumber(),
     category: inv.category ?? '',

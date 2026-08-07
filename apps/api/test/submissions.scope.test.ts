@@ -59,7 +59,12 @@ beforeAll(async () => {
   const inv = await app.inject({
     method: 'POST',
     url: '/api/invoices',
-    payload: { vendorName: 'V', description: 'own', amount: 10, category: 'OTHER', invoiceDate: '2026-06-01' },
+    payload: {
+      vendorName: 'V',
+      items: [{ description: 'own', quantity: 1, total: 10 }],
+      category: 'OTHER',
+      invoiceDate: '2026-06-01',
+    },
     headers: { cookie: landlord.cookie },
   })
   landlordInvoice = inv.json().id

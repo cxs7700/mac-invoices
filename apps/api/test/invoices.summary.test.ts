@@ -13,8 +13,7 @@ let cookie: string
 const body = (n: string, amount: number, category: string) => ({
   invoiceNumber: `${PREFIX}${n}`,
   vendorName: 'Vendor',
-  description: 'Work',
-  amount,
+  items: [{ description: 'Work', quantity: 1, total: amount }],
   category,
   invoiceDate: '2026-02-01',
 })

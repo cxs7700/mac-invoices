@@ -83,7 +83,10 @@ export async function mirrorUserSheet(
     prisma.invoice.findMany({
       where: { userId, status: { notIn: [...NON_EXPORTABLE_STATUSES] } },
       // The assigned property's address rides along as a column (empty when none).
-      include: { property: { select: { address: true } } },
+      include: {
+        property: { select: { address: true } },
+        items: { orderBy: { sortOrder: 'asc' }, select: { description: true, sortOrder: true } },
+      },
       orderBy: { invoiceDate: 'asc' },
     }),
     // The Property dropdown's option list — rebuilt every pass so it tracks the table.

@@ -79,7 +79,9 @@ export async function listInvoices(
     where.invoiceDate = invoiceDate
   }
   if (q.vendor) where.vendorName = { contains: q.vendor, mode: 'insensitive' }
-  if (q.search) where.description = { contains: q.search, mode: 'insensitive' }
+  // Description moved from a column to items — search matches any item's
+  // description on the invoice.
+  if (q.search) where.items = { some: { description: { contains: q.search, mode: 'insensitive' } } }
   // Property filter: "none" → the unassigned bucket; any other value → that
   // property. Appended to the userId-anchored where, so scope is preserved.
   if (q.propertyId) where.propertyId = q.propertyId === 'none' ? null : q.propertyId
@@ -99,7 +101,12 @@ export async function listInvoices(
   const [invoices, total] = await Promise.all([
     request.server.prisma.invoice.findMany({
       where,
-      include: { user: userSelect, _count: { select: { images: true } } },
+      include: {
+        user: userSelect,
+        items: { orderBy: { sortOrder: 'asc' } },
+        submittedByContractor: { select: { name: true, contact: true } },
+        _count: { select: { images: true } },
+      },
       take: q.limit,
       skip: q.offset,
       orderBy,
@@ -109,7 +116,13 @@ export async function listInvoices(
 
   // Expose imageCount (cheap _count, no N+1) so the list can render the add-photo
   // indicator without fetching each invoice's image rows. Drop the raw _count.
-  const data = invoices.map(({ _count, ...inv }) => ({ ...inv, imageCount: _count.images }))
+  // Flatten submittedByContractor → contractor (PDF Sender section, U8); null
+  // for a landlord-entered invoice (the PDF falls back to vendorName/vendorEmail).
+  const data = invoices.map(({ _count, submittedByContractor, ...inv }) => ({
+    ...inv,
+    imageCount: _count.images,
+    contractor: submittedByContractor,
+  }))
   return reply.send({ data, pagination: { total, limit: q.limit, offset: q.offset } })
 }
 
@@ -187,6 +200,7 @@ export async function getInvoice(
     where: { id: request.params.id, userId: request.user.id },
     include: {
       user: userSelect,
+      items: { orderBy: { sortOrder: 'asc' } },
       submittedByContractor: { select: { name: true } },
       _count: { select: { images: true } },
     },

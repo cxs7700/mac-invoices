@@ -35,8 +35,7 @@ async function makePending(n: string) {
     payload: {
       invoiceNumber: `T-TRANS-${n}`,
       vendorName: 'V',
-      description: 'work',
-      amount: 100,
+      items: [{ description: 'work', quantity: 1, total: 100 }],
       category: 'REPAIRS',
       invoiceDate: '2026-03-01',
     },
@@ -109,7 +108,7 @@ describe('U2 transition guard — SUBMITTED lifecycle', () => {
 
   it('allows a field-only edit on a SUBMITTED invoice (guard bypassed)', async () => {
     const inv = await makeSubmitted('fieldedit')
-    const res = await patch(inv.id, { amount: 250 })
+    const res = await patch(inv.id, { items: [{ description: 'work', quantity: 1, total: 250 }] })
     expect(res.statusCode).toBe(200)
     expect(Number(res.json().amount)).toBe(250)
     expect(res.json().status).toBe('SUBMITTED')

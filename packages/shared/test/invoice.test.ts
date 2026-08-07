@@ -2,21 +2,52 @@ import { describe, it, expect } from 'vitest'
 import {
   CreateInvoiceSchema,
   UpdateInvoiceSchema,
+  InvoiceItemInputSchema,
   InvoiceImageSchema,
   AttachImageSchema,
   MAX_INVOICE_IMAGES,
+  MAX_INVOICE_ITEMS,
 } from '../src/index'
+
+const oneItem = [{ description: 'Fixed a leak', quantity: 1, total: 149.99 }]
 
 const valid = {
   invoiceNumber: 'INV-001',
   vendorName: 'Acme Plumbing',
-  description: 'Fixed a leak',
-  amount: 149.99,
+  items: oneItem,
   category: 'REPAIRS',
   invoiceDate: '2026-01-15',
 }
 
 const img = (url: string) => ({ url })
+
+describe('InvoiceItemInputSchema', () => {
+  it('accepts a valid item', () => {
+    expect(InvoiceItemInputSchema.safeParse(oneItem[0]).success).toBe(true)
+  })
+
+  it('rejects a zero/negative quantity', () => {
+    expect(InvoiceItemInputSchema.safeParse({ ...oneItem[0], quantity: 0 }).success).toBe(false)
+    expect(InvoiceItemInputSchema.safeParse({ ...oneItem[0], quantity: -1 }).success).toBe(false)
+  })
+
+  it('rejects a non-integer quantity', () => {
+    expect(InvoiceItemInputSchema.safeParse({ ...oneItem[0], quantity: 1.5 }).success).toBe(false)
+  })
+
+  it('rejects a total with more than two decimals', () => {
+    expect(InvoiceItemInputSchema.safeParse({ ...oneItem[0], total: 1.234 }).success).toBe(false)
+  })
+
+  it('rejects a total that overflows Decimal(10,2)', () => {
+    expect(InvoiceItemInputSchema.safeParse({ ...oneItem[0], total: 100_000_000 }).success).toBe(
+      false,
+    )
+    expect(
+      InvoiceItemInputSchema.safeParse({ ...oneItem[0], total: 99_999_999.99 }).success,
+    ).toBe(true)
+  })
+})
 
 describe('CreateInvoiceSchema', () => {
   it('accepts a valid invoice and defaults currency to USD', () => {
@@ -34,18 +65,32 @@ describe('CreateInvoiceSchema', () => {
     expect(CreateInvoiceSchema.safeParse(rest).success).toBe(true)
   })
 
-  it('rejects a non-positive amount', () => {
-    expect(CreateInvoiceSchema.safeParse({ ...valid, amount: 0 }).success).toBe(false)
-    expect(CreateInvoiceSchema.safeParse({ ...valid, amount: -5 }).success).toBe(false)
+  it('rejects an empty items array', () => {
+    expect(CreateInvoiceSchema.safeParse({ ...valid, items: [] }).success).toBe(false)
   })
 
-  it('rejects an amount with more than two decimals', () => {
-    expect(CreateInvoiceSchema.safeParse({ ...valid, amount: 1.234 }).success).toBe(false)
+  it('accepts up to the item cap and rejects beyond it', () => {
+    const many = Array.from({ length: MAX_INVOICE_ITEMS }, (_, i) => ({
+      description: `Item ${i}`,
+      quantity: 1,
+      total: 1,
+    }))
+    expect(CreateInvoiceSchema.safeParse({ ...valid, items: many }).success).toBe(true)
+    expect(
+      CreateInvoiceSchema.safeParse({
+        ...valid,
+        items: [...many, { description: 'One too many', quantity: 1, total: 1 }],
+      }).success,
+    ).toBe(false)
   })
 
-  it('rejects an amount that overflows Decimal(10,2)', () => {
-    expect(CreateInvoiceSchema.safeParse({ ...valid, amount: 100_000_000 }).success).toBe(false)
-    expect(CreateInvoiceSchema.safeParse({ ...valid, amount: 99_999_999.99 }).success).toBe(true)
+  it('does not accept a top-level amount or description (stripped, not required)', () => {
+    const r = CreateInvoiceSchema.safeParse({ ...valid, description: 'ignored', amount: 999 })
+    expect(r.success).toBe(true)
+    if (r.success) {
+      expect('description' in r.data).toBe(false)
+      expect('amount' in r.data).toBe(false)
+    }
   })
 
   it('rejects an invalid category enum', () => {

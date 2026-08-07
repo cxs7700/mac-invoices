@@ -2,19 +2,36 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { buildApp } from '../src/app'
 import { loginCookie, createSecondUser } from './helpers/auth'
 
-// U1 — profile: edit display name (email read-only), session-scoped, no secret leak.
+// U1 — profile: edit first/last name and email (no verification flow), session-
+// scoped, no secret leak. `name` (the generic display name) stays in sync.
 const app = buildApp()
 let cookie: string
 let other: Awaited<ReturnType<typeof createSecondUser>>
+let landlordId: string
+let landlordEmail: string
 
 beforeAll(async () => {
   await app.ready()
   cookie = await loginCookie(app)
   other = await createSecondUser(app)
+  // Capture the landlord's identity BEFORE any test mutates it — the email
+  // test below changes the shared seeded landlord's login email, so restoring
+  // by re-querying on that email in afterAll would no longer find the row.
+  const landlord = await app.prisma.user.findFirstOrThrow({
+    where: { role: 'LANDLORD', email: process.env.LANDLORD_EMAIL ?? 'landlord@example.com' },
+  })
+  landlordId = landlord.id
+  landlordEmail = landlord.email
 })
 afterAll(async () => {
-  // Restore the landlord's name + locale so other suites aren't affected.
-  await app.prisma.user.update({ where: { id: (await app.prisma.user.findFirstOrThrow({ where: { role: 'LANDLORD', email: process.env.LANDLORD_EMAIL ?? 'landlord@example.com' } })).id }, data: { name: 'Landlord', locale: 'en' } }).catch(() => {})
+  // Restore the landlord's profile + locale + email (by id, captured above) so
+  // other suites — including this file's own re-login — aren't affected.
+  await app.prisma.user
+    .update({
+      where: { id: landlordId },
+      data: { name: 'Landlord', firstName: 'Landlord', lastName: null, locale: 'en', email: landlordEmail },
+    })
+    .catch(() => {})
   await other.cleanup()
   await app.close()
 })
@@ -24,48 +41,81 @@ const patch = (payload: object, c = cookie) =>
 
 describe('PATCH /api/settings/profile', () => {
   it('401s without auth', async () => {
-    expect((await app.inject({ method: 'PATCH', url: '/api/settings/profile', payload: { name: 'X' } })).statusCode).toBe(401)
+    expect(
+      (await app.inject({ method: 'PATCH', url: '/api/settings/profile', payload: { firstName: 'X' } }))
+        .statusCode,
+    ).toBe(401)
   })
 
-  it('edits the display name and never returns the password hash (AE2, AE5)', async () => {
-    const res = await patch({ name: 'New Name' })
+  it('edits first/last name (syncing `name`) and never returns the password hash (AE2, AE5)', async () => {
+    const res = await patch({ firstName: 'New', lastName: 'Name' })
     expect(res.statusCode).toBe(200)
     const body = res.json()
+    expect(body.firstName).toBe('New')
+    expect(body.lastName).toBe('Name')
     expect(body.name).toBe('New Name')
     expect(body.email).toBeTruthy()
     expect(JSON.stringify(body)).not.toMatch(/passwordHash/)
     // /me reflects it on the next request.
     const me = (await app.inject({ method: 'GET', url: '/api/auth/me', headers: { cookie } })).json()
+    expect(me.firstName).toBe('New')
     expect(me.name).toBe('New Name')
   })
 
-  it('ignores an email field in the body (email is read-only)', async () => {
-    const before = (await app.inject({ method: 'GET', url: '/api/auth/me', headers: { cookie } })).json().email
-    const res = await patch({ name: 'Keep', email: 'attacker@evil.com' })
+  it('edits the email (no verification flow)', async () => {
+    const email = `settings-test-${Date.now()}@example.com`
+    const res = await patch({ email })
     expect(res.statusCode).toBe(200)
-    expect(res.json().email).toBe(before) // unchanged
+    expect(res.json().email).toBe(email)
+    const me = (await app.inject({ method: 'GET', url: '/api/auth/me', headers: { cookie } })).json()
+    expect(me.email).toBe(email)
+  })
+
+  it('409s on a duplicate email', async () => {
+    const theirEmail = (
+      await app.inject({ method: 'GET', url: '/api/auth/me', headers: { cookie: other.cookie } })
+    ).json().email
+    const res = await patch({ email: theirEmail })
+    expect(res.statusCode).toBe(409)
+  })
+
+  it('rejects a malformed email', async () => {
+    expect((await patch({ email: 'not-an-email' })).statusCode).toBe(400)
   })
 
   it('rejects empty or over-long names', async () => {
-    expect((await patch({ name: '   ' })).statusCode).toBe(400)
-    expect((await patch({ name: 'a'.repeat(101) })).statusCode).toBe(400)
+    expect((await patch({ firstName: '   ' })).statusCode).toBe(400)
+    expect((await patch({ firstName: 'a'.repeat(51) })).statusCode).toBe(400)
+    expect((await patch({ lastName: '   ' })).statusCode).toBe(400)
   })
 
   it('is scoped to the session user (a second user edits only themselves)', async () => {
-    await patch({ name: 'Second Name' }, other.cookie)
-    const theirs = (await app.inject({ method: 'GET', url: '/api/auth/me', headers: { cookie: other.cookie } })).json()
+    await patch({ firstName: 'Second', lastName: 'Name' }, other.cookie)
+    const theirs = (
+      await app.inject({ method: 'GET', url: '/api/auth/me', headers: { cookie: other.cookie } })
+    ).json()
     expect(theirs.name).toBe('Second Name')
     const mine = (await app.inject({ method: 'GET', url: '/api/auth/me', headers: { cookie } })).json()
-    expect(mine.name).toBe('Keep') // unaffected by the other user's edit
+    expect(mine.name).not.toBe('Second Name') // unaffected by the other user's edit
+  })
+
+  it('a partial update (lastName only) keeps the existing firstName and recomputes name', async () => {
+    await patch({ firstName: 'Keep', lastName: 'Original' }, other.cookie)
+    const res = await patch({ lastName: 'Changed' }, other.cookie)
+    expect(res.statusCode).toBe(200)
+    expect(res.json().firstName).toBe('Keep')
+    expect(res.json().lastName).toBe('Changed')
+    expect(res.json().name).toBe('Keep Changed')
   })
 
   it('accepts a supported locale (and /me reflects it); locale-only update needs no name', async () => {
     const res = await patch({ locale: 'zh' }, other.cookie)
     expect(res.statusCode).toBe(200)
     expect(res.json().locale).toBe('zh')
+    const before = res.json().name
     const me = (await app.inject({ method: 'GET', url: '/api/auth/me', headers: { cookie: other.cookie } })).json()
     expect(me.locale).toBe('zh')
-    expect(me.name).toBe('Second Name') // locale-only update left the name intact
+    expect(me.name).toBe(before) // locale-only update left the name intact
   })
 
   it('rejects an unsupported locale', async () => {

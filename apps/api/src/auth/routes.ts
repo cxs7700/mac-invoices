@@ -34,7 +34,15 @@ async function authRoutes(app: FastifyInstance) {
       const { token, expiresAt } = await createSession(user.id, request.cookies?.[SESSION_COOKIE])
       reply.setCookie(SESSION_COOKIE, token, sessionCookieOptions(expiresAt))
 
-      return reply.send({ id: user.id, email: user.email, name: user.name, role: user.role, locale: user.locale })
+      return reply.send({
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+        locale: user.locale,
+      })
     },
   )
 

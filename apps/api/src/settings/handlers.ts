@@ -10,18 +10,50 @@ import { serviceAccountEmail, checkAccess } from '../integrations/sheets'
 // Landlord self-serve settings, all scoped to the session user. Responses never
 // include the password hash or any secret (DEC-019 / R10).
 
-const accountSelect = { id: true, email: true, name: true, role: true, locale: true } as const
+const accountSelect = {
+  id: true,
+  email: true,
+  name: true,
+  firstName: true,
+  lastName: true,
+  role: true,
+  locale: true,
+} as const
+
+/** `[firstName, lastName]` joined, or null if both are empty — the generic
+ * display name consumed by event actors and the invoice `user` embed. */
+function displayName(firstName: string | null, lastName: string | null): string | null {
+  const joined = [firstName, lastName].filter(Boolean).join(' ')
+  return joined || null
+}
 
 /**
- * PATCH /api/settings/profile — edit the display name and/or UI locale (email is
- * read-only; any email field in the body is ignored). Returns the updated account.
+ * PATCH /api/settings/profile — edit first/last name, email, and/or UI locale.
+ * `name` (the generic display name read by event actors and the invoice `user`
+ * embed) is kept in sync with firstName+lastName on every write. Email has no
+ * verification flow (KTD); a duplicate 409s via the central P2002 handling.
+ * Returns the updated account.
  */
 export async function updateProfile(request: FastifyRequest, reply: FastifyReply) {
   const input = parseBody(UpdateProfileSchema, request.body)
-  const account = await request.server.prisma.user.update({
+  const prisma = request.server.prisma
+
+  let nameUpdate = {}
+  if (input.firstName !== undefined || input.lastName !== undefined) {
+    const current = await prisma.user.findUniqueOrThrow({
+      where: { id: request.user.id },
+      select: { firstName: true, lastName: true },
+    })
+    const firstName = input.firstName !== undefined ? input.firstName : current.firstName
+    const lastName = input.lastName !== undefined ? input.lastName : current.lastName
+    nameUpdate = { firstName, lastName, name: displayName(firstName, lastName) }
+  }
+
+  const account = await prisma.user.update({
     where: { id: request.user.id },
     data: {
-      ...(input.name !== undefined && { name: input.name }),
+      ...nameUpdate,
+      ...(input.email !== undefined && { email: input.email }),
       ...(input.locale !== undefined && { locale: input.locale }),
     },
     select: accountSelect,

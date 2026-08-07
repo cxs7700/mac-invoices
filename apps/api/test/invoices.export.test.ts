@@ -33,8 +33,7 @@ let user: Awaited<ReturnType<typeof createSecondUser>>
 const body = (n: string, extra: Record<string, unknown> = {}) => ({
   invoiceNumber: `${NONCE}${n}`,
   vendorName: 'Vendor',
-  description: 'Work',
-  amount: 100,
+  items: [{ description: 'Work', quantity: 1, total: 100 }],
   category: 'OTHER',
   invoiceDate: '2026-02-01',
   ...extra,
@@ -164,7 +163,10 @@ describe('POST /api/invoices/export — "Sync now" full mirror', () => {
   })
 
   it('maps cells: amount number, empty propertyAddress, partsOrdered passthrough', async () => {
-    await create('map', user.cookie, { amount: 149.99, partsOrdered: '2x faucet washers' })
+    await create('map', user.cookie, {
+      items: [{ description: 'Work', quantity: 1, total: 149.99 }],
+      partsOrdered: '2x faucet washers',
+    })
     await exportAs(user.cookie)
     const row = lastDataRows()[0]
     // [invoiceNumber, invoiceDate, description, propertyAddress, amount, category, status, notes, partsOrdered, invoiceLink]

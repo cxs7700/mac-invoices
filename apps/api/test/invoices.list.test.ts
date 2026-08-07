@@ -23,8 +23,7 @@ async function create(s: Seed, c = cookie) {
     payload: {
       invoiceNumber: `${NONCE}${s.n}`,
       vendorName: s.vendor,
-      description: 'Work',
-      amount: s.amount,
+      items: [{ description: 'Work', quantity: 1, total: s.amount }],
       category: 'OTHER',
       invoiceDate: s.date,
     },
@@ -106,7 +105,7 @@ describe('GET /api/invoices — filter + sort', () => {
     expect(nums).toEqual([`${NONCE}2`])
   })
 
-  it('search filters by job description (case-insensitive contains)', async () => {
+  it('search filters by item description (case-insensitive contains)', async () => {
     const SUB = `${NONCE}DESC-`
     const mk = (n: string, description: string) =>
       app.inject({
@@ -116,8 +115,7 @@ describe('GET /api/invoices — filter + sort', () => {
         payload: {
           invoiceNumber: `${SUB}${n}`,
           vendorName: `${SUB}v`,
-          description,
-          amount: 10,
+          items: [{ description, quantity: 1, total: 10 }],
           category: 'OTHER',
           invoiceDate: '2026-01-01',
         },
@@ -130,6 +128,37 @@ describe('GET /api/invoices — filter + sort', () => {
       const res = await app.inject({
         method: 'GET',
         url: `/api/invoices?vendor=${encodeURIComponent(SUB)}&search=${encodeURIComponent('FAUCET')}`,
+        headers: { cookie },
+      })
+      const nums = res.json().data.map((i: { invoiceNumber: string }) => i.invoiceNumber)
+      expect(nums).toEqual([`${SUB}a`])
+    } finally {
+      await app.prisma.invoice.deleteMany({ where: { invoiceNumber: { startsWith: SUB } } })
+    }
+  })
+
+  it('search matches an item description even for a multi-item invoice', async () => {
+    const SUB = `${NONCE}MULTI-`
+    const res0 = await app.inject({
+      method: 'POST',
+      url: '/api/invoices',
+      headers: { cookie },
+      payload: {
+        invoiceNumber: `${SUB}a`,
+        vendorName: `${SUB}v`,
+        items: [
+          { description: 'Ceiling drywall', quantity: 1, total: 100 },
+          { description: 'Paint', quantity: 1, total: 50 },
+        ],
+        category: 'OTHER',
+        invoiceDate: '2026-01-01',
+      },
+    })
+    expect(res0.statusCode).toBe(201)
+    try {
+      const res = await app.inject({
+        method: 'GET',
+        url: `/api/invoices?vendor=${encodeURIComponent(SUB)}&search=paint`,
         headers: { cookie },
       })
       const nums = res.json().data.map((i: { invoiceNumber: string }) => i.invoiceNumber)
@@ -193,8 +222,7 @@ describe('GET /api/invoices — imageCount (U4)', () => {
       payload: {
         invoiceNumber: `${NONCE}IMG2`,
         vendorName: `${NONCE}WithImgs`,
-        description: 'Work',
-        amount: 50,
+        items: [{ description: 'Work', quantity: 1, total: 50 }],
         category: 'OTHER',
         invoiceDate: '2026-04-01',
         images: [{ url: ownUrl('a') }, { url: ownUrl('b') }],

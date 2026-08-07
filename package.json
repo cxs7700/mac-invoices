@@ -27,7 +27,8 @@
     "db:deploy": "npm run db:deploy -w @mac-invoices/api",
     "db:reset": "npm run db:reset -w @mac-invoices/api",
     "db:seed": "npm run db:seed -w @mac-invoices/api",
-    "db:backfill-events": "npm run db:backfill-events -w @mac-invoices/api"
+    "db:backfill-events": "npm run db:backfill-events -w @mac-invoices/api",
+    "db:backfill-invoice-items": "npm run db:backfill-invoice-items -w @mac-invoices/api"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

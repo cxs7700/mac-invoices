@@ -65,16 +65,40 @@ export type InvoiceImagesResponse = z.infer<typeof InvoiceImagesResponseSchema>
 export const ImageUploadTokenSchema = z.object({ contentType: z.string().min(1) })
 export type ImageUploadTokenInput = z.infer<typeof ImageUploadTokenSchema>
 
+// One itemized line on an invoice. `total` is entered directly — quantity does
+// not multiply a unit price (there is no price field); it is informational,
+// matching the "quantity 1" shape every pre-items invoice was backfilled into.
+export const InvoiceItemInputSchema = z.object({
+  description: z.string().min(1).max(300),
+  quantity: z.number().int().positive().max(9999),
+  // Bounded to the DB column (Decimal(10,2) max 99,999,999.99) so an over-range
+  // value returns 400, not a DB overflow -> 500.
+  total: z.number().positive().multipleOf(0.01).lte(99_999_999.99),
+})
+export type InvoiceItemInput = z.infer<typeof InvoiceItemInputSchema>
+
+// An item as returned by the API (persisted row).
+export const InvoiceItemSchema = z.object({
+  id: z.string(),
+  description: z.string(),
+  quantity: z.number(),
+  total: z.string(),
+  sortOrder: z.number(),
+})
+export type InvoiceItem = z.infer<typeof InvoiceItemSchema>
+
+// At most this many line items per invoice (bounds payload + write cost).
+export const MAX_INVOICE_ITEMS = 50
+
 export const CreateInvoiceSchema = z.object({
   // Optional: the create form omits it so the server auto-assigns the next
   // sequential number. Still accepted when provided (data import / tests).
   invoiceNumber: z.string().min(1).max(50).optional(),
   vendorName: z.string().min(1).max(100),
   vendorEmail: z.string().email().optional(),
-  description: z.string().min(1).max(500),
-  // Bounded to the DB column (Decimal(10,2) max 99,999,999.99) so an over-range
-  // value returns 400, not a DB overflow -> 500.
-  amount: z.number().positive().multipleOf(0.01).lte(99_999_999.99),
+  // The invoice's total is derived from `items` — the server computes and
+  // stores `amount` as their sum; it is never accepted as input.
+  items: z.array(InvoiceItemInputSchema).min(1).max(MAX_INVOICE_ITEMS),
   currency: z.string().length(3).default('USD'),
   category: InvoiceCategory,
   propertyId: z.string().optional(),

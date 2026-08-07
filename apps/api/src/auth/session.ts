@@ -6,7 +6,15 @@ import { prisma } from '../lib/prisma'
 // token's life without needing a createdAt column / migration.
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 30
 
-export type SessionUser = { id: string; email: string; name: string | null; role: string; locale: string }
+export type SessionUser = {
+  id: string
+  email: string
+  name: string | null
+  firstName: string | null
+  lastName: string | null
+  role: string
+  locale: string
+}
 
 /** A random opaque token (the cookie value). */
 export function generateSessionToken(): string {
@@ -43,7 +51,11 @@ export async function validateSessionToken(token: string): Promise<SessionUser |
   const id = sessionIdFromToken(token)
   const session = await prisma.session.findUnique({
     where: { id },
-    include: { user: { select: { id: true, email: true, name: true, role: true, locale: true } } },
+    include: {
+      user: {
+        select: { id: true, email: true, name: true, firstName: true, lastName: true, role: true, locale: true },
+      },
+    },
   })
   if (!session) return null
   if (Date.now() >= session.expiresAt.getTime()) {

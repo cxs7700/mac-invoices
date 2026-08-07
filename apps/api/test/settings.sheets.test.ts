@@ -78,7 +78,12 @@ describe('Sheets settings', () => {
     await app.inject({
       method: 'POST',
       url: '/api/invoices',
-      payload: { vendorName: 'V', description: 'w', amount: 10, category: 'OTHER', invoiceDate: '2026-06-01' },
+      payload: {
+        vendorName: 'V',
+        items: [{ description: 'w', quantity: 1, total: 10 }],
+        category: 'OTHER',
+        invoiceDate: '2026-06-01',
+      },
       headers: { cookie: cookie() },
     })
     sheets.overwriteRows.mockClear()

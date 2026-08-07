@@ -11,8 +11,7 @@ let cookie: string
 const body = (n: string) => ({
   invoiceNumber: `${PREFIX}${n}`,
   vendorName: 'Vendor',
-  description: 'Work',
-  amount: 100,
+  items: [{ description: 'Work', quantity: 1, total: 100 }],
   category: 'OTHER',
   invoiceDate: '2026-02-01',
 })
@@ -58,11 +57,64 @@ describe('PATCH /api/invoices/:id', () => {
     const res = await app.inject({
       method: 'PATCH',
       url: `/api/invoices/${id}`,
-      payload: { invoiceNumber: `${PREFIX}selfedit`, amount: 250 },
+      payload: {
+        invoiceNumber: `${PREFIX}selfedit`,
+        items: [{ description: 'Work', quantity: 1, total: 250 }],
+      },
       headers: { cookie },
     })
     expect(res.statusCode).toBe(200)
     expect(res.json().invoiceNumber).toBe(`${PREFIX}selfedit`)
+    expect(Number(res.json().amount)).toBe(250)
+  })
+
+  it('replaces the full item list and recomputes amount, and records a FIELD_EDITED amount event', async () => {
+    const id = await createOwn('items-replace')
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/api/invoices/${id}`,
+      payload: {
+        items: [
+          { description: 'New line 1', quantity: 1, total: 30 },
+          { description: 'New line 2', quantity: 2, total: 20 },
+        ],
+      },
+      headers: { cookie },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(Number(res.json().amount)).toBe(50)
+    expect(res.json().items).toHaveLength(2)
+    expect(res.json().items.map((i: { description: string }) => i.description)).toEqual([
+      'New line 1',
+      'New line 2',
+    ])
+
+    const events = await app.inject({
+      method: 'GET',
+      url: `/api/invoices/${id}/events`,
+      headers: { cookie },
+    })
+    const detail = events
+      .json()
+      .data.find((e: { type: string; detail: { field?: string } }) => e.detail?.field === 'amount')
+    expect(detail).toBeDefined()
+  })
+
+  it('a PATCH that omits items leaves the existing items and amount untouched', async () => {
+    const id = await createOwn('items-untouched')
+    const before = (
+      await app.inject({ method: 'GET', url: `/api/invoices/${id}`, headers: { cookie } })
+    ).json()
+
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/api/invoices/${id}`,
+      payload: { vendorName: 'Renamed Vendor' },
+      headers: { cookie },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(res.json().amount).toBe(before.amount)
+    expect(res.json().items).toEqual(before.items)
   })
 
   it('marks paid (sets paidDate) and clears paidDate when leaving PAID', async () => {

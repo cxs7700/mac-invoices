@@ -3,11 +3,57 @@ import type {
   CreateInvoiceInput,
   UpdateInvoiceInput,
   InvoiceImageInput,
+  InvoiceItemInput,
   InvoiceStatus,
 } from '@mac-invoices/shared'
 import { MAX_INVOICE_IMAGES } from '@mac-invoices/shared'
 import { AppError } from '../middleware/errorHandler'
 import { isOwnedBy, deleteBlob } from '../integrations/storage'
+
+// --- Item totals (KTD: amount is a server-computed sum, Decimal-safe) ------
+// Sum in integer cents, not floats — each item's `total` is already
+// zod-bounded to 2 decimals, but summing as JS numbers can still accumulate
+// float error (the codebase avoids float money elsewhere too — DEC-002).
+
+function toCents(n: number): number {
+  return Math.round(n * 100)
+}
+
+/** Sum of item totals, as a number with exactly 2 decimals (safe to hand to
+ * Prisma's Decimal(10,2) column). Throws 400 if the sum overflows the column. */
+function sumItemTotals(items: readonly InvoiceItemInput[]): number {
+  const cents = items.reduce((sum, item) => sum + toCents(item.total), 0)
+  const amount = cents / 100
+  if (amount > 99_999_999.99) {
+    throw new AppError('VALIDATION_ERROR', 'The sum of item totals is too large', 400)
+  }
+  return amount
+}
+
+/** Item rows for a nested `items: { createMany: { data } }` write (no
+ * `invoiceId` — Prisma infers it from the relation), items in submitted order
+ * (sortOrder = array index). */
+function nestedItemRows(items: readonly InvoiceItemInput[]) {
+  return items.map((item, sortOrder) => ({
+    description: item.description,
+    quantity: item.quantity,
+    total: item.total,
+    sortOrder,
+  }))
+}
+
+/** Item rows for a standalone `invoiceItem.createMany` write (explicit
+ * `invoiceId`), used when the write isn't nested under `invoice.create`. */
+function itemRows(invoiceId: string, items: readonly InvoiceItemInput[]) {
+  return nestedItemRows(items).map((row) => ({ invoiceId, ...row }))
+}
+
+/** Legacy `invoices.description` mirror (NOT NULL until the follow-up drop
+ * migration) — every item's description, joined, so a direct DB read isn't
+ * blank. Nothing in the app reads this column anymore. */
+function legacyDescription(items: readonly InvoiceItemInput[]): string {
+  return items.map((i) => i.description).join(', ')
+}
 
 // --- Status transition guard (KTD-3) ---------------------------------------
 // SUBMITTED is the contractor-submission entry state. The guard governs that
@@ -94,7 +140,10 @@ const userSelect = { select: { id: true, name: true, email: true } }
 // Financially-material fields whose edits are recorded as FIELD_EDITED events.
 // `paidDate` is intentionally excluded — it is an artifact of the status
 // transition and is captured by STATUS_CHANGED.
-const TRACKED_FIELDS = ['amount', 'vendorName', 'invoiceDate'] as const
+// `amount` is no longer direct user input (it's the server-computed sum of
+// items) — its FIELD_EDITED tracking is handled separately in updateInvoice,
+// alongside the items write, not through this generic loop.
+const TRACKED_FIELDS = ['vendorName', 'invoiceDate'] as const
 
 /** Canonical string form of a tracked field, for stable old/new diffing + display. */
 function normalize(field: string, value: unknown): string | null {
@@ -209,8 +258,11 @@ export async function createInvoice(
         invoiceNumber,
         vendorName: input.vendorName,
         vendorEmail: input.vendorEmail ?? null,
-        description: input.description,
-        amount: input.amount,
+        // Legacy column, kept NOT NULL until the follow-up destructive
+        // migration — mirrors the item descriptions so a direct DB read
+        // isn't blank; nothing in the app reads it anymore.
+        description: legacyDescription(input.items),
+        amount: sumItemTotals(input.items),
         currency: input.currency,
         category: input.category,
         propertyId: input.propertyId ?? null,
@@ -218,8 +270,9 @@ export async function createInvoice(
         notes: input.notes ?? null,
         partsOrdered: input.partsOrdered ?? null,
         userId: actorId,
+        items: { createMany: { data: nestedItemRows(input.items) } },
       },
-      include: { user: userSelect },
+      include: { user: userSelect, items: { orderBy: { sortOrder: 'asc' } } },
     })
     await tx.invoiceEvent.create({
       data: {
@@ -256,6 +309,9 @@ export async function createSubmission(
   const blobOwner = contractorBlobOwner(args.contractorId)
   for (const image of input.images) gateImageRef(image.url, blobOwner)
   return prisma.$transaction(async (tx) => {
+    // R6: the public contractor form stays single amount+description — stored
+    // as one InvoiceItem (quantity 1, total = amount), matching the shape
+    // every pre-items invoice was backfilled into.
     const invoice = await tx.invoice.create({
       data: {
         invoiceNumber: null,
@@ -267,8 +323,13 @@ export async function createSubmission(
         status: 'SUBMITTED',
         user: { connect: { id: args.ownerUserId } },
         submittedByContractor: { connect: { id: args.contractorId } },
+        items: {
+          createMany: {
+            data: [{ description: input.description, quantity: 1, total: input.amount, sortOrder: 0 }],
+          },
+        },
       },
-      include: { user: userSelect },
+      include: { user: userSelect, items: { orderBy: { sortOrder: 'asc' } } },
     })
     await tx.invoiceEvent.create({
       data: { invoiceId: invoice.id, actorId, ownerUserId: invoice.userId, type: 'CREATED', detail: {} },
@@ -334,7 +395,21 @@ export async function contractorUpdateSubmission(
     const result = await tx.invoice.updateMany({ where: scope, data })
     if (result.count === 0) throw locked()
     if (events.length > 0) await tx.invoiceEvent.createMany({ data: events })
-    return tx.invoice.findFirstOrThrow({ where: { id: args.invoiceId } })
+    // A submission always has exactly one InvoiceItem (created in
+    // createSubmission) — keep it in sync so `amount` stays the sum of items.
+    if (input.description !== undefined || input.amount !== undefined) {
+      await tx.invoiceItem.updateMany({
+        where: { invoiceId: args.invoiceId },
+        data: {
+          ...(input.description !== undefined && { description: input.description }),
+          ...(input.amount !== undefined && { total: input.amount }),
+        },
+      })
+    }
+    return tx.invoice.findFirstOrThrow({
+      where: { id: args.invoiceId },
+      include: { items: { orderBy: { sortOrder: 'asc' } } },
+    })
   })
 }
 
@@ -365,8 +440,12 @@ export async function updateInvoice(
     if (input.invoiceNumber !== undefined) data.invoiceNumber = input.invoiceNumber
     if (input.vendorName !== undefined) data.vendorName = input.vendorName
     if (input.vendorEmail !== undefined) data.vendorEmail = input.vendorEmail
-    if (input.description !== undefined) data.description = input.description
-    if (input.amount !== undefined) data.amount = input.amount
+    // items: full-replace when present (KTD) — the edit form always submits
+    // the complete current list, not an incremental add/remove.
+    if (input.items !== undefined) {
+      data.description = legacyDescription(input.items)
+      data.amount = sumItemTotals(input.items)
+    }
     if (input.currency !== undefined) data.currency = input.currency
     if (input.category !== undefined) data.category = input.category
     if (input.propertyId !== undefined) data.propertyId = input.propertyId
@@ -414,6 +493,20 @@ export async function updateInvoice(
         events.push({ ...base, type: 'FIELD_EDITED', detail: { field, old: oldValue, new: newValue } })
       }
     }
+    // amount is server-computed from items, not direct input — diff it here
+    // instead of through TRACKED_FIELDS so an item edit that changes the sum
+    // still shows up in the timeline.
+    if (data.amount !== undefined) {
+      const oldValue = normalize('amount', before.amount)
+      const newValue = normalize('amount', data.amount)
+      if (oldValue !== newValue) {
+        events.push({
+          ...base,
+          type: 'FIELD_EDITED',
+          detail: { field: 'amount', old: oldValue, new: newValue },
+        })
+      }
+    }
 
     // Ownership already verified via the scoped pre-read. When the status is
     // transitioning, re-assert the from-status in the write (compare-and-set) so
@@ -428,9 +521,17 @@ export async function updateInvoice(
     } else {
       await tx.invoice.update({ where: { id }, data })
     }
+    // Full-replace the item list when provided (KTD).
+    if (input.items !== undefined) {
+      await tx.invoiceItem.deleteMany({ where: { invoiceId: id } })
+      await tx.invoiceItem.createMany({ data: itemRows(id, input.items) })
+    }
     if (events.length > 0) await tx.invoiceEvent.createMany({ data: events })
 
-    return tx.invoice.findFirstOrThrow({ where: { id }, include: { user: userSelect } })
+    return tx.invoice.findFirstOrThrow({
+      where: { id },
+      include: { user: userSelect, items: { orderBy: { sortOrder: 'asc' } } },
+    })
   })
 }
 
