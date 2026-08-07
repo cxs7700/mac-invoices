@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { LoginInput } from '@mac-invoices/shared'
+import type { LoginInput, SignupInput } from '@mac-invoices/shared'
 import { apiClient } from '@/lib/apiClient'
 
 export type AuthUser = {
@@ -27,6 +27,19 @@ export function useLogin() {
   return useMutation({
     mutationFn: (creds: LoginInput) =>
       apiClient<AuthUser>('/api/auth/login', { method: 'POST', body: JSON.stringify(creds) }),
+    onSuccess: (user) => queryClient.setQueryData(['me'], user),
+  })
+}
+
+/**
+ * Signup logs the new user straight in — the endpoint issues a session and
+ * returns login's response shape, so the cache seeding is identical.
+ */
+export function useSignup() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: SignupInput) =>
+      apiClient<AuthUser>('/api/auth/signup', { method: 'POST', body: JSON.stringify(input) }),
     onSuccess: (user) => queryClient.setQueryData(['me'], user),
   })
 }

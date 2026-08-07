@@ -1,0 +1,120 @@
+import { useForm, type Resolver } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { useNavigate } from 'react-router'
+import { useTranslation } from 'react-i18next'
+import { SignupSchema, type SignupInput } from '@mac-invoices/shared'
+import { ApiError } from '@/lib/apiClient'
+import { useSignup } from '@/hooks/useAuth'
+import { Button } from '@/components/ui/button'
+import { fieldClass } from './authField'
+
+export function SignupForm() {
+  const navigate = useNavigate()
+  const signup = useSignup()
+  const { t } = useTranslation()
+  const {
+    register,
+    handleSubmit,
+    setFocus,
+    formState: { errors },
+  } = useForm<SignupInput>({ resolver: zodResolver(SignupSchema) as Resolver<SignupInput> })
+
+  // ApiError carries the server's message, so EMAIL_TAKEN ("An account with
+  // this email already exists") and INVALID_INVITE_CODE surface as-is.
+  const serverError =
+    signup.error instanceof ApiError
+      ? signup.error.message
+      : signup.error
+        ? t('login.serverError')
+        : null
+
+  const onSubmit = handleSubmit(
+    (input) => signup.mutate(input, { onSuccess: () => navigate('/', { replace: true }) }),
+    (errs) => {
+      const first = (['inviteCode', 'email', 'password', 'firstName', 'lastName'] as const).find(
+        (f) => errs[f],
+      )
+      if (first) setFocus(first)
+    },
+  )
+
+  return (
+    <form onSubmit={onSubmit} className="space-y-4" noValidate>
+      <div>
+        <label htmlFor="inviteCode" className="block text-sm font-medium mb-1">
+          {t('login.inviteCode')}
+        </label>
+        <input id="inviteCode" type="text" className={fieldClass} {...register('inviteCode')} />
+        {errors.inviteCode && (
+          <p className="mt-1 text-sm text-destructive" role="alert">
+            {errors.inviteCode.message}
+          </p>
+        )}
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label htmlFor="firstName" className="block text-sm font-medium mb-1">
+            {t('login.firstName')}
+          </label>
+          <input id="firstName" type="text" className={fieldClass} {...register('firstName')} />
+          {errors.firstName && (
+            <p className="mt-1 text-sm text-destructive" role="alert">
+              {errors.firstName.message}
+            </p>
+          )}
+        </div>
+        <div>
+          <label htmlFor="lastName" className="block text-sm font-medium mb-1">
+            {t('login.lastName')}
+          </label>
+          <input id="lastName" type="text" className={fieldClass} {...register('lastName')} />
+          {errors.lastName && (
+            <p className="mt-1 text-sm text-destructive" role="alert">
+              {errors.lastName.message}
+            </p>
+          )}
+        </div>
+      </div>
+
+      <div>
+        <label htmlFor="signup-email" className="block text-sm font-medium mb-1">
+          {t('login.email')}
+        </label>
+        <input id="signup-email" type="email" className={fieldClass} {...register('email')} />
+        {errors.email && (
+          <p className="mt-1 text-sm text-destructive" role="alert">
+            {errors.email.message}
+          </p>
+        )}
+      </div>
+
+      <div>
+        <label htmlFor="signup-password" className="block text-sm font-medium mb-1">
+          {t('login.password')}
+        </label>
+        <input
+          id="signup-password"
+          type="password"
+          className={fieldClass}
+          {...register('password')}
+        />
+        {errors.password && (
+          <p className="mt-1 text-sm text-destructive" role="alert">
+            {errors.password.message}
+          </p>
+        )}
+      </div>
+
+      {serverError && (
+        <p className="text-sm text-destructive" role="alert" aria-live="polite">
+          {serverError}
+        </p>
+      )}
+
+      <Button type="submit" className="w-full" disabled={signup.isPending}>
+        {signup.isPending ? t('login.creatingAccount') : t('login.createAccount')}
+      </Button>
+    </form>
+  )
+}

@@ -1,29 +1,47 @@
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { LoginForm } from '@/components/auth/LoginForm'
+import { SignupForm } from '@/components/auth/SignupForm'
 import { Button } from '@/components/ui/button'
+
+type Mode = 'login' | 'signup'
 
 export default function Login() {
   const { t } = useTranslation()
+  const [mode, setMode] = useState<Mode>('login')
+
+  const tabClass = (active: boolean) =>
+    active
+      ? 'rounded bg-card py-1.5 text-center font-medium text-foreground'
+      : 'rounded py-1.5 text-center text-muted-foreground hover:text-foreground'
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-secondary px-4">
       <div className="w-full max-w-sm bg-card border border-border rounded-xl shadow-sm p-7">
         <div className="mb-6 text-center">
           <div className="text-lg font-bold text-foreground">{t('app.name')}</div>
-          <p className="text-sm text-muted-foreground mt-1">{t('login.welcome')}</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            {mode === 'login' ? t('login.welcome') : t('login.signUpWelcome')}
+          </p>
         </div>
 
         <div className="mb-4 grid grid-cols-2 rounded-md bg-muted p-1 text-sm">
-          <span className="rounded bg-card py-1.5 text-center font-medium text-foreground">
+          <button
+            type="button"
+            className={tabClass(mode === 'login')}
+            aria-pressed={mode === 'login'}
+            onClick={() => setMode('login')}
+          >
             {t('login.logIn')}
-          </span>
-          <span
-            className="py-1.5 text-center text-muted-foreground"
-            aria-disabled="true"
-            title={t('login.signUpSoon')}
+          </button>
+          <button
+            type="button"
+            className={tabClass(mode === 'signup')}
+            aria-pressed={mode === 'signup'}
+            onClick={() => setMode('signup')}
           >
             {t('login.signUp')}
-          </span>
+          </button>
         </div>
 
         <Button
@@ -43,7 +61,7 @@ export default function Login() {
           <span className="h-px flex-1 bg-border" /> {t('login.or')} <span className="h-px flex-1 bg-border" />
         </div>
 
-        <LoginForm />
+        {mode === 'login' ? <LoginForm /> : <SignupForm />}
       </div>
     </div>
   )
