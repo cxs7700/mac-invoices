@@ -9,6 +9,7 @@ import type {
 import { MAX_INVOICE_IMAGES } from '@mac-invoices/shared'
 import { AppError } from '../middleware/errorHandler'
 import { isOwnedBy, deleteBlob } from '../integrations/storage'
+import { freshLinkData } from '../vendors/handlers'
 
 // --- Item totals (KTD: amount is a server-computed sum, Decimal-safe) ------
 // Sum in integer cents, not floats — each item's `total` is already
@@ -88,12 +89,20 @@ export function assertTransitionAllowed(
   // landlord's approve sees CANCELLED and is refused here rather than resurrecting
   // it to APPROVED. (PAID stays reopenable — existing landlord behavior.)
   if (from === 'CANCELLED' || from === 'REJECTED') {
-    throw new AppError('INVALID_TRANSITION', `A ${from.toLowerCase()} invoice cannot change status`, 422)
+    throw new AppError(
+      'INVALID_TRANSITION',
+      `A ${from.toLowerCase()} invoice cannot change status`,
+      422,
+    )
   }
   if (from === 'SUBMITTED') {
     if (actorKindOf(actorId) === 'vendor') {
       if (to === 'CANCELLED') return
-      throw new AppError('INVALID_TRANSITION', `A submission cannot move from SUBMITTED to ${to}`, 422)
+      throw new AppError(
+        'INVALID_TRANSITION',
+        `A submission cannot move from SUBMITTED to ${to}`,
+        422,
+      )
     }
     if (to === 'APPROVED') {
       if (ctx.categoryAfter == null) {
@@ -110,7 +119,11 @@ export function assertTransitionAllowed(
       }
       return
     }
-    throw new AppError('INVALID_TRANSITION', `A submission can only be approved or rejected, not ${to}`, 422)
+    throw new AppError(
+      'INVALID_TRANSITION',
+      `A submission can only be approved or rejected, not ${to}`,
+      422,
+    )
   }
   if (to === 'APPROVED') {
     if (ctx.categoryAfter == null) {
@@ -225,6 +238,47 @@ async function writeImageAttachment(
 }
 
 /**
+ * Resolve the vendor an invoice is attributed to, creating one when the
+ * landlord typed a name they have no vendor for yet.
+ *
+ * Runs INSIDE the caller's transaction on purpose: a client-side
+ * "create vendor, then create invoice" pair would leave an orphaned vendor
+ * whenever the invoice write failed, and a double-submit would create two.
+ *
+ * An auto-created vendor gets no phone/email and is born with `revokedAt` set,
+ * so it has no usable submission link until the landlord explicitly
+ * regenerates one. The token columns are still populated because they are
+ * NOT NULL and `tokenLookupId` is unique.
+ */
+export async function resolveVendorId(
+  tx: Prisma.TransactionClient,
+  landlordId: string,
+  vendorId: string | undefined,
+  vendorName: string | undefined,
+): Promise<string | null> {
+  if (vendorId != null) {
+    // Scope to the landlord: 404 (not 403) so another landlord's vendor
+    // existence never leaks — same rule as propertyId above.
+    const owned = await tx.vendor.findFirst({ where: { id: vendorId, landlordId } })
+    if (!owned) throw new AppError('NOT_FOUND', 'Vendor not found', 404)
+    return owned.id
+  }
+  const name = vendorName?.trim()
+  if (!name) return null
+
+  const existing = await tx.vendor.findFirst({
+    where: { landlordId, name: { equals: name, mode: 'insensitive' } },
+  })
+  if (existing) return existing.id
+
+  const { columns } = freshLinkData()
+  const created = await tx.vendor.create({
+    data: { landlordId, name, phone: null, email: null, revokedAt: new Date(), ...columns },
+  })
+  return created.id
+}
+
+/**
  * Create an invoice and its CREATED event in one transaction. The invoice number
  * is the client-supplied one, or the next sequential number computed on `tx`. Any
  * supplied `images[]` (each owner-gated) are written as InvoiceImage rows +
@@ -244,15 +298,19 @@ export async function createInvoice(
     // A property assigned at create must belong to the acting landlord (404, not
     // 403, so another landlord's property existence never leaks).
     if (input.propertyId != null) {
-      const owned = await tx.property.findFirst({ where: { id: input.propertyId, landlordId: actorId } })
+      const owned = await tx.property.findFirst({
+        where: { id: input.propertyId, landlordId: actorId },
+      })
       if (!owned) throw new AppError('NOT_FOUND', 'Property not found', 404)
     }
+    const resolvedVendorId = await resolveVendorId(tx, actorId, input.vendorId, input.vendorName)
     const invoiceNumber = input.invoiceNumber ?? (await nextInvoiceNumber(tx))
     const invoice = await tx.invoice.create({
       data: {
         invoiceNumber,
         vendorName: input.vendorName,
         vendorEmail: input.vendorEmail ?? null,
+        vendorId: resolvedVendorId,
         amount: sumItemTotals(input.items),
         currency: input.currency,
         category: input.category,
@@ -313,16 +371,25 @@ export async function createSubmission(
         status: 'SUBMITTED',
         user: { connect: { id: args.ownerUserId } },
         submittedByVendor: { connect: { id: args.vendorId } },
+        vendor: { connect: { id: args.vendorId } },
         items: {
           createMany: {
-            data: [{ description: input.description, quantity: 1, total: input.amount, sortOrder: 0 }],
+            data: [
+              { description: input.description, quantity: 1, total: input.amount, sortOrder: 0 },
+            ],
           },
         },
       },
       include: { user: userSelect, items: { orderBy: { sortOrder: 'asc' } } },
     })
     await tx.invoiceEvent.create({
-      data: { invoiceId: invoice.id, actorId, ownerUserId: invoice.userId, type: 'CREATED', detail: {} },
+      data: {
+        invoiceId: invoice.id,
+        actorId,
+        ownerUserId: invoice.userId,
+        type: 'CREATED',
+        detail: {},
+      },
     })
     for (const image of input.images) {
       await writeImageAttachment(tx, invoice.id, actorId, invoice.userId, image)
@@ -363,7 +430,11 @@ export async function vendorUpdateSubmission(
 
     if (input.withdraw) {
       data.status = 'CANCELLED'
-      events.push({ ...base, type: 'STATUS_CHANGED', detail: { from: 'SUBMITTED', to: 'CANCELLED' } })
+      events.push({
+        ...base,
+        type: 'STATUS_CHANGED',
+        detail: { from: 'SUBMITTED', to: 'CANCELLED' },
+      })
     } else {
       // `description` is no longer an Invoice column — it's the submission's
       // one InvoiceItem (synced below), so its old value for diffing comes
@@ -378,7 +449,11 @@ export async function vendorUpdateSubmission(
         const oldValue = normalize(key, (before as Record<string, unknown>)[key])
         const newValue = normalize(key, value)
         if (oldValue !== newValue) {
-          events.push({ ...base, type: 'FIELD_EDITED', detail: { field: key, old: oldValue, new: newValue } })
+          events.push({
+            ...base,
+            type: 'FIELD_EDITED',
+            detail: { field: key, old: oldValue, new: newValue },
+          })
         }
       }
       if (input.description !== undefined) {
@@ -436,7 +511,9 @@ export async function updateInvoice(
     // A property assigned here must belong to the acting landlord. 404 (not 403)
     // so another landlord's property existence never leaks.
     if (input.propertyId != null) {
-      const owned = await tx.property.findFirst({ where: { id: input.propertyId, landlordId: actorId } })
+      const owned = await tx.property.findFirst({
+        where: { id: input.propertyId, landlordId: actorId },
+      })
       if (!owned) throw new AppError('NOT_FOUND', 'Property not found', 404)
     }
 
@@ -455,6 +532,16 @@ export async function updateInvoice(
     if (input.invoiceDate !== undefined) data.invoiceDate = input.invoiceDate
     if (input.notes !== undefined) data.notes = input.notes
     if (input.partsOrdered !== undefined) data.partsOrdered = input.partsOrdered
+    // Re-resolve only when the caller actually touched the vendor, so an
+    // unrelated PATCH (a status change, say) never re-links the invoice.
+    if (input.vendorId !== undefined || input.vendorName !== undefined) {
+      data.vendorId = await resolveVendorId(
+        tx,
+        actorId,
+        input.vendorId,
+        input.vendorName ?? before.vendorName,
+      )
+    }
 
     const events: Prisma.InvoiceEventCreateManyInput[] = []
     const base = { invoiceId: id, actorId, ownerUserId: before.userId }
@@ -493,7 +580,11 @@ export async function updateInvoice(
       const oldValue = normalize(field, (before as Record<string, unknown>)[field])
       const newValue = normalize(field, input[field])
       if (oldValue !== newValue) {
-        events.push({ ...base, type: 'FIELD_EDITED', detail: { field, old: oldValue, new: newValue } })
+        events.push({
+          ...base,
+          type: 'FIELD_EDITED',
+          detail: { field, old: oldValue, new: newValue },
+        })
       }
     }
     // amount is server-computed from items, not direct input — diff it here
@@ -556,9 +647,19 @@ export async function deleteInvoice(prisma: PrismaClient, actorId: string, id: s
     // and InvoiceItem rows with the invoice — items now carry what used to
     // be the scalar `description` column, so omitting them would silently
     // lose the invoice's actual work description from history.
-    const { images, items, user: _user, ...scalar } = before as Record<string, unknown> & {
+    const {
+      images,
+      items,
+      user: _user,
+      ...scalar
+    } = before as Record<string, unknown> & {
       images: { url: string }[]
-      items: { description: string; quantity: number; total: { toFixed: (n: number) => string }; sortOrder: number }[]
+      items: {
+        description: string
+        quantity: number
+        total: { toFixed: (n: number) => string }
+        sortOrder: number
+      }[]
     }
     const urls = images.map((img) => img.url)
     const itemSnapshots = items.map((i) => ({
@@ -573,7 +674,9 @@ export async function deleteInvoice(prisma: PrismaClient, actorId: string, id: s
         actorId,
         ownerUserId: before.userId,
         type: 'DELETED',
-        detail: { snapshot: { ...serializeInvoice(scalar), imageUrls: urls, items: itemSnapshots } },
+        detail: {
+          snapshot: { ...serializeInvoice(scalar), imageUrls: urls, items: itemSnapshots },
+        },
       },
     })
     await tx.invoice.deleteMany({ where: { id, userId: actorId } })
@@ -607,7 +710,11 @@ export async function addImage(
     if (locked.length === 0) throw new AppError('NOT_FOUND', 'Invoice not found', 404)
     const count = await tx.invoiceImage.count({ where: { invoiceId } })
     if (count >= MAX_INVOICE_IMAGES) {
-      throw new AppError('IMAGE_LIMIT', `An invoice can have at most ${MAX_INVOICE_IMAGES} photos`, 422)
+      throw new AppError(
+        'IMAGE_LIMIT',
+        `An invoice can have at most ${MAX_INVOICE_IMAGES} photos`,
+        422,
+      )
     }
     await writeImageAttachment(tx, invoiceId, actorId, locked[0].userId, image)
   })

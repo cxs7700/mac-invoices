@@ -96,6 +96,10 @@ export const CreateInvoiceSchema = z.object({
   invoiceNumber: z.string().min(1).max(50).optional(),
   vendorName: z.string().min(1).max(100),
   vendorEmail: z.string().email().optional(),
+  // The saved vendor this invoice is from. Optional: when omitted and
+  // `vendorName` names a vendor the landlord doesn't have yet, the server
+  // creates one and links it (see writeService.resolveVendorId).
+  vendorId: z.string().optional(),
   // The invoice's total is derived from `items` — the server computes and
   // stores `amount` as their sum; it is never accepted as input.
   items: z.array(InvoiceItemInputSchema).min(1).max(MAX_INVOICE_ITEMS),

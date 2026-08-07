@@ -105,6 +105,18 @@ export async function listInvoices(
       include: {
         user: userSelect,
         items: { orderBy: { sortOrder: 'asc' } },
+        // Two distinct relations, deliberately both surfaced under their own
+        // keys (see writeService.resolveVendorId / createSubmission):
+        //  - `vendor` is ATTRIBUTION (Invoice.vendorId) — "who this invoice is
+        //    from". Set on every landlord-entered invoice with a resolved/
+        //    auto-created vendor, and on a self-submission too. This is what
+        //    the PDF "Sender" block (U8) consumes.
+        //  - `submittedByVendor` is PROVENANCE — who submitted it via their
+        //    no-login link, if anyone. Null for a landlord-entered invoice.
+        // Do not flatten one into the other: a landlord-entered invoice has
+        // vendor set and submittedByVendor null, while a self-submission has
+        // both set to the same vendor.
+        vendor: { select: { name: true, phone: true, email: true } },
         submittedByVendor: { select: { name: true, phone: true, email: true } },
         _count: { select: { images: true } },
       },
@@ -117,12 +129,9 @@ export async function listInvoices(
 
   // Expose imageCount (cheap _count, no N+1) so the list can render the add-photo
   // indicator without fetching each invoice's image rows. Drop the raw _count.
-  // Flatten submittedByVendor → vendor (PDF Sender section, U8); null
-  // for a landlord-entered invoice (the PDF falls back to vendorName/vendorEmail).
-  const data = invoices.map(({ _count, submittedByVendor, ...inv }) => ({
+  const data = invoices.map(({ _count, ...inv }) => ({
     ...inv,
     imageCount: _count.images,
-    vendor: submittedByVendor,
   }))
   return reply.send({ data, pagination: { total, limit: q.limit, offset: q.offset } })
 }
@@ -172,12 +181,26 @@ export async function invoiceSummary(request: FastifyRequest, reply: FastifyRepl
 
   const [agg, byCat, byStat] = await Promise.all([
     prisma.invoice.aggregate({ where: spend, _sum: { amount: true }, _count: { _all: true } }),
-    prisma.invoice.groupBy({ by: ['category'], where: spend, _sum: { amount: true }, _count: { _all: true } }),
-    prisma.invoice.groupBy({ by: ['status'], where: owned, _sum: { amount: true }, _count: { _all: true } }),
+    prisma.invoice.groupBy({
+      by: ['category'],
+      where: spend,
+      _sum: { amount: true },
+      _count: { _all: true },
+    }),
+    prisma.invoice.groupBy({
+      by: ['status'],
+      where: owned,
+      _sum: { amount: true },
+      _count: { _all: true },
+    }),
   ])
 
-  const catMap = new Map(byCat.map((r) => [r.category, { count: r._count._all, amount: money(r._sum.amount) }]))
-  const statMap = new Map(byStat.map((r) => [r.status, { count: r._count._all, amount: money(r._sum.amount) }]))
+  const catMap = new Map(
+    byCat.map((r) => [r.category, { count: r._count._all, amount: money(r._sum.amount) }]),
+  )
+  const statMap = new Map(
+    byStat.map((r) => [r.status, { count: r._count._all, amount: money(r._sum.amount) }]),
+  )
 
   return reply.send({
     total: { count: agg._count._all, amount: money(agg._sum.amount) },
@@ -250,7 +273,10 @@ export async function listInvoiceEvents(
 
   const [users, vendors] = await Promise.all([
     userIds.length
-      ? request.server.prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, name: true } })
+      ? request.server.prisma.user.findMany({
+          where: { id: { in: userIds } },
+          select: { id: true, name: true },
+        })
       : [],
     vendorIds.length
       ? request.server.prisma.vendor.findMany({
