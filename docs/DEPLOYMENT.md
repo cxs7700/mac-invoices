@@ -81,6 +81,50 @@ DATABASE_URL="<prisma-postgres-url>" npm run db:deploy
 > Look for `invoices_invoiceNumber_key` in the result. If it's missing or named differently, **stop and
 > investigate before running `db:deploy`** — though a mismatch would fail the migration atomically inside
 > its transaction, not corrupt anything.
+>
+> **Also check it's an index, not a constraint-backed index.** `pg_indexes` lists
+> `invoices_invoiceNumber_key` identically whether it came from `CREATE UNIQUE INDEX` (our migration
+> history) or from `ADD CONSTRAINT ... UNIQUE` (a hand-fix, or a `db push` against a differently-built
+> database). In the second case `DROP INDEX` fails with `cannot drop index ... because constraint ...
+> requires it` — after the query above has already told you everything looks fine. Rule it out:
+> ```sql
+> SELECT conname, contype FROM pg_constraint WHERE conrelid = 'invoices'::regclass;
+> -- must NOT contain a contype='u' (unique) row for invoiceNumber
+> ```
+>
+> **If `db:deploy` has already failed once, clear the ledger before retrying.** Prisma writes a
+> **failed** row into `_prisma_migrations` on a failed apply; every subsequent `prisma migrate deploy`
+> — including deploys of unrelated future migrations — then aborts with `migration ... failed to apply
+> cleanly` until that row is cleared. The database itself is fine (the failed transaction rolled back
+> entirely); it's only the migrations ledger that's stuck:
+> ```bash
+> DATABASE_URL="<hosted-url>" npx prisma migrate resolve --rolled-back 20260807120000_per_tenant_invoice_numbering
+> ```
+> Then investigate the mismatch and re-run `db:deploy` once it's resolved.
+>
+> **Lock hazard.** `DROP INDEX` takes an `ACCESS EXCLUSIVE` lock on `invoices` and holds it for the
+> transaction. The work itself is milliseconds on a table this size, so duration isn't the risk —
+> *acquisition* is. If any session holds a conflicting lock on `invoices` (including an idle-in-transaction
+> serverless function), the DDL queues, and while it queues every new query against `invoices` queues
+> behind it — turning a millisecond migration into an outage lasting as long as the blocker. For a
+> personal-scale app with one active landlord the practical risk is low — but "low traffic" is exactly
+> when this check gets skipped and an idle connection surprises you. Before running `db:deploy`, either
+> set a short lock timeout so the migration fails fast instead of stalling the table:
+> ```sql
+> SET lock_timeout = '3s';
+> ```
+> and/or check for long-lived transactions first:
+> ```sql
+> SELECT pid, state, now()-xact_start AS age, query FROM pg_stat_activity
+> WHERE xact_start IS NOT NULL ORDER BY xact_start LIMIT 10;
+> ```
+>
+> **Rollback posture: no down migration, and none is needed.** The composite index permits a strict
+> superset of what the old code writes, so rolling the *code* back with this migration still applied
+> works fine — the old global-scan `nextInvoiceNumber` still finds unique numbers under the new
+> constraint. Only a genuine schema rollback (re-adding the global unique index) would need reverse SQL,
+> and that would correctly fail if a second tenant had by then reused a number that collides globally —
+> which is the intended behavior, not a bug to work around.
 
 ## 4. Seed the landlord (one-off, strong password)
 
