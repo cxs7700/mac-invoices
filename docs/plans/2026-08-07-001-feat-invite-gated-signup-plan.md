@@ -20,7 +20,15 @@
 - **`User.name` stays in sync with the split fields on every write** — `` `${firstName} ${lastName}` ``. This is an existing invariant documented on the model and relied on by DEC-028.
 - **Both locale bundles must be updated** — `apps/web/src/locales/en/translation.json` and `apps/web/src/locales/zh/translation.json`. A key added to one and not the other is a bug.
 - **Never log the password or invite code** (spec R10). The pino `req` serializer already omits bodies; do not add body logging.
-- **Local DB:** the api suite needs a reachable Postgres and `LANDLORD_PASSWORD` set. Use the docker Postgres on port **5433** (a native host Postgres shadows 5432).
+- **⚠️ Always run the api suite against the LOCAL database.** The root `.env` `DATABASE_URL` points at the **hosted/production** database, and these tests create and delete `users` rows. Running the api suite bare would write to production. Use this exact invocation every time (verified working — 6/6 on `auth.routes`):
+
+  ```bash
+  DATABASE_URL="postgresql://postgres:postgres@localhost:5433/invoices" \
+  LANDLORD_PASSWORD="changeme-dev" \
+  npm test -w @mac-invoices/api
+  ```
+
+  Port **5433** because a native host Postgres shadows 5432. `dotenv` does not override variables already present in the environment, so the shell values win. The local DB has been reseeded so `landlord@example.com` / `changeme-dev` is a valid login. The shared and web suites need no override.
 
 ---
 
@@ -264,7 +272,7 @@ describe('assertValidInviteCode', () => {
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `npm test -w @mac-invoices/api -- auth.inviteCode`
+Run: `DATABASE_URL="postgresql://postgres:postgres@localhost:5433/invoices" LANDLORD_PASSWORD="changeme-dev" npm test -w @mac-invoices/api -- auth.inviteCode`
 Expected: FAIL — cannot resolve `../src/auth/inviteCode`.
 
 - [ ] **Step 3: Write the implementation**
@@ -312,7 +320,7 @@ export function assertValidInviteCode(submitted: string): void {
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Run: `npm test -w @mac-invoices/api -- auth.inviteCode`
+Run: `DATABASE_URL="postgresql://postgres:postgres@localhost:5433/invoices" LANDLORD_PASSWORD="changeme-dev" npm test -w @mac-invoices/api -- auth.inviteCode`
 Expected: PASS (6 tests).
 
 - [ ] **Step 5: Commit**
@@ -544,7 +552,7 @@ describe('signup secrets stay out of logs', () => {
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `npm test -w @mac-invoices/api -- auth.signup`
+Run: `DATABASE_URL="postgresql://postgres:postgres@localhost:5433/invoices" LANDLORD_PASSWORD="changeme-dev" npm test -w @mac-invoices/api -- auth.signup`
 Expected: FAIL — the route does not exist, so requests return 404.
 
 If the run instead errors on connecting to Postgres, start the local DB first (`docker compose up -d`) and make sure `LANDLORD_PASSWORD` is set; the api suite needs a live DB.
@@ -621,12 +629,12 @@ Then add this route **after** the login route and before `POST /api/auth/logout`
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Run: `npm test -w @mac-invoices/api -- auth.signup`
+Run: `DATABASE_URL="postgresql://postgres:postgres@localhost:5433/invoices" LANDLORD_PASSWORD="changeme-dev" npm test -w @mac-invoices/api -- auth.signup`
 Expected: PASS (10 tests).
 
 - [ ] **Step 5: Verify the existing auth suite still passes**
 
-Run: `npm test -w @mac-invoices/api -- auth`
+Run: `DATABASE_URL="postgresql://postgres:postgres@localhost:5433/invoices" LANDLORD_PASSWORD="changeme-dev" npm test -w @mac-invoices/api -- auth`
 Expected: PASS — `auth.routes.test.ts`, `auth.session.test.ts`, and both new files. This is the regression gate for the `EmailSchema` change against the seeded landlord (spec AE5).
 
 If the seeded landlord's login now fails, their `LANDLORD_EMAIL` contains uppercase. Lowercase it in `.env` and re-run the seed. **This is exactly the deploy-time hazard the spec calls out — note it and carry it into Task 6's docs.**
