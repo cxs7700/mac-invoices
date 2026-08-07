@@ -13,7 +13,7 @@
 ## Global Constraints
 
 - **Definition of Done:** `npm run lint && npm run typecheck && npm run test` all green.
-- **Run everything against the LOCAL database.** This worktree's `.env` already points `DATABASE_URL` at `postgresql://postgres:postgres@localhost:5433/invoices` (docker). Never run a migration or test against the hosted DB.
+- **Run everything against the LOCAL database.** This worktree's `.env` already points `DATABASE_URL` at `postgresql://postgres:postgres@localhost:5433/invoices_vendors` (docker). This database is **dedicated to this worktree** — the shared `invoices` database is also used by the main checkout, where a concurrent session applies its own migrations. Never run a migration or test against the hosted DB or against `invoices`.
 - Start Postgres with `docker start mac-invoices-db` if it is not running.
 - The `apps/api` suite has a **pre-existing intermittent failure (~1 run in 3)** from a race on the shared landlord row across parallel test files. If a single api file fails, re-run that file alone before treating it as a regression.
 - `name` stays bounded to **max 100** — it is defaulted into `Invoice.vendorName`, which is `max(100)`.
@@ -187,7 +187,7 @@ git commit -m "feat(shared): rename Contractor schemas to Vendor with phone/emai
 
 **Files:**
 - Modify: `apps/api/prisma/schema.prisma`
-- Create: `apps/api/prisma/migrations/20260807120000_rename_contractor_to_vendor/migration.sql`
+- Create: `apps/api/prisma/migrations/20260807190000_rename_contractor_to_vendor/migration.sql`
 
 **Interfaces:**
 - Consumes: nothing from Task 1.
@@ -266,7 +266,7 @@ Finally, update the `Property` model's comment "mirrors the Contractor entity" t
 
 - [ ] **Step 3: Hand-write the migration**
 
-Create `apps/api/prisma/migrations/20260807120000_rename_contractor_to_vendor/migration.sql`. Write it by hand — do NOT let `prisma migrate dev` autogenerate it, because Prisma would emit DROP+CREATE for the renames and destroy every row.
+Create `apps/api/prisma/migrations/20260807190000_rename_contractor_to_vendor/migration.sql`. Write it by hand — do NOT let `prisma migrate dev` autogenerate it, because Prisma would emit DROP+CREATE for the renames and destroy every row.
 
 ```sql
 -- Rename the table and its constraints/indexes. RENAME (never DROP+CREATE)
@@ -1353,7 +1353,7 @@ Follow the existing DEC-029 style — a bolded title line, the plan/spec paths, 
 
 - [ ] **Step 3: Note the migration in docs/DEPLOYMENT.md**
 
-Add a step recording that `20260807120000_rename_contractor_to_vendor` must be applied to production, that it is data-preserving (`RENAME`, never DROP+CREATE), and that it rewrites `invoice_events.actorId` prefixes. Flag that the API and web deploy must go out together — the renamed API routes and the renamed columns land in the same migration.
+Add a step recording that `20260807190000_rename_contractor_to_vendor` must be applied to production, that it is data-preserving (`RENAME`, never DROP+CREATE), and that it rewrites `invoice_events.actorId` prefixes. Flag that the API and web deploy must go out together — the renamed API routes and the renamed columns land in the same migration.
 
 - [ ] **Step 4: Run the full Definition of Done**
 
