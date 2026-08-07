@@ -70,7 +70,6 @@ A single root `.env` is loaded by both apps (the API resolves it via `apps/api/s
 | `LANDLORD_PASSWORD` | yes | Landlord login password (hashed at seed time). **The seed refuses the dev default `changeme-dev` in production — set a strong value.** |
 | `COOKIE_SECURE` | prod | `true` sends the session cookie only over HTTPS. Set `true` on any non-localhost deploy. |
 | `GOOGLE_SERVICE_ACCOUNT_KEY` | for export | JSON string of a Google service-account key. Share the target sheet as Editor with its `client_email`. See [`docs/SHEETS_EXPORT.md`](docs/SHEETS_EXPORT.md). |
-| `GOOGLE_SHEET_ID` | for export | Default spreadsheet the export appends to (a per-request `spreadsheetId` overrides it). |
 | `GOOGLE_SHEET_TAB` | no | Tab the export writes to (default `Invoices`). |
 | `EXPORT_RATE_LIMIT_MAX` | no | Export-endpoint rate-limit cap per 15-min window (default `5`). |
 | `EXPORT_CHUNK_SIZE` | no | Rows per Sheets append call (default `500`, clamped 1–500). |

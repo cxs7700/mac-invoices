@@ -17,7 +17,6 @@ import { parseBody } from '../lib/validate'
 import { money } from '../lib/money'
 import { issueUploadToken, signedReadUrl } from '../integrations/storage'
 import { assertCronSecret } from '../lib/cronAuth'
-import { resolveEffectiveSpreadsheetId } from '../lib/sheetTarget'
 import * as writeService from './writeService'
 import { mirrorUserSheet, runSheetsSyncFlush } from './sheetSync'
 import type { GetInvoiceParams, ImageParams, ListInvoicesQuery } from './types.ts'
@@ -398,10 +397,10 @@ export async function setInvoiceImageType(
  * invoices to their connected Google Sheet (clear + rewrite). Continuous sync
  * (the cron) does this automatically; this endpoint forces an immediate pass.
  *
- * Targets the landlord's saved spreadsheet id (Settings), falling back to the
- * server env default for the single-tenant deploy. The body `spreadsheetId` is
- * still accepted/validated for compatibility but is no longer an override — the
- * mirror is owner-scoped. Returns `{ exported }` = data rows written.
+ * Targets the user's saved spreadsheet id (Settings) only — there is no
+ * server-side fallback. The body `spreadsheetId` is still accepted/validated
+ * for compatibility but is no longer an override — the mirror is
+ * owner-scoped. Returns `{ exported }` = data rows written.
  */
 export async function exportInvoices(request: FastifyRequest, reply: FastifyReply) {
   parseBody(ExportInvoicesSchema, request.body)
@@ -411,7 +410,7 @@ export async function exportInvoices(request: FastifyRequest, reply: FastifyRepl
       select: { sheetSpreadsheetId: true },
     })
   )?.sheetSpreadsheetId
-  const spreadsheetId = resolveEffectiveSpreadsheetId(request.user.id, saved ?? null)
+  const spreadsheetId = saved ?? null
   if (!spreadsheetId) {
     throw new AppError(
       'SHEET_NOT_CONNECTED',

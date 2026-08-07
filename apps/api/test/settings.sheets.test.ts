@@ -37,18 +37,15 @@ const save = (spreadsheetId: string) =>
 const test = () => app.inject({ method: 'POST', url: '/api/settings/sheets/test', headers: { cookie: cookie() } })
 
 describe('Sheets settings', () => {
-  it('C2: GET status returns null targetSpreadsheetId for a non-landlord user with no saved sheet, even when GOOGLE_SHEET_ID is set (no cross-tenant leak)', async () => {
-    process.env.GOOGLE_SHEET_ID = 'SHEET-ENV-DEFAULT'
-    try {
-      // `u` is a fresh non-landlord tenant (createSecondUser) — assert its
-      // precondition (no saved sheet) before relying on the env-fallback gate.
-      const before = await app.prisma.user.findUniqueOrThrow({ where: { id: u.user.id } })
-      expect(before.sheetSpreadsheetId).toBeNull()
-      const body = (await get()).json()
-      expect(body.targetSpreadsheetId).toBeNull()
-    } finally {
-      delete process.env.GOOGLE_SHEET_ID
-    }
+  it('GET status returns null targetSpreadsheetId for a user with no saved sheet — no server-side fallback of any kind', async () => {
+    // `u` is a fresh non-landlord tenant (createSecondUser) with no saved
+    // sheet. There is no env fallback to guard against anymore (it was
+    // removed entirely — see DEC-029(i)), so this simply proves the status
+    // read reflects the DB column as-is.
+    const before = await app.prisma.user.findUniqueOrThrow({ where: { id: u.user.id } })
+    expect(before.sheetSpreadsheetId).toBeNull()
+    const body = (await get()).json()
+    expect(body.targetSpreadsheetId).toBeNull()
   })
 
   it('GET status: configured + service-account email, never the key (AE5)', async () => {
@@ -86,7 +83,7 @@ describe('Sheets settings', () => {
     expect(res.json().error.message).toMatch(/share it as Editor/)
   })
 
-  it('"Sync now" mirrors to the saved spreadsheet id over the env default', async () => {
+  it('"Sync now" mirrors to the saved spreadsheet id', async () => {
     await save('SAVED-TARGET')
     // Give the user an invoice so the mirror has a data row.
     await app.inject({

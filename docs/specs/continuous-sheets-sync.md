@@ -50,14 +50,15 @@ Same row set and columns as today's export (single source of truth: `EXPORT_COLU
 ## Target spreadsheet — per user
 
 Continuous sync targets **`User.sheetSpreadsheetId`** only (set in Settings → Sheets).
-It does **not** fall back to the server-wide `GOOGLE_SHEET_ID` env, because a full
-clear+rewrite against a shared sheet would let multiple users clobber each other. A user
-with no saved `sheetSpreadsheetId` is skipped by the cron. (The manual "Sync now" button
-surfaces a clear error telling them to connect a sheet in Settings.)
+There is no server-side fallback of any kind — the old `GOOGLE_SHEET_ID` env var has been
+removed entirely (DEC-029(i)) because a full clear+rewrite against a shared sheet would let
+multiple users clobber each other. A user with no saved `sheetSpreadsheetId` is skipped by
+the cron. (The manual "Sync now" button surfaces a clear error telling them to connect a
+sheet in Settings.)
 
 > Migration note for the current single landlord: set the spreadsheet id once in
-> Settings → Sheets (the env `GOOGLE_SHEET_ID` remains a fallback for nothing now —
-> continuous sync ignores it).
+> Settings → Sheets. The env `GOOGLE_SHEET_ID` no longer exists — there is nothing left to
+> migrate away from.
 
 ## Dirtiness detection (skip unchanged users)
 

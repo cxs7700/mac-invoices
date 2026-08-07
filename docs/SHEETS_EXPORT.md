@@ -20,16 +20,15 @@ The landlord's connected Google Sheet is a **continuous full mirror** of their e
 4. **Share the sheet as Editor** with the service account's `client_email` (from the key JSON). This is
    the #1 first-use failure — without it every sync returns a permission error.
 5. **Connect the sheet in the app** — Settings → Sheets → paste the spreadsheet id and Save (then "Test
-   connection"). **Continuous sync requires this per-landlord setting**; it does *not* use the
-   server-wide `GOOGLE_SHEET_ID` env (a shared-sheet clear+rewrite would let multiple landlords clobber
-   each other). The header row is written by the mirror — no need to add one by hand.
+   connection"). **Both the manual "Sync now" button and continuous sync require this per-landlord
+   setting**; there is no server-wide fallback (a shared-sheet clear+rewrite would let multiple landlords
+   clobber each other). The header row is written by the mirror — no need to add one by hand.
 
 ## Environment variables
 
 | Variable | Value |
 |---|---|
 | `GOOGLE_SERVICE_ACCOUNT_KEY` | the **entire JSON key** as a string (Sensitive — never commit). Note Vercel/env stores often need the `private_key`'s `\n` preserved. |
-| `GOOGLE_SHEET_ID` | optional server-wide fallback for the manual "Sync now" button only; **continuous sync ignores it** (use the per-landlord Settings value). |
 | `GOOGLE_SHEET_TAB` | optional; the tab to mirror (default `Invoices`) |
 | `CRON_SECRET` | gates the `POST /api/cron/sync-sheets` flush (shared with the digest cron). See `docs/DEPLOYMENT.md`. |
 

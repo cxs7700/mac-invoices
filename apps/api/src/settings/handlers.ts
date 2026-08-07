@@ -6,7 +6,6 @@ import { hashPassword, verifyPassword } from '../auth/password'
 import { sessionIdFromToken } from '../auth/session'
 import { SESSION_COOKIE } from '../auth/requireAuth'
 import { serviceAccountEmail, checkAccess } from '../integrations/sheets'
-import { resolveEffectiveSpreadsheetId } from '../lib/sheetTarget'
 
 // Landlord self-serve settings, all scoped to the session user. Responses never
 // include the password hash or any secret (DEC-019 / R10).
@@ -106,14 +105,14 @@ export async function changePassword(request: FastifyRequest, reply: FastifyRepl
   return reply.code(204).send()
 }
 
-/** The session user's effective Sheets target: their saved id, else the env
- * default (seeded landlord only — see resolveEffectiveSpreadsheetId). */
+/** The session user's effective Sheets target: their saved id, or null if
+ * they have not connected a sheet. There is no server-side fallback. */
 async function effectiveTarget(request: FastifyRequest): Promise<string | null> {
   const user = await request.server.prisma.user.findUniqueOrThrow({
     where: { id: request.user.id },
     select: { sheetSpreadsheetId: true },
   })
-  return resolveEffectiveSpreadsheetId(request.user.id, user.sheetSpreadsheetId)
+  return user.sheetSpreadsheetId
 }
 
 /**

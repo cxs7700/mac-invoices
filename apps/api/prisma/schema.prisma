@@ -22,9 +22,9 @@ model User {
   firstName    String?
   lastName     String?
   role         Role         @default(LANDLORD)
-  // Per-landlord Google Sheets export target; the export prefers this over the
-  // GOOGLE_SHEET_ID env default. Null = use the env default. Continuous sync
-  // (the cron mirror) targets THIS only — never the shared env sheet.
+  // Per-user Google Sheets export target — the only source for both the manual
+  // "Sync now" export and continuous sync (the cron mirror). Null = no sheet
+  // connected; there is no server-side fallback (removed — see DEC-029(i)).
   sheetSpreadsheetId String?
   // High-water mark for continuous Sheets sync: the last successful full mirror.
   // A user is "dirty" when their newest Invoice.updatedAt (or newest DELETED

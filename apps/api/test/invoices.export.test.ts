@@ -58,12 +58,10 @@ beforeAll(async () => {
   await app.ready()
   landlord = await loginCookie(app)
   user = await createSecondUser(app)
-  process.env.GOOGLE_SHEET_ID = 'SHEET-TEST'
-  // C2: the env fallback is gated to the seeded LANDLORD_USER_ID only — `user`
-  // is a non-landlord tenant, so give it a SAVED target instead of relying on
-  // GOOGLE_SHEET_ID. This keeps every content/filtering/scoping test below
-  // (which only cares that mirroring happens, not which resolution path found
-  // the target) unaffected by that gate.
+  // There is no env fallback anymore — every user, including `user` here,
+  // must have a SAVED target for the content/filtering/scoping tests below
+  // (which only care that mirroring happens, not how the target was set) to
+  // exercise a successful export.
   await app.prisma.user.update({
     where: { id: user.user.id },
     data: { sheetSpreadsheetId: 'SHEET-TEST' },
@@ -73,12 +71,10 @@ afterAll(async () => {
   await app.prisma.invoice.deleteMany({ where: { invoiceNumber: { startsWith: NONCE } } })
   await user.cleanup()
   await app.close()
-  delete process.env.GOOGLE_SHEET_ID
   delete process.env.EXPORT_RATE_LIMIT_MAX
 })
 beforeEach(() => {
   overwriteRows.mockReset().mockResolvedValue(undefined)
-  process.env.GOOGLE_SHEET_ID = 'SHEET-TEST'
 })
 afterEach(async () => {
   const invs = await app.prisma.invoice.findMany({
@@ -95,7 +91,7 @@ describe('POST /api/invoices/export — "Sync now" full mirror', () => {
     expect(res.statusCode).toBe(401)
   })
 
-  it('mirrors all exportable invoices (header + rows) to the env target and reports the row count', async () => {
+  it('mirrors all exportable invoices (header + rows) to the saved target and reports the row count', async () => {
     await create('1', user.cookie)
     await create('2', user.cookie)
     await create('3', user.cookie)
@@ -141,12 +137,11 @@ describe('POST /api/invoices/export — "Sync now" full mirror', () => {
     expect(numbers).not.toContain(`${NONCE}landlords`)
   })
 
-  it('400s SHEET_NOT_CONNECTED when no target resolves for a non-landlord user, even with GOOGLE_SHEET_ID unset', async () => {
+  it('400s SHEET_NOT_CONNECTED when a non-landlord user has no saved sheet', async () => {
     // A fresh non-landlord user with no saved sheet — `user` (above) now
     // always has a saved target, so this needs its own fixture.
     const noSheet = await createSecondUser(app)
     try {
-      delete process.env.GOOGLE_SHEET_ID
       await create('x', noSheet.cookie)
 
       const bad = await exportAs(noSheet.cookie)
@@ -154,7 +149,7 @@ describe('POST /api/invoices/export — "Sync now" full mirror', () => {
       expect(bad.json().error.code).toBe('SHEET_NOT_CONNECTED')
 
       // The body spreadsheetId is accepted by the schema but no longer overrides the
-      // owner-scoped target — still 400 with no env/saved target.
+      // owner-scoped target — still 400 with no saved target.
       const stillBad = await exportAs(noSheet.cookie, { spreadsheetId: 'BODY-SHEET' })
       expect(stillBad.statusCode).toBe(400)
       expect(overwriteRows).not.toHaveBeenCalled()
@@ -163,34 +158,20 @@ describe('POST /api/invoices/export — "Sync now" full mirror', () => {
     }
   })
 
-  it('C2: a non-landlord user with no saved sheet gets SHEET_NOT_CONNECTED even when GOOGLE_SHEET_ID IS set — no cross-tenant fallback', async () => {
-    // Regression test for the C2 finding: before the fix, ANY user with no
-    // saved sheetSpreadsheetId inherited the shared env default, so a new
-    // tenant's first Export would clear-and-rewrite the incumbent landlord's
-    // spreadsheet. The env fallback must now be gated to LANDLORD_USER_ID.
-    process.env.GOOGLE_SHEET_ID = 'SHEET-TEST'
-    const noSheet = await createSecondUser(app)
-    try {
-      await create('gated', noSheet.cookie)
-      const res = await exportAs(noSheet.cookie)
-      expect(res.statusCode).toBe(400)
-      expect(res.json().error.code).toBe('SHEET_NOT_CONNECTED')
-      expect(overwriteRows).not.toHaveBeenCalled()
-    } finally {
-      await noSheet.cleanup()
-    }
-  })
-
-  it('C2: the seeded landlord still gets the GOOGLE_SHEET_ID env default when they have no saved sheet', async () => {
-    process.env.GOOGLE_SHEET_ID = 'SHEET-TEST'
+  it('inversion: the seeded landlord ALSO gets SHEET_NOT_CONNECTED with no saved sheet — the env fallback is gone entirely', async () => {
+    // The env fallback used to be gated to LANDLORD_USER_ID only (so the
+    // landlord alone inherited GOOGLE_SHEET_ID). That gate has since been
+    // removed outright: every user, including the seeded landlord, now reads
+    // ONLY User.sheetSpreadsheetId. This is the core assertion of that change.
     const before = await app.prisma.user.findUniqueOrThrow({
       where: { id: process.env.LANDLORD_USER_ID ?? 'landlord_seed_user' },
       select: { sheetSpreadsheetId: true },
     })
     expect(before.sheetSpreadsheetId).toBeNull() // precondition: no saved sheet
     const res = await exportAs(landlord)
-    expect(res.statusCode).toBe(200)
-    expect(overwriteRows.mock.calls.at(-1)![0]).toBe('SHEET-TEST')
+    expect(res.statusCode).toBe(400)
+    expect(res.json().error.code).toBe('SHEET_NOT_CONNECTED')
+    expect(overwriteRows).not.toHaveBeenCalled()
   })
 
   it('propagates a sanitized Sheets failure (no partial-count bookkeeping)', async () => {
@@ -249,10 +230,9 @@ describe('POST /api/invoices/export — rate limit', () => {
     const u = await createSecondUser(rlApp)
     rlCookie = u.cookie
     rlCleanup = u.cleanup
-    process.env.GOOGLE_SHEET_ID = 'SHEET-RL'
-    // C2: rlUser is not the seeded landlord, so it no longer inherits the env
-    // default — give it a saved target so this suite (about the rate limit,
-    // not target resolution) still exercises a successful export.
+    // There is no env fallback — give the fixture user a saved target so this
+    // suite (about the rate limit, not target resolution) still exercises a
+    // successful export.
     await rlApp.prisma.user.update({
       where: { id: u.user.id },
       data: { sheetSpreadsheetId: 'SHEET-RL' },

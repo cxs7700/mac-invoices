@@ -125,7 +125,7 @@ Each of these has a safe "off" behavior; add them when you turn the feature on. 
 | Variable(s) | Enables | Behavior if unset |
 |---|---|---|
 | `SIGNUP_INVITE_CODE` | invite-gated signup at `/login` → Sign up | **unset = signup is disabled** (`503 SIGNUP_DISABLED`), which is the default. One shared code for everyone; rotating it invalidates it for all invitees. Treat as sensitive. |
-| `GOOGLE_SERVICE_ACCOUNT_KEY` (JSON), `GOOGLE_SHEET_ID`, `GOOGLE_SHEET_TAB` (default `Invoices`) | Google Sheets export | the export endpoint returns `503 *_NOT_CONFIGURED`; the rest of the app is unaffected. Share the target sheet as **Editor** with the key's `client_email`. |
+| `GOOGLE_SERVICE_ACCOUNT_KEY` (JSON), `GOOGLE_SHEET_TAB` (default `Invoices`) | Google Sheets export | the export endpoint returns `503 *_NOT_CONFIGURED`; the rest of the app is unaffected. The export target itself is per-user, set in Settings → Sheets — not an env var. Share the target sheet as **Editor** with the key's `client_email`. |
 | `BLOB_READ_WRITE_TOKEN` | invoice photo capture (upload + view) | auto-injected once a **Vercel Blob store** is linked to the project; photo upload fails until then. |
 | `RESEND_API_KEY`, `EMAIL_FROM`, `CRON_SECRET` | the landlord notification digest | see [Contractor notifications](#contractor-notifications-landlord-digest) below — the in-app feed works regardless; email no-ops without `RESEND_API_KEY`. |
 
@@ -177,8 +177,8 @@ cron pattern as the digest. To enable it in production:
 
 1. **Sheets env vars** — `GOOGLE_SERVICE_ACCOUNT_KEY` (+ optional `GOOGLE_SHEET_TAB`); see `docs/SHEETS_EXPORT.md`.
    Reuses the **same `CRON_SECRET`** as the digest — nothing new to add if that's already set.
-2. **Per-landlord setup.** Each landlord connects their sheet in Settings → Sheets (continuous sync uses
-   that saved id, **not** the server-wide `GOOGLE_SHEET_ID`). A landlord with no connected sheet is skipped.
+2. **Per-landlord setup.** Each landlord connects their sheet in Settings → Sheets — that saved id is the
+   only export target (no server-wide fallback exists). A landlord with no connected sheet is skipped.
 3. **GitHub Actions scheduler** (`.github/workflows/sync-sheets.yml`, runs every ~15 min) — uses the same
    `APP_URL` variable and `CRON_SECRET` secret as the digest workflow.
 4. **Enable the workflow** once the app is live: `gh workflow enable "Continuous Sheets sync"` (disabled
