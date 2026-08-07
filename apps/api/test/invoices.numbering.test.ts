@@ -18,7 +18,12 @@ const body = (over: Record<string, unknown> = {}) => ({
 })
 
 async function create(cookie: string, over: Record<string, unknown> = {}) {
-  return app.inject({ method: 'POST', url: '/api/invoices', payload: body(over), headers: { cookie } })
+  return app.inject({
+    method: 'POST',
+    url: '/api/invoices',
+    payload: body(over),
+    headers: { cookie },
+  })
 }
 
 /** Give a tenant pre-existing numbered invoices without going through the API. */
@@ -81,6 +86,25 @@ describe('per-tenant invoice numbering', () => {
     expect(second.json().invoiceNumber).toBe('SHARED-1')
   })
 
+  it('lets a tenant PATCH one of their invoices to a number another tenant already holds', async () => {
+    const held = await create(a.cookie, { invoiceNumber: 'SHARED-2' })
+    expect(held.statusCode).toBe(201)
+
+    const mine = await create(b.cookie, { invoiceNumber: 'B-OWN-1' })
+    expect(mine.statusCode).toBe(201)
+
+    // R6 flow F3: edit path, not just create — B retargets their own invoice
+    // to a number A already holds. Cross-tenant, so this must succeed.
+    const patch = await app.inject({
+      method: 'PATCH',
+      url: `/api/invoices/${mine.json().id}`,
+      payload: { invoiceNumber: 'SHARED-2' },
+      headers: { cookie: b.cookie },
+    })
+    expect(patch.statusCode).toBe(200)
+    expect(patch.json().invoiceNumber).toBe('SHARED-2')
+  })
+
   it('still rejects a duplicate number within one tenant', async () => {
     const first = await create(b.cookie, { invoiceNumber: 'DUPE-1' })
     expect(first.statusCode).toBe(201)
@@ -129,7 +153,9 @@ describe('per-tenant invoice numbering', () => {
           category: 'OTHER',
           propertyId: property.id,
           userId: c.user.id,
-          items: { createMany: { data: [{ description: 'Work', quantity: 1, total: 100, sortOrder: 0 }] } },
+          items: {
+            createMany: { data: [{ description: 'Work', quantity: 1, total: 100, sortOrder: 0 }] },
+          },
         },
       })
 

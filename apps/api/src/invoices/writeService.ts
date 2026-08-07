@@ -88,12 +88,20 @@ export function assertTransitionAllowed(
   // landlord's approve sees CANCELLED and is refused here rather than resurrecting
   // it to APPROVED. (PAID stays reopenable — existing landlord behavior.)
   if (from === 'CANCELLED' || from === 'REJECTED') {
-    throw new AppError('INVALID_TRANSITION', `A ${from.toLowerCase()} invoice cannot change status`, 422)
+    throw new AppError(
+      'INVALID_TRANSITION',
+      `A ${from.toLowerCase()} invoice cannot change status`,
+      422,
+    )
   }
   if (from === 'SUBMITTED') {
     if (actorKindOf(actorId) === 'contractor') {
       if (to === 'CANCELLED') return
-      throw new AppError('INVALID_TRANSITION', `A submission cannot move from SUBMITTED to ${to}`, 422)
+      throw new AppError(
+        'INVALID_TRANSITION',
+        `A submission cannot move from SUBMITTED to ${to}`,
+        422,
+      )
     }
     if (to === 'APPROVED') {
       if (ctx.categoryAfter == null) {
@@ -110,7 +118,11 @@ export function assertTransitionAllowed(
       }
       return
     }
-    throw new AppError('INVALID_TRANSITION', `A submission can only be approved or rejected, not ${to}`, 422)
+    throw new AppError(
+      'INVALID_TRANSITION',
+      `A submission can only be approved or rejected, not ${to}`,
+      422,
+    )
   }
   if (to === 'APPROVED') {
     if (ctx.categoryAfter == null) {
@@ -164,9 +176,14 @@ function serializeInvoice(inv: Record<string, unknown>): Prisma.InputJsonObject 
 
 /**
  * Next sequential invoice number **for one owner**, scanning that owner's max.
- * Runs on the transaction client so the read-max and the insert stay
- * race-consistent within the same transaction; the auto-number retry (in the
- * handler) opens a fresh transaction per attempt.
+ * Runs on the transaction client, but that does not make the read-max +
+ * insert race-free: Prisma's `$transaction` runs at the database default
+ * (READ COMMITTED), so two concurrent transactions for the same tenant can
+ * both read max N and both attempt N+1. Being in one transaction only makes
+ * the *failure* clean — the loser blocks on the unique index and raises
+ * P2002 rather than writing a duplicate — so a losing writer fails cleanly
+ * instead of corrupting data; the handler's retry in a fresh transaction (see
+ * `handlers.ts`) is what makes the sequence actually converge.
  *
  * Scoped by `userId`: numbers are unique per tenant, not globally
  * (`@@unique([userId, invoiceNumber])`). An unscoped scan would start a new
@@ -249,7 +266,9 @@ export async function createInvoice(
     // A property assigned at create must belong to the acting landlord (404, not
     // 403, so another landlord's property existence never leaks).
     if (input.propertyId != null) {
-      const owned = await tx.property.findFirst({ where: { id: input.propertyId, landlordId: actorId } })
+      const owned = await tx.property.findFirst({
+        where: { id: input.propertyId, landlordId: actorId },
+      })
       if (!owned) throw new AppError('NOT_FOUND', 'Property not found', 404)
     }
     const invoiceNumber = input.invoiceNumber ?? (await nextInvoiceNumber(tx, actorId))
@@ -320,14 +339,22 @@ export async function createSubmission(
         submittedByContractor: { connect: { id: args.contractorId } },
         items: {
           createMany: {
-            data: [{ description: input.description, quantity: 1, total: input.amount, sortOrder: 0 }],
+            data: [
+              { description: input.description, quantity: 1, total: input.amount, sortOrder: 0 },
+            ],
           },
         },
       },
       include: { user: userSelect, items: { orderBy: { sortOrder: 'asc' } } },
     })
     await tx.invoiceEvent.create({
-      data: { invoiceId: invoice.id, actorId, ownerUserId: invoice.userId, type: 'CREATED', detail: {} },
+      data: {
+        invoiceId: invoice.id,
+        actorId,
+        ownerUserId: invoice.userId,
+        type: 'CREATED',
+        detail: {},
+      },
     })
     for (const image of input.images) {
       await writeImageAttachment(tx, invoice.id, actorId, invoice.userId, image)
@@ -368,7 +395,11 @@ export async function contractorUpdateSubmission(
 
     if (input.withdraw) {
       data.status = 'CANCELLED'
-      events.push({ ...base, type: 'STATUS_CHANGED', detail: { from: 'SUBMITTED', to: 'CANCELLED' } })
+      events.push({
+        ...base,
+        type: 'STATUS_CHANGED',
+        detail: { from: 'SUBMITTED', to: 'CANCELLED' },
+      })
     } else {
       // `description` is no longer an Invoice column — it's the submission's
       // one InvoiceItem (synced below), so its old value for diffing comes
@@ -383,7 +414,11 @@ export async function contractorUpdateSubmission(
         const oldValue = normalize(key, (before as Record<string, unknown>)[key])
         const newValue = normalize(key, value)
         if (oldValue !== newValue) {
-          events.push({ ...base, type: 'FIELD_EDITED', detail: { field: key, old: oldValue, new: newValue } })
+          events.push({
+            ...base,
+            type: 'FIELD_EDITED',
+            detail: { field: key, old: oldValue, new: newValue },
+          })
         }
       }
       if (input.description !== undefined) {
@@ -441,7 +476,9 @@ export async function updateInvoice(
     // A property assigned here must belong to the acting landlord. 404 (not 403)
     // so another landlord's property existence never leaks.
     if (input.propertyId != null) {
-      const owned = await tx.property.findFirst({ where: { id: input.propertyId, landlordId: actorId } })
+      const owned = await tx.property.findFirst({
+        where: { id: input.propertyId, landlordId: actorId },
+      })
       if (!owned) throw new AppError('NOT_FOUND', 'Property not found', 404)
     }
 
@@ -498,7 +535,11 @@ export async function updateInvoice(
       const oldValue = normalize(field, (before as Record<string, unknown>)[field])
       const newValue = normalize(field, input[field])
       if (oldValue !== newValue) {
-        events.push({ ...base, type: 'FIELD_EDITED', detail: { field, old: oldValue, new: newValue } })
+        events.push({
+          ...base,
+          type: 'FIELD_EDITED',
+          detail: { field, old: oldValue, new: newValue },
+        })
       }
     }
     // amount is server-computed from items, not direct input — diff it here
@@ -561,9 +602,19 @@ export async function deleteInvoice(prisma: PrismaClient, actorId: string, id: s
     // and InvoiceItem rows with the invoice — items now carry what used to
     // be the scalar `description` column, so omitting them would silently
     // lose the invoice's actual work description from history.
-    const { images, items, user: _user, ...scalar } = before as Record<string, unknown> & {
+    const {
+      images,
+      items,
+      user: _user,
+      ...scalar
+    } = before as Record<string, unknown> & {
       images: { url: string }[]
-      items: { description: string; quantity: number; total: { toFixed: (n: number) => string }; sortOrder: number }[]
+      items: {
+        description: string
+        quantity: number
+        total: { toFixed: (n: number) => string }
+        sortOrder: number
+      }[]
     }
     const urls = images.map((img) => img.url)
     const itemSnapshots = items.map((i) => ({
@@ -578,7 +629,9 @@ export async function deleteInvoice(prisma: PrismaClient, actorId: string, id: s
         actorId,
         ownerUserId: before.userId,
         type: 'DELETED',
-        detail: { snapshot: { ...serializeInvoice(scalar), imageUrls: urls, items: itemSnapshots } },
+        detail: {
+          snapshot: { ...serializeInvoice(scalar), imageUrls: urls, items: itemSnapshots },
+        },
       },
     })
     await tx.invoice.deleteMany({ where: { id, userId: actorId } })
@@ -612,7 +665,11 @@ export async function addImage(
     if (locked.length === 0) throw new AppError('NOT_FOUND', 'Invoice not found', 404)
     const count = await tx.invoiceImage.count({ where: { invoiceId } })
     if (count >= MAX_INVOICE_IMAGES) {
-      throw new AppError('IMAGE_LIMIT', `An invoice can have at most ${MAX_INVOICE_IMAGES} photos`, 422)
+      throw new AppError(
+        'IMAGE_LIMIT',
+        `An invoice can have at most ${MAX_INVOICE_IMAGES} photos`,
+        422,
+      )
     }
     await writeImageAttachment(tx, invoiceId, actorId, locked[0].userId, image)
   })
