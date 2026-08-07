@@ -39,34 +39,40 @@ model User {
   updatedAt    DateTime     @updatedAt
   invoices     Invoice[]
   sessions     Session[]
-  contractors  Contractor[]
+  vendors      Vendor[]
   properties   Property[]
 
   @@map("users")
 }
 
-// A lightweight contractor the landlord collects invoices from via a no-login
+// A lightweight vendor the landlord collects invoices from via a no-login
 // tokenized link. NOT a User: no password, no session. The link is a bearer
 // credential — `tokenLookupId` is a non-secret indexed handle for a point
 // lookup; `tokenHash` is the SHA-256 of the secret (never stored in plaintext,
 // mirroring Session). `revokedAt` invalidates the link; regenerate overwrites
-// the lookupId + hash. A contractor belongs to exactly one landlord (v1).
-model Contractor {
+// the lookupId + hash. A vendor belongs to exactly one landlord (v1).
+//
+// `phone` and `email` are both nullable: the invoice-form auto-create path
+// writes a name-only vendor. The "at least one contact" rule is enforced in
+// Zod (CreateVendorSchema) for landlord-entered vendors only.
+model Vendor {
   id            String    @id @default(cuid())
   landlordId    String
   landlord      User      @relation(fields: [landlordId], references: [id], onDelete: Cascade)
   name          String
-  contact       String
+  phone         String?
+  email         String?
   tokenLookupId String    @unique
   tokenHash     String
   revokedAt     DateTime?
   lastUsedAt    DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
-  submissions   Invoice[]
+  submissions   Invoice[] @relation("InvoiceSubmittedByVendor")
+  invoices      Invoice[] @relation("InvoiceVendor")
 
   @@index([landlordId])
-  @@map("contractors")
+  @@map("vendors")
 }
 
 model Session {
@@ -111,23 +117,32 @@ model Invoice {
   updatedAt              DateTime         @updatedAt
   userId                 String
   user                   User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  // The contractor who submitted this invoice, if any. The invoice is still
-  // owned by the landlord (`userId`); this only records the submitter. SetNull
-  // so deleting a contractor never cascades into the landlord's owned invoice.
-  submittedByContractorId String?
-  submittedByContractor   Contractor?     @relation(fields: [submittedByContractorId], references: [id], onDelete: SetNull)
+  // The vendor who submitted this invoice, if any. The invoice is still
+  // owned by the landlord (`userId`); this only records the submitter, AND it
+  // is the authorization scope for that vendor's no-login link (see
+  // submissions/handlers.ts). SetNull so deleting a vendor never cascades into
+  // the landlord's owned invoice.
+  submittedByVendorId    String?
+  submittedByVendor      Vendor?          @relation("InvoiceSubmittedByVendor", fields: [submittedByVendorId], references: [id], onDelete: SetNull)
+  // Attribution: which vendor this invoice is FROM. Set by the invoice form's
+  // picker or by auto-create. Deliberately separate from submittedByVendorId —
+  // sharing one column would let a vendor's public link read landlord-entered
+  // invoices merely attributed to them.
+  vendorId               String?
+  vendor                 Vendor?          @relation("InvoiceVendor", fields: [vendorId], references: [id], onDelete: SetNull)
   images                 InvoiceImage[]
   items                  InvoiceItem[]
 
   @@index([userId, status])
   @@index([userId, invoiceDate])
-  @@index([submittedByContractorId])
+  @@index([submittedByVendorId])
+  @@index([vendorId])
   @@index([propertyId])
   @@map("invoices")
 }
 
 // A landlord's rental property. Invoices are assigned to a property to organize
-// spend. Per-landlord (landlordId); mirrors the Contractor entity.
+// spend. Per-landlord (landlordId); mirrors the Vendor entity.
 model Property {
   id         String   @id @default(cuid())
   landlordId String
@@ -216,7 +231,7 @@ enum EventType {
 
 enum Role {
   LANDLORD
-  CONTRACTOR
+  VENDOR
   ADMIN
 }
 
