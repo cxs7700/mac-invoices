@@ -104,6 +104,18 @@ describe('SignupFormSchema', () => {
     expect(SignupFormSchema.safeParse({ ...valid, confirmPassword: '' }).success).toBe(false)
   })
 
+  it('reports "Passwords do not match" (not a raw length error) for an empty confirmation', () => {
+    // zodResolver defaults to criteriaMode 'firstError', so if confirmPassword
+    // had its own `.min(1)` this would surface a raw Zod internal string
+    // instead of the intended mismatch message. Pin the message a user
+    // actually sees.
+    const result = SignupFormSchema.safeParse({ ...valid, confirmPassword: '' })
+    expect(result.success).toBe(false)
+    if (result.success) return
+    const issue = result.error.issues.find((i) => i.path.join('.') === 'confirmPassword')
+    expect(issue?.message).toBe('Passwords do not match')
+  })
+
   it("inherits SignupSchema's rules — a short password still fails even when confirmed", () => {
     expect(
       SignupFormSchema.safeParse({ ...valid, password: '1234567', confirmPassword: '1234567' })

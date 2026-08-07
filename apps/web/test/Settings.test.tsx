@@ -20,20 +20,38 @@ vi.mock('@/hooks/useSettings', () => ({
   useTestSheet: h.useTestSheet,
 }))
 
-const idle = (over = {}) => ({ mutate: vi.fn(), isPending: false, isSuccess: false, error: null, ...over })
+const idle = (over = {}) => ({
+  mutate: vi.fn(),
+  isPending: false,
+  isSuccess: false,
+  error: null,
+  ...over,
+})
 
 describe('Settings page', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     h.useMe.mockReturnValue({
-      data: { id: 'u', email: 'pat@x.com', name: 'Pat Doe', firstName: 'Pat', lastName: 'Doe', role: 'LANDLORD' },
+      data: {
+        id: 'u',
+        email: 'pat@x.com',
+        name: 'Pat Doe',
+        firstName: 'Pat',
+        lastName: 'Doe',
+        role: 'LANDLORD',
+      },
     })
     h.useUpdateProfile.mockReturnValue(idle())
     h.useChangePassword.mockReturnValue(idle())
     h.useSaveSheet.mockReturnValue(idle())
     h.useTestSheet.mockReturnValue(idle())
     h.useSheetsStatus.mockReturnValue({
-      data: { configured: true, serviceAccountEmail: 'svc@project.iam.gserviceaccount.com', targetSpreadsheetId: 'SID', reachable: true },
+      data: {
+        configured: true,
+        serviceAccountEmail: 'svc@project.iam.gserviceaccount.com',
+        targetSpreadsheetId: 'SID',
+        reachable: true,
+      },
       isPending: false,
     })
   })
@@ -54,7 +72,11 @@ describe('Settings page', () => {
     fireEvent.change(screen.getByLabelText('First name'), { target: { value: 'Patricia' } })
     fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'patricia@x.com' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-    expect(mutate).toHaveBeenCalledWith({ firstName: 'Patricia', lastName: 'Doe', email: 'patricia@x.com' })
+    expect(mutate).toHaveBeenCalledWith({
+      firstName: 'Patricia',
+      lastName: 'Doe',
+      email: 'patricia@x.com',
+    })
   })
 
   it('change password is disabled until current + a >=8 char new password', () => {
@@ -71,7 +93,9 @@ describe('Settings page', () => {
   })
 
   it('shows the change-password error inline', () => {
-    h.useChangePassword.mockReturnValue(idle({ error: new ApiError('UNAUTHORIZED', 'Current password is incorrect', 401) }))
+    h.useChangePassword.mockReturnValue(
+      idle({ error: new ApiError('UNAUTHORIZED', 'Current password is incorrect', 401) }),
+    )
     render(<Settings />)
     expect(screen.getByText('Current password is incorrect')).toBeDefined()
   })
@@ -87,7 +111,15 @@ describe('Settings page', () => {
   })
 
   it('surfaces a failed test-connection error (the share-as-Editor hint)', () => {
-    h.useTestSheet.mockReturnValue(idle({ error: new ApiError('SHEET_PERMISSION_DENIED', 'share it as Editor with the service-account email', 502) }))
+    h.useTestSheet.mockReturnValue(
+      idle({
+        error: new ApiError(
+          'SHEET_PERMISSION_DENIED',
+          'share it as Editor with the service-account email',
+          502,
+        ),
+      }),
+    )
     render(<Settings />)
     expect(screen.getByText(/share it as Editor/)).toBeDefined()
   })
@@ -97,6 +129,10 @@ describe('Settings page', () => {
     // "current-password" here would be exactly the value that causes the
     // prefill — with it, the re-auth gating a password change is satisfied by
     // the browser rather than by the person at the keyboard.
+    //
+    // jsdom has no autofill, so this asserts the signal the app sends, not
+    // the browser's actual response to it. Green here is not proof autofill
+    // behaves as intended.
     expect(screen.getByLabelText('Current password').getAttribute('autocomplete')).toBe(
       'new-password',
     )

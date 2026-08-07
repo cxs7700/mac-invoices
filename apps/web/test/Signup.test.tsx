@@ -55,7 +55,9 @@ describe('auth card toggle', () => {
     fireEvent.input(screen.getByLabelText('Invite code'), { target: { value: 'the-code' } })
     fireEvent.input(screen.getByLabelText('Email'), { target: { value: 'ada@example.com' } })
     fireEvent.input(screen.getByLabelText('Password'), { target: { value: 'a-good-password' } })
-    fireEvent.input(screen.getByLabelText('Confirm password'), { target: { value: 'a-good-password' } })
+    fireEvent.input(screen.getByLabelText('Confirm password'), {
+      target: { value: 'a-good-password' },
+    })
     fireEvent.input(screen.getByLabelText('First name'), { target: { value: 'Ada' } })
     fireEvent.input(screen.getByLabelText('Last name'), { target: { value: 'Lovelace' } })
     fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
@@ -77,7 +79,9 @@ describe('auth card toggle', () => {
     fireEvent.input(screen.getByLabelText('Invite code'), { target: { value: 'the-code' } })
     fireEvent.input(screen.getByLabelText('Email'), { target: { value: 'Ada@Example.COM' } })
     fireEvent.input(screen.getByLabelText('Password'), { target: { value: 'a-good-password' } })
-    fireEvent.input(screen.getByLabelText('Confirm password'), { target: { value: 'a-good-password' } })
+    fireEvent.input(screen.getByLabelText('Confirm password'), {
+      target: { value: 'a-good-password' },
+    })
     fireEvent.input(screen.getByLabelText('First name'), { target: { value: 'Ada' } })
     fireEvent.input(screen.getByLabelText('Last name'), { target: { value: 'Lovelace' } })
     fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
@@ -98,7 +102,11 @@ describe('auth card toggle', () => {
     fireEvent.input(screen.getByLabelText('Last name'), { target: { value: 'Lovelace' } })
     fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
 
-    await waitFor(() => expect(screen.getAllByRole('alert').length).toBeGreaterThan(0))
+    // Assert the length message specifically, not just "some alert appeared":
+    // both fields get 'short', so the confirmation refinement passes and only
+    // the length rule can fail here. A loose "any alert" assertion can't tell
+    // that apart from a mismatch error if the two inputs are ever desynced.
+    await waitFor(() => expect(screen.getByText(/8 characters/)).toBeTruthy())
     expect(signupMutate).not.toHaveBeenCalled()
   })
 
@@ -115,7 +123,9 @@ describe('auth card toggle', () => {
     fireEvent.input(screen.getByLabelText('Invite code'), { target: { value: 'the-code' } })
     fireEvent.input(screen.getByLabelText('Email'), { target: { value: 'ada@example.com' } })
     fireEvent.input(screen.getByLabelText('Password'), { target: { value: 'a-good-password' } })
-    fireEvent.input(screen.getByLabelText('Confirm password'), { target: { value: 'a-different-password' } })
+    fireEvent.input(screen.getByLabelText('Confirm password'), {
+      target: { value: 'a-different-password' },
+    })
     fireEvent.input(screen.getByLabelText('First name'), { target: { value: 'Ada' } })
     fireEvent.input(screen.getByLabelText('Last name'), { target: { value: 'Lovelace' } })
     fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
@@ -131,7 +141,9 @@ describe('auth card toggle', () => {
     fireEvent.input(screen.getByLabelText('Invite code'), { target: { value: 'the-code' } })
     fireEvent.input(screen.getByLabelText('Email'), { target: { value: 'ada@example.com' } })
     fireEvent.input(screen.getByLabelText('Password'), { target: { value: 'a-good-password' } })
-    fireEvent.input(screen.getByLabelText('Confirm password'), { target: { value: 'a-good-password' } })
+    fireEvent.input(screen.getByLabelText('Confirm password'), {
+      target: { value: 'a-good-password' },
+    })
     fireEvent.input(screen.getByLabelText('First name'), { target: { value: 'Ada' } })
     fireEvent.input(screen.getByLabelText('Last name'), { target: { value: 'Lovelace' } })
     fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
@@ -141,6 +153,9 @@ describe('auth card toggle', () => {
     expect(signupMutate.mock.calls[0][0]).not.toHaveProperty('confirmPassword')
   })
 
+  // jsdom has no autofill, so this and the two tests below assert the signal
+  // the app sends (the autocomplete attribute), not the browser's actual
+  // response to it. Green here is not proof autofill behaves as intended.
   it('tells the browser not to offer saved credentials on the signup password fields', () => {
     renderLogin()
     fireEvent.click(screen.getByRole('button', { name: 'Switch to sign up' }))
@@ -151,6 +166,15 @@ describe('auth card toggle', () => {
     expect(screen.getByLabelText('Confirm password').getAttribute('autocomplete')).toBe(
       'new-password',
     )
+  })
+
+  it('suppresses autofill on the invite code field so a saved credential cannot land there', () => {
+    renderLogin()
+    fireEvent.click(screen.getByRole('button', { name: 'Switch to sign up' }))
+    // This field sits directly above the password fields — exactly the shape
+    // a looser password-manager heuristic uses to guess a username field.
+    // Unlike password inputs, autocomplete="off" IS honored on text inputs.
+    expect(screen.getByLabelText('Invite code').getAttribute('autocomplete')).toBe('off')
   })
 
   it('still allows ordinary address-book autofill for the signup email', () => {

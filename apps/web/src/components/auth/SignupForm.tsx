@@ -56,7 +56,20 @@ export function SignupForm() {
         <label htmlFor="inviteCode" className="block text-sm font-medium mb-1">
           {t('login.inviteCode')}
         </label>
-        <input id="inviteCode" type="text" className={fieldClass} {...register('inviteCode')} />
+        <input
+          id="inviteCode"
+          type="text"
+          // "off" — unlike on password inputs (where browsers deliberately
+          // ignore it, hence "new-password" above), autocomplete="off" IS
+          // honored on ordinary text inputs. Needed here because this field
+          // sits directly above the password fields, which is exactly the
+          // shape a password manager's looser heuristics use to guess a
+          // username field — it can silently fill a saved email address in.
+          // Do not "correct" this to new-password or delete it.
+          autoComplete="off"
+          className={fieldClass}
+          {...register('inviteCode')}
+        />
         {errors.inviteCode && (
           <p className="mt-1 text-sm text-destructive" role="alert">
             {errors.inviteCode.message}

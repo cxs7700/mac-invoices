@@ -49,7 +49,14 @@ export type SignupInput = z.infer<typeof SignupSchema>
  * message in this app (forms render `errors.<field>.message` verbatim).
  */
 export const SignupFormSchema = SignupSchema.extend({
-  confirmPassword: z.string().min(1),
+  // No `.min(1)`: zodResolver defaults to criteriaMode 'firstError', so if this
+  // field had its own length issue it would win over the mismatch message
+  // below whenever both fire (e.g. an empty confirmation) — surfacing a raw
+  // Zod internal string like "Too small: expected string to have >=1
+  // characters" instead of "Passwords do not match". An empty string can
+  // never equal a >=8-character password, so the refinement alone still
+  // catches it, with the message users should actually see.
+  confirmPassword: z.string(),
 }).refine((v) => v.password === v.confirmPassword, {
   message: 'Passwords do not match',
   // Path the issue at the confirmation field so it renders beneath the input
