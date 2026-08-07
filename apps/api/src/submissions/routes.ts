@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import rateLimit from '@fastify/rate-limit'
 import { AppError } from '../middleware/errorHandler'
-import { parseLinkToken } from '../contractors/token'
+import { parseLinkToken } from '../vendors/token'
 import * as handlers from './handlers'
 import type { TokenParams } from './handlers'
 

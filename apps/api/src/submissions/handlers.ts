@@ -1,8 +1,12 @@
 import type { FastifyRequest, FastifyReply } from 'fastify'
-import { SubmissionSchema, EditSubmissionSchema, ImageUploadTokenSchema } from '@mac-invoices/shared'
+import {
+  SubmissionSchema,
+  EditSubmissionSchema,
+  ImageUploadTokenSchema,
+} from '@mac-invoices/shared'
 import { AppError } from '../middleware/errorHandler'
 import { parseBody } from '../lib/validate'
-import { validateLinkToken } from '../contractors/token'
+import { validateLinkToken } from '../vendors/token'
 import { issueUploadToken } from '../integrations/storage'
 import {
   createSubmission,
@@ -105,10 +109,7 @@ type EditParams = TokenParams & { id: string }
  * write is a compare-and-set scoped to this contractor; a reviewed (or foreign,
  * or absent) submission returns a uniform 409.
  */
-export async function edit(
-  request: FastifyRequest<{ Params: EditParams }>,
-  reply: FastifyReply,
-) {
+export async function edit(request: FastifyRequest<{ Params: EditParams }>, reply: FastifyReply) {
   const { contractorId } = await resolveLink(request)
   const input = parseBody(EditSubmissionSchema, request.body)
   const inv = await contractorUpdateSubmission(
