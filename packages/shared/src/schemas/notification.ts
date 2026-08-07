@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-// The landlord's in-app notification feed — recent contractor activity (incl.
+// The landlord's in-app notification feed — recent vendor activity (incl.
 // edits + withdrawals the SUBMITTED queue doesn't surface), with an unread count.
 export const NotificationItemSchema = z.object({
   id: z.string(),

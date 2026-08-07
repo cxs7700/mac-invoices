@@ -7,9 +7,9 @@ describe('summarizeItems', () => {
   })
 
   it('joins multiple descriptions under the cap', () => {
-    expect(
-      summarizeItems([{ description: 'Paint' }, { description: 'Ceiling drywall' }]),
-    ).toBe('Paint, Ceiling drywall')
+    expect(summarizeItems([{ description: 'Paint' }, { description: 'Ceiling drywall' }])).toBe(
+      'Paint, Ceiling drywall',
+    )
   })
 
   it('collapses beyond the cap into a "+N more" suffix', () => {

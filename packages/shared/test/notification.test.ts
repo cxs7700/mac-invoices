@@ -19,7 +19,9 @@ describe('NotificationItemSchema', () => {
   })
 
   it('accepts a null contractorName', () => {
-    expect(NotificationItemSchema.safeParse({ ...validItem, contractorName: null }).success).toBe(true)
+    expect(NotificationItemSchema.safeParse({ ...validItem, contractorName: null }).success).toBe(
+      true,
+    )
   })
 })
 

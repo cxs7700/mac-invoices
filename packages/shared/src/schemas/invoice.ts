@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-// SUBMITTED is the entry state for a contractor-submitted invoice, awaiting
+// SUBMITTED is the entry state for a vendor-submitted invoice, awaiting
 // landlord review (approve/reject). Appended (not reordered) so existing
 // `.options`-derived UI/zero-fills stay stable.
 export const InvoiceStatus = z.enum([
@@ -115,8 +115,8 @@ export const CreateInvoiceSchema = z.object({
 export const UpdateInvoiceSchema = CreateInvoiceSchema.partial().extend({
   status: InvoiceStatus.optional(),
   paidDate: z.coerce.date().optional(),
-  // Set by the landlord when rejecting a contractor submission (required on the
-  // SUBMITTED → REJECTED transition; surfaced back to the contractor).
+  // Set by the landlord when rejecting a vendor submission (required on the
+  // SUBMITTED → REJECTED transition; surfaced back to the vendor).
   rejectionReason: z.string().min(1).max(500).optional(),
 })
 

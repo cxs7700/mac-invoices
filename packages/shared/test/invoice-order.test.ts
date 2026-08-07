@@ -47,10 +47,7 @@ describe('compareInvoiceOrder', () => {
 
   it('mixed Date and string dates compare on the same axis', () => {
     expect(
-      compareInvoiceOrder(
-        key('a', null, new Date('2025-03-01')),
-        key('b', null, '2025-03-02'),
-      ),
+      compareInvoiceOrder(key('a', null, new Date('2025-03-01')), key('b', null, '2025-03-02')),
     ).toBeLessThan(0)
   })
 })
