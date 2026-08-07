@@ -26,7 +26,7 @@
   "settings": {
     "title": "设置",
     "language": { "title": "语言" },
-    "profile": { "title": "个人资料", "name": "姓名", "email": "邮箱", "emailReadOnly": "邮箱暂时无法修改。", "saved": "资料已保存。", "save": "保存" },
+    "profile": { "title": "个人资料", "firstName": "名字", "lastName": "姓氏", "email": "邮箱", "saved": "资料已保存。", "save": "保存" },
     "security": { "title": "安全" },
     "sheets": { "title": "Google 表格连接" },
     "theme": { "title": "主题", "light": "浅色", "system": "跟随系统", "dark": "深色" }

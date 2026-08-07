@@ -27,24 +27,40 @@ function ProfileSection() {
   const { t } = useTranslation()
   const { data: me } = useMe()
   const update = useUpdateProfile()
-  const [name, setName] = useState<string | null>(null)
-  const value = name ?? me?.name ?? ''
+  const [firstName, setFirstName] = useState<string | null>(null)
+  const [lastName, setLastName] = useState<string | null>(null)
+  const [email, setEmail] = useState<string | null>(null)
+  const firstNameValue = firstName ?? me?.firstName ?? ''
+  const lastNameValue = lastName ?? me?.lastName ?? ''
+  const emailValue = email ?? me?.email ?? ''
 
   return (
     <Section title={t('settings.profile.title')}>
       <div className="space-y-3">
         <div>
-          <label htmlFor="name" className="text-sm font-medium text-foreground">{t('settings.profile.name')}</label>
-          <input id="name" value={value} onChange={(e) => setName(e.target.value)} className={inputClass} />
+          <label htmlFor="firstName" className="text-sm font-medium text-foreground">{t('settings.profile.firstName')}</label>
+          <input id="firstName" value={firstNameValue} onChange={(e) => setFirstName(e.target.value)} className={inputClass} />
+        </div>
+        <div>
+          <label htmlFor="lastName" className="text-sm font-medium text-foreground">{t('settings.profile.lastName')}</label>
+          <input id="lastName" value={lastNameValue} onChange={(e) => setLastName(e.target.value)} className={inputClass} />
         </div>
         <div>
           <label htmlFor="email" className="text-sm font-medium text-foreground">{t('settings.profile.email')}</label>
-          <input id="email" value={me?.email ?? ''} readOnly disabled className={`${inputClass} text-muted-foreground`} />
-          <p className="mt-1 text-xs text-muted-foreground">{t('settings.profile.emailReadOnly')}</p>
+          <input id="email" value={emailValue} onChange={(e) => setEmail(e.target.value)} className={inputClass} />
         </div>
         {update.isSuccess && <p className="text-sm text-status-paid-foreground">{t('settings.profile.saved')}</p>}
         {errOf(update.error) && <p className="text-sm text-destructive" role="alert">{errOf(update.error)}</p>}
-        <Button disabled={update.isPending || !value.trim()} onClick={() => update.mutate({ name: value.trim() })}>
+        <Button
+          disabled={update.isPending || !firstNameValue.trim() || !emailValue.trim()}
+          onClick={() =>
+            update.mutate({
+              firstName: firstNameValue.trim(),
+              lastName: lastNameValue.trim() || undefined,
+              email: emailValue.trim(),
+            })
+          }
+        >
           {update.isPending ? t('common.saving') : t('settings.profile.save')}
         </Button>
       </div>

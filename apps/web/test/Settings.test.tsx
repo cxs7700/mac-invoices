@@ -25,7 +25,9 @@ const idle = (over = {}) => ({ mutate: vi.fn(), isPending: false, isSuccess: fal
 describe('Settings page', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    h.useMe.mockReturnValue({ data: { id: 'u', email: 'pat@x.com', name: 'Pat', role: 'LANDLORD' } })
+    h.useMe.mockReturnValue({
+      data: { id: 'u', email: 'pat@x.com', name: 'Pat Doe', firstName: 'Pat', lastName: 'Doe', role: 'LANDLORD' },
+    })
     h.useUpdateProfile.mockReturnValue(idle())
     h.useChangePassword.mockReturnValue(idle())
     h.useSaveSheet.mockReturnValue(idle())
@@ -36,21 +38,23 @@ describe('Settings page', () => {
     })
   })
 
-  it('renders the name (editable) and a read-only email', () => {
+  it('renders first name, last name, and an editable email', () => {
     render(<Settings />)
-    expect((screen.getByLabelText('Name') as HTMLInputElement).value).toBe('Pat')
+    expect((screen.getByLabelText('First name') as HTMLInputElement).value).toBe('Pat')
+    expect((screen.getByLabelText('Last name') as HTMLInputElement).value).toBe('Doe')
     const email = screen.getByLabelText('Email') as HTMLInputElement
     expect(email.value).toBe('pat@x.com')
-    expect(email.readOnly).toBe(true)
+    expect(email.readOnly).toBe(false)
   })
 
-  it('saves the profile name', () => {
+  it('saves the profile name and email', () => {
     const mutate = vi.fn()
     h.useUpdateProfile.mockReturnValue(idle({ mutate }))
     render(<Settings />)
-    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Patricia' } })
+    fireEvent.change(screen.getByLabelText('First name'), { target: { value: 'Patricia' } })
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'patricia@x.com' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-    expect(mutate).toHaveBeenCalledWith({ name: 'Patricia' })
+    expect(mutate).toHaveBeenCalledWith({ firstName: 'Patricia', lastName: 'Doe', email: 'patricia@x.com' })
   })
 
   it('change password is disabled until current + a >=8 char new password', () => {

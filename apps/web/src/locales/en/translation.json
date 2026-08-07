@@ -26,7 +26,7 @@
   "settings": {
     "title": "Settings",
     "language": { "title": "Language" },
-    "profile": { "title": "Profile", "name": "Name", "email": "Email", "emailReadOnly": "Email can't be changed yet.", "saved": "Profile saved.", "save": "Save" },
+    "profile": { "title": "Profile", "firstName": "First name", "lastName": "Last name", "email": "Email", "saved": "Profile saved.", "save": "Save" },
     "security": { "title": "Security" },
     "sheets": { "title": "Google Sheets connection" },
     "theme": { "title": "Theme", "light": "Light", "system": "System", "dark": "Dark" }
