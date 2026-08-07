@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { LoginSchema, SignupSchema } from '../src/index'
+import { LoginSchema, SignupSchema, SignupFormSchema } from '../src/index'
 
 describe('LoginSchema', () => {
   it('accepts a valid email + password', () => {
@@ -70,5 +70,60 @@ describe('SignupSchema', () => {
 
   it('rejects a malformed email', () => {
     expect(SignupSchema.safeParse({ ...valid, email: 'not-an-email' }).success).toBe(false)
+  })
+})
+
+describe('SignupFormSchema', () => {
+  const valid = {
+    inviteCode: 'code',
+    email: 'new@example.com',
+    password: 'longenough',
+    confirmPassword: 'longenough',
+    firstName: 'Ada',
+    lastName: 'Lovelace',
+  }
+
+  it('accepts a payload whose passwords match', () => {
+    expect(SignupFormSchema.safeParse(valid).success).toBe(true)
+  })
+
+  it('rejects a payload whose passwords differ', () => {
+    expect(SignupFormSchema.safeParse({ ...valid, confirmPassword: 'different' }).success).toBe(
+      false,
+    )
+  })
+
+  it('paths the mismatch error to confirmPassword so it renders under that field', () => {
+    const result = SignupFormSchema.safeParse({ ...valid, confirmPassword: 'different' })
+    expect(result.success).toBe(false)
+    if (result.success) return
+    expect(result.error.issues.some((i) => i.path.join('.') === 'confirmPassword')).toBe(true)
+  })
+
+  it('rejects an empty confirmation', () => {
+    expect(SignupFormSchema.safeParse({ ...valid, confirmPassword: '' }).success).toBe(false)
+  })
+
+  it("inherits SignupSchema's rules — a short password still fails even when confirmed", () => {
+    expect(
+      SignupFormSchema.safeParse({ ...valid, password: '1234567', confirmPassword: '1234567' })
+        .success,
+    ).toBe(false)
+  })
+
+  it("inherits SignupSchema's email normalization", () => {
+    const parsed = SignupFormSchema.parse({ ...valid, email: ' New@Example.COM ' })
+    expect(parsed.email).toBe('new@example.com')
+  })
+
+  it('leaves the server contract alone — SignupSchema still has no confirmPassword', () => {
+    const parsed = SignupSchema.parse({
+      inviteCode: 'code',
+      email: 'new@example.com',
+      password: 'longenough',
+      firstName: 'Ada',
+      lastName: 'Lovelace',
+    })
+    expect('confirmPassword' in parsed).toBe(false)
   })
 })
