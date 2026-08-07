@@ -1365,6 +1365,17 @@ FROM contractors ORDER BY name;
 
 No row can be lost — the predicate and its complement are exhaustive, and the value is copied verbatim either way. What the audit catches is *misfiling*: an address without a dot in the domain (`bob@localhost`) routes to `phone`, and a phone number written as `555@home.com` would route to `email`. Anything misfiled is corrected with a one-line `UPDATE` after the migration; it is not a reason to block the deploy.
 
+**Second required pre-deploy check — duplicate vendor names.** The follow-up migration `20260807200000_vendor_unique_name_per_landlord` creates a UNIQUE index on `(landlordId, lower(name))`. Unlike the rename, this one **will fail outright** if production already holds two vendors with the same name (ignoring case) for one landlord. Check first:
+
+```sql
+SELECT "landlordId", lower(name) AS name, count(*)
+FROM contractors
+GROUP BY "landlordId", lower(name)
+HAVING count(*) > 1;
+```
+
+Any row returned must be merged or renamed by hand **before** migrating — decide which record survives, repoint its invoices, and delete the loser. An empty result means the index will create cleanly.
+
 - [ ] **Step 4: Run the full Definition of Done**
 
 ```bash
