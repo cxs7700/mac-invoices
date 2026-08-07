@@ -10,16 +10,29 @@
 
 import { compareInvoiceOrder } from '@mac-invoices/shared'
 
+/** One itemized line, as the PDF needs it. */
+export type PdfInvoiceItem = { description: string; quantity: number; total: string; sortOrder: number }
+
 /** The fields a PDF page needs — a subset of the invoice list row. */
 export type PdfInvoiceInput = {
   id: string
   invoiceNumber: string | null
-  description: string
+  items: PdfInvoiceItem[]
+  vendorName: string
+  vendorEmail: string | null
   amount: string
   status: string
   invoiceDate: string
   propertyId: string | null
+  // The submitting contractor, when this invoice came from one — the PDF
+  // Sender section. Null for a landlord-entered invoice, which falls back to
+  // vendorName/vendorEmail (the closest "who this is from" data available).
+  contractor: { name: string; contact: string } | null
 }
+
+/** The landlord's identity for the Bill-To section — the same block on every
+ * page (the recipient is always the landlord, regardless of which invoice). */
+export type PdfLandlord = { firstName: string | null; lastName: string | null; email: string }
 
 /** One rendered page per invoice; long table cells may spill to a
  * continuation page (autotable paginates; no data is truncated). */
@@ -27,23 +40,30 @@ export type InvoicePdfPage = {
   heading: string
   date: string
   status: string
-  table: { location: string; description: string; amount: string }
+  location: string
+  sender: { name: string; contact: string }
+  billTo: { name: string; email: string }
+  items: { description: string; quantity: string; total: string }[]
   balanceDue: string
 }
 
-/** Single source of truth for the per-page table layout — the future
- * sender/recipient sections extend this module, not call sites. */
-const PDF_TABLE_COLUMNS = [
-  { key: 'location', label: 'Location' },
+/** Single source of truth for the per-page items table layout. Matches the
+ * item's stored fields exactly (description/quantity/total) — there is no
+ * unit-price column since the data model doesn't carry one. */
+const PDF_ITEMS_COLUMNS = [
   { key: 'description', label: 'Description' },
-  { key: 'amount', label: 'Amount' },
+  { key: 'quantity', label: 'Qty' },
+  { key: 'total', label: 'Total' },
 ] as const
 
 const PDF_LABELS = {
   invoice: 'Invoice',
   date: 'Date',
   status: 'Status',
-  balanceDue: 'Balance due',
+  location: 'Location',
+  sender: 'Sender',
+  billTo: 'Bill To',
+  balanceDue: 'Balance Due',
 } as const
 
 const EMPTY = '—'
@@ -82,6 +102,13 @@ export function balanceDue(inv: Pick<PdfInvoiceInput, 'status' | 'amount'>): str
   return ZERO_BALANCE_STATUSES.has(inv.status) ? formatPdfMoney('0') : formatPdfMoney(inv.amount)
 }
 
+/** "Jane Doe" from parts, falling back to the email when both names are unset
+ * (a landlord who hasn't filled in their profile yet). */
+function landlordName(landlord: PdfLandlord): string {
+  const joined = [landlord.firstName, landlord.lastName].filter(Boolean).join(' ')
+  return joined || landlord.email
+}
+
 /** Filename uses the local calendar date — an export at 23:50 shouldn't be
  * stamped "tomorrow" the way toISOString()'s UTC date would. */
 export function pdfFileName(now: Date): string {
@@ -92,28 +119,41 @@ export function pdfFileName(now: Date): string {
 }
 
 /**
- * Pure page-model builder: selected rows + property-address lookup → ordered
- * page descriptions. Pages sort by the shared natural-order rule so the PDF
- * and the Sheets mirror can never disagree on ordering.
+ * Pure page-model builder: selected rows + property-address lookup + the
+ * landlord's identity → ordered page descriptions. Pages sort by the shared
+ * natural-order rule so the PDF and the Sheets mirror can never disagree on
+ * ordering. The Bill-To block is the same landlord on every page (the
+ * recipient is always the landlord); Sender is per-invoice (the submitting
+ * contractor, or the invoice's own vendor info when there isn't one).
  */
 export function buildInvoicePdfModel(
   invoices: PdfInvoiceInput[],
   addressByPropertyId: ReadonlyMap<string, string>,
+  landlord: PdfLandlord,
 ): InvoicePdfPage[] {
+  const billTo = { name: landlordName(landlord), email: landlord.email }
   return [...invoices].sort(compareInvoiceOrder).map((inv) => ({
     heading: `${PDF_LABELS.invoice} ${inv.invoiceNumber ?? EMPTY}`,
     date: formatPdfDate(inv.invoiceDate),
     status: statusLabel(inv.status),
-    table: {
-      location: (inv.propertyId && addressByPropertyId.get(inv.propertyId)) || EMPTY,
-      description: inv.description,
-      amount: formatPdfMoney(inv.amount),
-    },
+    location: (inv.propertyId && addressByPropertyId.get(inv.propertyId)) || EMPTY,
+    sender: inv.contractor ?? { name: inv.vendorName, contact: inv.vendorEmail ?? EMPTY },
+    billTo,
+    items: [...inv.items]
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .map((item) => ({
+        description: item.description,
+        quantity: String(item.quantity),
+        total: formatPdfMoney(item.total),
+      })),
     balanceDue: balanceDue(inv),
   }))
 }
 
 const MARGIN = 40
+// Balance-due highlight: a light green fill behind the right-aligned amount.
+const BALANCE_FILL: [number, number, number] = [220, 237, 200]
+const BALANCE_TEXT: [number, number, number] = [20, 90, 50]
 
 /**
  * Render and download the PDF. jsPDF and the autotable plugin load here, at
@@ -122,15 +162,17 @@ const MARGIN = 40
 export async function generateInvoicesPdf(
   invoices: PdfInvoiceInput[],
   addressByPropertyId: ReadonlyMap<string, string>,
+  landlord: PdfLandlord,
   now: Date = new Date(),
 ): Promise<void> {
-  const pages = buildInvoicePdfModel(invoices, addressByPropertyId)
+  const pages = buildInvoicePdfModel(invoices, addressByPropertyId, landlord)
   const [{ jsPDF }, { default: autoTable }] = await Promise.all([
     import('jspdf'),
     import('jspdf-autotable'),
   ])
 
   const doc = new jsPDF({ unit: 'pt', format: 'letter' })
+  const pageWidth = doc.internal.pageSize.getWidth()
   pages.forEach((page, i) => {
     if (i > 0) doc.addPage()
     doc.setFontSize(16)
@@ -138,22 +180,50 @@ export async function generateInvoicesPdf(
     doc.setFontSize(10)
     doc.text(`${PDF_LABELS.date}: ${page.date}`, MARGIN, 70)
     doc.text(`${PDF_LABELS.status}: ${page.status}`, MARGIN, 84)
+    doc.text(`${PDF_LABELS.location}: ${page.location}`, MARGIN, 98)
+
+    // Sender (left) / Bill To (right) header blocks.
+    const senderY = 122
+    doc.setFontSize(9)
+    doc.setFont('helvetica', 'bold')
+    doc.text(PDF_LABELS.sender, MARGIN, senderY)
+    doc.text(PDF_LABELS.billTo, pageWidth / 2, senderY)
+    doc.setFont('helvetica', 'normal')
+    doc.text(page.sender.name, MARGIN, senderY + 14)
+    doc.text(page.sender.contact, MARGIN, senderY + 28)
+    doc.text(page.billTo.name, pageWidth / 2, senderY + 14)
+    doc.text(page.billTo.email, pageWidth / 2, senderY + 28)
+
     autoTable(doc, {
-      startY: 100,
+      startY: senderY + 48,
       margin: { left: MARGIN, right: MARGIN },
-      head: [PDF_TABLE_COLUMNS.map((c) => c.label)],
-      body: [[page.table.location, page.table.description, page.table.amount]],
+      head: [PDF_ITEMS_COLUMNS.map((c) => c.label)],
+      body: page.items.map((item) => [item.description, item.quantity, item.total]),
       theme: 'grid',
       styles: { fontSize: 10, cellPadding: 6 },
       // Explicit light colors: exported artifacts are always light (DEC-025e).
       headStyles: { fillColor: [240, 240, 240], textColor: 20 },
+      columnStyles: { 1: { halign: 'right' }, 2: { halign: 'right' } },
     })
     // autotable leaves the cursor on the table's last (possibly continuation)
     // page and records where it ended.
     const finalY =
-      (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 140
-    doc.setFontSize(12)
-    doc.text(`${PDF_LABELS.balanceDue}: ${page.balanceDue}`, MARGIN, finalY + 28)
+      (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? senderY + 88
+
+    // Balance due: right-aligned, highlighted in green.
+    const boxWidth = 180
+    const boxHeight = 26
+    const boxX = pageWidth - MARGIN - boxWidth
+    const boxY = finalY + 16
+    doc.setFillColor(...BALANCE_FILL)
+    doc.rect(boxX, boxY, boxWidth, boxHeight, 'F')
+    doc.setFontSize(11)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(...BALANCE_TEXT)
+    doc.text(PDF_LABELS.balanceDue, boxX + 10, boxY + boxHeight / 2 + 4)
+    doc.text(page.balanceDue, pageWidth - MARGIN - 10, boxY + boxHeight / 2 + 4, { align: 'right' })
+    doc.setTextColor(0, 0, 0)
+    doc.setFont('helvetica', 'normal')
   })
   doc.save(pdfFileName(now))
 }

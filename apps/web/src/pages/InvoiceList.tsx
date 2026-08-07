@@ -5,6 +5,7 @@ import type { TFunction } from 'i18next'
 import { useInvoices, type InvoiceListItem } from '@/hooks/useInvoices'
 import { useExportInvoices } from '@/hooks/useExportInvoices'
 import { useProperties } from '@/hooks/useProperties'
+import { useMe } from '@/hooks/useAuth'
 import { InvoiceTable } from '@/components/InvoiceTable'
 import { FilterBar } from '@/components/FilterBar'
 import { StatusCounts } from '@/components/StatusCounts'
@@ -66,6 +67,9 @@ export default function InvoiceList() {
   // FilterBar also mounts this hook, so the ['properties'] query is warm; the
   // page-level call gives Confirm the same cache entry (no second fetch path).
   const propertiesQ = useProperties()
+  // The PDF's Bill-To section is always the landlord — the nav shell already
+  // mounts useMe(), so this reads the same warm cache entry.
+  const meQ = useMe()
 
   const generatePdfBtnRef = useRef<HTMLButtonElement>(null)
   const tableWrapRef = useRef<HTMLDivElement>(null)
@@ -129,8 +133,18 @@ export default function InvoiceList() {
         if (!r.data) throw r.error ?? new Error('properties unavailable')
         properties = r.data.data
       }
+      let me = meQ.data
+      if (!me) {
+        const r = await meQ.refetch()
+        if (!r.data) throw r.error ?? new Error('landlord identity unavailable')
+        me = r.data
+      }
       const addressByPropertyId = new Map(properties.map((p) => [p.id, p.address]))
-      await generateInvoicesPdf(snapshot, addressByPropertyId)
+      await generateInvoicesPdf(snapshot, addressByPropertyId, {
+        firstName: me.firstName,
+        lastName: me.lastName,
+        email: me.email,
+      })
       setPdfMessage({ kind: 'success', count: snapshot.length })
       exitSelection()
     } catch {

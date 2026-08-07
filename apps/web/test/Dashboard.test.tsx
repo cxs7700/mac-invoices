@@ -27,13 +27,15 @@ const recentInvoice = {
   id: 'i1',
   invoiceNumber: 'INV-1',
   vendorName: 'Acme',
-  description: 'fix',
+  vendorEmail: null,
+  items: [{ id: 'i1-1', description: 'fix', quantity: 1, total: '150.00', sortOrder: 0 }],
   amount: '150.00',
   category: 'REPAIRS',
   status: 'PENDING',
   invoiceDate: '2026-02-01',
   updatedAt: '2026-02-01',
   sheetsSyncedAt: null,
+  contractor: null,
 }
 
 const renderDash = () =>

@@ -24,16 +24,22 @@ const row = {
   id: 'a',
   invoiceNumber: 'INV-1',
   vendorName: 'Acme',
-  description: 'Fix sink',
+  vendorEmail: null,
+  items: [{ id: 'i-a', description: 'Fix sink', quantity: 1, total: '149.99', sortOrder: 0 }],
   amount: '149.99',
   category: 'REPAIRS',
   status: 'PENDING',
   invoiceDate: '2026-01-15',
   propertyId: 'prop-1',
+  contractor: null,
 }
 
 function propertiesResponse() {
   return jsonRes(200, { data: [{ id: 'prop-1', name: 'Main', address: '12 Main St', notes: null }] })
+}
+
+function meResponse() {
+  return jsonRes(200, { id: 'landlord-1', email: 'landlord@example.com', firstName: 'Jane', lastName: 'Doe', role: 'LANDLORD', locale: 'en' })
 }
 
 function statsResponse() {
@@ -64,11 +70,13 @@ function renderList(
   entry = '/',
   exportImpl: () => Promise<unknown> = () => Promise.resolve(jsonRes(200, { exported: 0 })),
   propertiesImpl: () => Promise<unknown> = () => Promise.resolve(propertiesResponse()),
+  meImpl: () => Promise<unknown> = () => Promise.resolve(meResponse()),
 ) {
   const fetchMock = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
     if (String(url).includes('/api/invoices/export')) return exportImpl()
     if (String(url).includes('/api/invoices/stats')) return Promise.resolve(statsResponse())
     if (String(url).includes('/api/properties')) return propertiesImpl()
+    if (String(url).includes('/api/auth/me')) return meImpl()
     return listMock(url, init)
   })
   vi.stubGlobal('fetch', fetchMock)
@@ -236,7 +244,7 @@ const rowB = {
   id: 'b',
   invoiceNumber: 'INV-2',
   vendorName: 'Bolt Co',
-  description: 'Paint hall',
+  items: [{ id: 'i-b', description: 'Paint hall', quantity: 1, total: '80.00', sortOrder: 0 }],
   amount: '80.00',
 }
 

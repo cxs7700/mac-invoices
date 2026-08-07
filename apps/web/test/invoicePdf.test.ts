@@ -5,6 +5,7 @@ import {
   generateInvoicesPdf,
   pdfFileName,
   type PdfInvoiceInput,
+  type PdfLandlord,
 } from '@/lib/invoicePdf'
 
 // Lazy-loading spies: the factories run only when jspdf is actually imported,
@@ -13,12 +14,18 @@ const jspdfImported = vi.hoisted(() => ({ value: false }))
 const saveSpy = vi.hoisted(() => vi.fn())
 const textSpy = vi.hoisted(() => vi.fn())
 const autoTableSpy = vi.hoisted(() => vi.fn())
+const rectSpy = vi.hoisted(() => vi.fn())
 
 vi.mock('jspdf', () => {
   jspdfImported.value = true
   class FakeJsPdf {
+    internal = { pageSize: { getWidth: () => 612 } }
     addPage = vi.fn()
     setFontSize = vi.fn()
+    setFont = vi.fn()
+    setTextColor = vi.fn()
+    setFillColor = vi.fn()
+    rect = rectSpy
     text = textSpy
     save = saveSpy
   }
@@ -31,40 +38,98 @@ vi.mock('jspdf-autotable', () => ({
   }),
 }))
 
+const item = (over: Partial<{ description: string; quantity: number; total: string; sortOrder: number }> = {}) => ({
+  description: 'Fix sink',
+  quantity: 1,
+  total: '120.00',
+  sortOrder: 0,
+  ...over,
+})
+
 const inv = (over: Partial<PdfInvoiceInput> = {}): PdfInvoiceInput => ({
   id: 'inv-1',
   invoiceNumber: '1',
-  description: 'Fix sink',
+  items: [item()],
+  vendorName: 'Acme Plumbing',
+  vendorEmail: 'acme@example.com',
   amount: '120.00',
   status: 'PENDING',
   invoiceDate: '2026-03-05T00:00:00.000Z',
   propertyId: 'prop-1',
+  contractor: null,
   ...over,
 })
 
 const addresses = new Map([['prop-1', '12 Main St']])
+const landlord: PdfLandlord = { firstName: 'Jane', lastName: 'Doe', email: 'jane@example.com' }
 
 describe('buildInvoicePdfModel', () => {
-  it('builds one page per invoice with address, description, amount, status, balance', () => {
+  it('builds one page per invoice with address, items, status, balance', () => {
     const pages = buildInvoicePdfModel(
-      [inv(), inv({ id: 'inv-2', invoiceNumber: '2', description: 'Paint', amount: '80.50' })],
+      [inv(), inv({ id: 'inv-2', invoiceNumber: '2', items: [item({ description: 'Paint', total: '80.50' })], amount: '80.50' })],
       addresses,
+      landlord,
     )
     expect(pages).toHaveLength(2)
     expect(pages[0]).toMatchObject({
       heading: 'Invoice 1',
       date: 'Mar 5, 2026',
       status: 'Pending',
-      table: { location: '12 Main St', description: 'Fix sink', amount: '$120.00' },
+      location: '12 Main St',
+      items: [{ description: 'Fix sink', quantity: '1', total: '$120.00' }],
       balanceDue: '$120.00',
     })
-    expect(pages[1].table.amount).toBe('$80.50')
+    expect(pages[1].items).toEqual([{ description: 'Paint', quantity: '1', total: '$80.50' }])
+  })
+
+  it('every page carries the same Bill-To (the landlord), regardless of which invoice', () => {
+    const pages = buildInvoicePdfModel(
+      [inv({ id: 'a' }), inv({ id: 'b' })],
+      addresses,
+      landlord,
+    )
+    expect(pages[0].billTo).toEqual({ name: 'Jane Doe', email: 'jane@example.com' })
+    expect(pages[1].billTo).toEqual({ name: 'Jane Doe', email: 'jane@example.com' })
+  })
+
+  it('Bill-To falls back to the email when the landlord has no name set', () => {
+    const pages = buildInvoicePdfModel([inv()], addresses, { firstName: null, lastName: null, email: 'x@example.com' })
+    expect(pages[0].billTo.name).toBe('x@example.com')
+  })
+
+  it('Sender is the contractor when the invoice has one', () => {
+    const pages = buildInvoicePdfModel(
+      [inv({ contractor: { name: 'Joe the Plumber', contact: '555-1234' } })],
+      addresses,
+      landlord,
+    )
+    expect(pages[0].sender).toEqual({ name: 'Joe the Plumber', contact: '555-1234' })
+  })
+
+  it('Sender falls back to vendorName/vendorEmail when there is no contractor', () => {
+    const pages = buildInvoicePdfModel([inv({ contractor: null })], addresses, landlord)
+    expect(pages[0].sender).toEqual({ name: 'Acme Plumbing', contact: 'acme@example.com' })
+  })
+
+  it('Sender contact falls back to — when vendorEmail is null', () => {
+    const pages = buildInvoicePdfModel([inv({ contractor: null, vendorEmail: null })], addresses, landlord)
+    expect(pages[0].sender.contact).toBe('—')
+  })
+
+  it('renders items in sortOrder regardless of input order', () => {
+    const pages = buildInvoicePdfModel(
+      [inv({ items: [item({ description: 'Second', sortOrder: 1 }), item({ description: 'First', sortOrder: 0 })] })],
+      addresses,
+      landlord,
+    )
+    expect(pages[0].items.map((i) => i.description)).toEqual(['First', 'Second'])
   })
 
   it('orders pages by natural invoice-number order regardless of selection order', () => {
     const pages = buildInvoicePdfModel(
       [inv({ id: 'a', invoiceNumber: '10' }), inv({ id: 'b', invoiceNumber: '9' })],
       addresses,
+      landlord,
     )
     expect(pages.map((p) => p.heading)).toEqual(['Invoice 9', 'Invoice 10'])
   })
@@ -73,6 +138,7 @@ describe('buildInvoicePdfModel', () => {
     const pages = buildInvoicePdfModel(
       [inv({ id: 'a', invoiceNumber: null }), inv({ id: 'b', invoiceNumber: '3' })],
       addresses,
+      landlord,
     )
     expect(pages.map((p) => p.heading)).toEqual(['Invoice 3', 'Invoice —'])
   })
@@ -81,23 +147,25 @@ describe('buildInvoicePdfModel', () => {
     const pages = buildInvoicePdfModel(
       [inv({ propertyId: null }), inv({ id: 'inv-2', propertyId: 'nope' })],
       addresses,
+      landlord,
     )
-    expect(pages[0].table.location).toBe('—')
-    expect(pages[1].table.location).toBe('—')
+    expect(pages[0].location).toBe('—')
+    expect(pages[1].location).toBe('—')
   })
 
   it('falls back to — for an unparseable invoiceDate', () => {
-    const pages = buildInvoicePdfModel([inv({ invoiceDate: 'not-a-date' })], addresses)
+    const pages = buildInvoicePdfModel([inv({ invoiceDate: 'not-a-date' })], addresses, landlord)
     expect(pages[0].date).toBe('—')
   })
 
-  it('formats amounts as en-US USD and falls back to — on invalid input', () => {
+  it('formats item totals as en-US USD and falls back to — on invalid input', () => {
     const pages = buildInvoicePdfModel(
-      [inv({ amount: '1234.5' }), inv({ id: 'inv-2', amount: 'not-a-number' })],
+      [inv({ items: [item({ total: '1234.5' })] }), inv({ id: 'inv-2', items: [item({ total: 'not-a-number' })] })],
       addresses,
+      landlord,
     )
-    expect(pages[0].table.amount).toBe('$1,234.50')
-    expect(pages[1].table.amount).toBe('—')
+    expect(pages[0].items[0].total).toBe('$1,234.50')
+    expect(pages[1].items[0].total).toBe('—')
   })
 })
 
@@ -123,6 +191,7 @@ describe('generateInvoicesPdf', () => {
     saveSpy.mockClear()
     textSpy.mockClear()
     autoTableSpy.mockClear()
+    rectSpy.mockClear()
   })
 
   it('does not load jspdf at module import time', () => {
@@ -131,15 +200,18 @@ describe('generateInvoicesPdf', () => {
     expect(jspdfImported.value).toBe(false)
   })
 
-  it('renders each page and saves under the dated filename', async () => {
+  it('renders each page, draws the highlighted balance box, and saves under the dated filename', async () => {
     await generateInvoicesPdf(
       [inv(), inv({ id: 'inv-2', invoiceNumber: '2' })],
       addresses,
+      landlord,
       new Date(2026, 7, 5, 12, 0),
     )
     expect(jspdfImported.value).toBe(true)
     expect(autoTableSpy).toHaveBeenCalledTimes(2)
-    expect(textSpy).toHaveBeenCalledWith('Balance due: $120.00', expect.any(Number), 158)
+    // The balance box is drawn once per page (right-aligned green highlight).
+    expect(rectSpy).toHaveBeenCalledTimes(2)
+    expect(textSpy.mock.calls.some((c) => c[0] === '$120.00')).toBe(true)
     expect(saveSpy).toHaveBeenCalledWith('invoices-2026-08-05.pdf')
   })
 })
