@@ -1,9 +1,10 @@
 import type { FastifyInstance } from 'fastify'
 import rateLimit from '@fastify/rate-limit'
-import { LoginSchema } from '@mac-invoices/shared'
+import { LoginSchema, SignupSchema } from '@mac-invoices/shared'
 import { AppError } from '../middleware/errorHandler'
 import { parseBody } from '../lib/validate'
-import { verifyPassword, DUMMY_HASH } from './password'
+import { verifyPassword, hashPassword, DUMMY_HASH } from './password'
+import { assertValidInviteCode } from './inviteCode'
 import { createSession, invalidateSession, sessionIdFromToken } from './session'
 import { requireAuth, sessionCookieOptions, SESSION_COOKIE } from './requireAuth'
 
@@ -35,6 +36,62 @@ async function authRoutes(app: FastifyInstance) {
       reply.setCookie(SESSION_COOKIE, token, sessionCookieOptions(expiresAt))
 
       return reply.send({
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+        locale: user.locale,
+      })
+    },
+  )
+
+  app.post(
+    '/api/auth/signup',
+    // Far tighter than login (10/15min): this is an unauthenticated endpoint
+    // that creates tenant rows, not just a credential check.
+    { config: { rateLimit: { max: 5, timeWindow: '1 hour' } } },
+    async (request, reply) => {
+      const { inviteCode, email, password, firstName, lastName } = parseBody(
+        SignupSchema,
+        request.body,
+      )
+
+      // Gate first: an unconfigured or wrong code must never touch the DB.
+      assertValidInviteCode(inviteCode)
+
+      const existing = await request.server.prisma.user.findUnique({ where: { email } })
+      if (existing) {
+        // Deliberately specific (not folded into a generic failure) so the
+        // visitor knows to log in instead of retrying. This is user
+        // enumeration, but only for a caller who already holds a valid invite
+        // code and has cleared the hourly limit. Login itself stays
+        // non-enumerating (DEC-018's constant-time dummy verify).
+        throw new AppError('EMAIL_TAKEN', 'An account with this email already exists', 409)
+      }
+
+      const passwordHash = await hashPassword(password)
+
+      // `name` is kept in sync with the split fields on every write (DEC-028) —
+      // the PDF Bill-To block and the ledger actor names read it.
+      // A concurrent signup racing the check above surfaces as P2002, which the
+      // central error handler already renders as 409 CONFLICT.
+      const user = await request.server.prisma.user.create({
+        data: {
+          email,
+          passwordHash,
+          firstName,
+          lastName,
+          name: `${firstName} ${lastName}`,
+          role: 'LANDLORD',
+        },
+      })
+
+      const { token, expiresAt } = await createSession(user.id, request.cookies?.[SESSION_COOKIE])
+      reply.setCookie(SESSION_COOKIE, token, sessionCookieOptions(expiresAt))
+
+      return reply.code(201).send({
         id: user.id,
         email: user.email,
         name: user.name,
