@@ -350,8 +350,20 @@ import { prisma } from '../src/lib/prisma'
 
 const INVITE = 'test-invite-code-abc123'
 const createdUserIds: string[] = []
+const openApps: Array<ReturnType<typeof buildApp>> = []
 
-const app = buildApp()
+/**
+ * Every test gets its OWN app instance. The signup limiter is 5/hour keyed on
+ * IP, and `inject` always presents 127.0.0.1 — a shared instance would make
+ * every test past the fifth 429 regardless of the code. The limiter's counter
+ * is in-memory per instance, so a fresh app is a fresh bucket.
+ */
+async function freshApp() {
+  const a = buildApp()
+  await a.ready()
+  openApps.push(a)
+  return a
+}
 
 /** Unique per run so repeated local runs never collide on the email unique index. */
 function uniqueEmail(prefix = 'signup') {
@@ -367,15 +379,14 @@ const validBody = (over: Record<string, unknown> = {}) => ({
   ...over,
 })
 
-async function signup(payload: Record<string, unknown>, target = app) {
+async function signup(target: Awaited<ReturnType<typeof freshApp>>, payload: Record<string, unknown>) {
   const res = await target.inject({ method: 'POST', url: '/api/auth/signup', payload })
   if (res.statusCode === 201) createdUserIds.push(res.json().id)
   return res
 }
 
-beforeAll(async () => {
+beforeAll(() => {
   process.env.SIGNUP_INVITE_CODE = INVITE
-  await app.ready()
 })
 
 afterAll(async () => {
@@ -383,13 +394,14 @@ afterAll(async () => {
     await prisma.session.deleteMany({ where: { userId: { in: createdUserIds } } })
     await prisma.user.deleteMany({ where: { id: { in: createdUserIds } } })
   }
-  await app.close()
+  await Promise.all(openApps.map((a) => a.close()))
 })
 
 describe('POST /api/auth/signup', () => {
   it('creates a LANDLORD, sets a session cookie, and never returns the hash', async () => {
+    const app = await freshApp()
     const body = validBody()
-    const res = await signup(body)
+    const res = await signup(app, body)
 
     expect(res.statusCode).toBe(201)
     const user = res.json()
@@ -408,7 +420,8 @@ describe('POST /api/auth/signup', () => {
   })
 
   it('lands the new user in an empty tenant', async () => {
-    const res = await signup(validBody())
+    const app = await freshApp()
+    const res = await signup(app, validBody())
     const cookie = String(res.headers['set-cookie']).split(';')[0]
 
     const invoices = await app.inject({ method: 'GET', url: '/api/invoices', headers: { cookie } })
@@ -419,8 +432,9 @@ describe('POST /api/auth/signup', () => {
   })
 
   it('rejects a wrong invite code with 403 and creates nothing', async () => {
+    const app = await freshApp()
     const email = uniqueEmail('wrongcode')
-    const res = await signup(validBody({ inviteCode: 'not-the-code', email }))
+    const res = await signup(app, validBody({ inviteCode: 'not-the-code', email }))
 
     expect(res.statusCode).toBe(403)
     expect(res.json().error.code).toBe('INVALID_INVITE_CODE')
@@ -428,10 +442,11 @@ describe('POST /api/auth/signup', () => {
   })
 
   it('returns 503 and creates nothing when no invite code is configured', async () => {
+    const app = await freshApp()
     const email = uniqueEmail('disabled')
     delete process.env.SIGNUP_INVITE_CODE
     try {
-      const res = await signup(validBody({ email }))
+      const res = await signup(app, validBody({ email }))
       expect(res.statusCode).toBe(503)
       expect(res.json().error.code).toBe('SIGNUP_DISABLED')
       expect(await prisma.user.findUnique({ where: { email } })).toBeNull()
@@ -441,11 +456,12 @@ describe('POST /api/auth/signup', () => {
   })
 
   it('stores a mixed-case email lowercased, and that account can then log in', async () => {
+    const app = await freshApp()
     const lower = uniqueEmail('mixedcase')
     const mixed = lower.toUpperCase()
     const password = 'a-good-password'
 
-    const res = await signup(validBody({ email: mixed, password }))
+    const res = await signup(app, validBody({ email: mixed, password }))
     expect(res.statusCode).toBe(201)
     expect(res.json().email).toBe(lower)
 
@@ -460,11 +476,12 @@ describe('POST /api/auth/signup', () => {
   })
 
   it('rejects a duplicate email with 409 without disturbing the first account', async () => {
+    const app = await freshApp()
     const email = uniqueEmail('dupe')
-    const first = await signup(validBody({ email, password: 'first-password' }))
+    const first = await signup(app, validBody({ email, password: 'first-password' }))
     expect(first.statusCode).toBe(201)
 
-    const second = await signup(validBody({ email, password: 'second-password' }))
+    const second = await signup(app, validBody({ email, password: 'second-password' }))
     expect(second.statusCode).toBe(409)
     expect(second.json().error.code).toBe('EMAIL_TAKEN')
 
@@ -478,13 +495,15 @@ describe('POST /api/auth/signup', () => {
   })
 
   it('rejects a 7-character password with 400', async () => {
-    const res = await signup(validBody({ password: '1234567' }))
+    const app = await freshApp()
+    const res = await signup(app, validBody({ password: '1234567' }))
     expect(res.statusCode).toBe(400)
     expect(res.json().error.code).toBe('VALIDATION_ERROR')
   })
 
   it('rejects a blank first name with 400', async () => {
-    const res = await signup(validBody({ firstName: '  ' }))
+    const app = await freshApp()
+    const res = await signup(app, validBody({ firstName: '  ' }))
     expect(res.statusCode).toBe(400)
     expect(res.json().error.code).toBe('VALIDATION_ERROR')
   })
@@ -492,19 +511,18 @@ describe('POST /api/auth/signup', () => {
 
 describe('signup rate limit', () => {
   it('returns 429 after exceeding 5 attempts in the window', async () => {
-    // Fresh app so the in-memory rate-limit counter starts at zero.
-    const rl = buildApp()
-    await rl.ready()
+    const app = await freshApp()
     let last
+    // The limiter is an onRequest hook, so it counts every attempt regardless
+    // of whether the body or the invite code would have been rejected later.
     for (let i = 0; i < 7; i++) {
-      last = await rl.inject({
+      last = await app.inject({
         method: 'POST',
         url: '/api/auth/signup',
-        payload: { inviteCode: 'guess', email: uniqueEmail('rl'), password: 'x', firstName: 'A', lastName: 'B' },
+        payload: { inviteCode: 'guess', email: uniqueEmail('rl'), password: 'a-good-password', firstName: 'A', lastName: 'B' },
       })
     }
     expect(last!.statusCode).toBe(429)
-    await rl.close()
   })
 })
 
