@@ -217,17 +217,19 @@ selector, so the seed's upsert moves to the composite key."
 
 Create `apps/api/test/invoices.numbering.test.ts`:
 
+**Why two throwaway tenants and not the seeded landlord:** eight other test files log in as the seeded landlord and create invoices, and vitest runs test files in parallel. Any assertion of the form "the landlord's next number is their current max + 1" races with all of them and would be flaky by construction — and, worse, would look exactly like the known pre-existing flake and get dismissed. Both tenants here are created by this file, so nothing else can touch their sequences.
+
 ```ts
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { buildApp } from '../src/app'
-import { loginCookie, createSecondUser } from './helpers/auth'
+import { createSecondUser } from './helpers/auth'
 
 const app = buildApp()
-let landlordCookie: string
-let other: Awaited<ReturnType<typeof createSecondUser>>
 
-/** Unique prefix so this file's rows never collide with another file's. */
-const PREFIX = `num-${Date.now()}-`
+// Two throwaway tenants owned entirely by this file. `createSecondUser`
+// randomizes the email, so calling it twice yields two independent landlords.
+let a: Awaited<ReturnType<typeof createSecondUser>>
+let b: Awaited<ReturnType<typeof createSecondUser>>
 
 const body = (over: Record<string, unknown> = {}) => ({
   vendorName: 'Vendor',
@@ -241,118 +243,129 @@ async function create(cookie: string, over: Record<string, unknown> = {}) {
   return app.inject({ method: 'POST', url: '/api/invoices', payload: body(over), headers: { cookie } })
 }
 
+/** Give a tenant pre-existing numbered invoices without going through the API. */
+async function seedNumbers(userId: string, numbers: string[]) {
+  for (const invoiceNumber of numbers) {
+    await app.prisma.invoice.create({
+      data: {
+        invoiceNumber,
+        vendorName: 'Seeded',
+        amount: 100,
+        invoiceDate: new Date('2026-02-01'),
+        userId,
+      },
+    })
+  }
+}
+
 beforeAll(async () => {
   await app.ready()
-  landlordCookie = await loginCookie(app)
-  other = await createSecondUser(app)
+  a = await createSecondUser(app)
+  b = await createSecondUser(app)
 })
 
 afterAll(async () => {
-  await app.prisma.invoice.deleteMany({ where: { vendorName: { startsWith: PREFIX } } })
-  await other.cleanup()
+  // cleanup() deletes the tenant's invoices before the user, which matters:
+  // Invoice.propertyId is onDelete Restrict, so properties must cascade from
+  // the user only after its invoices are gone.
+  await a.cleanup()
+  await b.cleanup()
   await app.close()
 })
 
 describe('per-tenant invoice numbering', () => {
-  it('gives a landlord with no numbered invoices the number 1', async () => {
-    const res = await create(other.cookie, { vendorName: `${PREFIX}first` })
+  it('gives a tenant with no numbered invoices the number 1', async () => {
+    const res = await create(b.cookie)
     expect(res.statusCode).toBe(201)
-    // The seeded landlord has hundreds of invoices; a global scan would return
-    // their max + 1 here. Scoped to this owner, it must be 1.
+    // Before scoping, this returned the GLOBAL max + 1 — the seeded landlord
+    // has hundreds of invoices, so this came back in the hundreds.
     expect(res.json().invoiceNumber).toBe('1')
   })
 
-  it("continues the owner's own sequence, ignoring other tenants", async () => {
-    const second = await create(other.cookie, { vendorName: `${PREFIX}second` })
-    expect(second.statusCode).toBe(201)
-    expect(second.json().invoiceNumber).toBe('2')
+  it("continues a tenant's own sequence, unaffected by another tenant", async () => {
+    await seedNumbers(a.user.id, ['1', '2', '3'])
 
-    // The landlord's next number must be their own max + 1, unaffected by the
-    // two invoices the other tenant just created.
-    const landlordMax = await app.prisma.invoice.findMany({
-      where: { userId: { not: other.user.id }, invoiceNumber: { not: null } },
-      select: { invoiceNumber: true },
-    })
-    const expected =
-      String(Math.max(0, ...landlordMax.map((r) => Number.parseInt(r.invoiceNumber!, 10)).filter(Number.isFinite)) + 1)
+    // Tenant B creating invoices must not advance tenant A's sequence.
+    await create(b.cookie)
 
-    const mine = await create(landlordCookie, { vendorName: `${PREFIX}landlord` })
-    expect(mine.statusCode).toBe(201)
-    expect(mine.json().invoiceNumber).toBe(expected)
+    const next = await create(a.cookie)
+    expect(next.statusCode).toBe(201)
+    expect(next.json().invoiceNumber).toBe('4')
   })
 
-  it('lets two landlords each hold the same invoice number', async () => {
-    const a = await create(landlordCookie, { vendorName: `${PREFIX}dup-a`, invoiceNumber: `${PREFIX}X1` })
-    expect(a.statusCode).toBe(201)
-
-    // Same number, different owner: allowed, and nothing leaks about the first.
-    const b = await create(other.cookie, { vendorName: `${PREFIX}dup-b`, invoiceNumber: `${PREFIX}X1` })
-    expect(b.statusCode).toBe(201)
-    expect(b.json().invoiceNumber).toBe(`${PREFIX}X1`)
-  })
-
-  it('still rejects a duplicate number within one landlord', async () => {
-    const first = await create(other.cookie, { vendorName: `${PREFIX}same-a`, invoiceNumber: `${PREFIX}Y1` })
+  it('lets two tenants each hold the same invoice number', async () => {
+    const first = await create(a.cookie, { invoiceNumber: 'SHARED-1' })
     expect(first.statusCode).toBe(201)
 
-    const dupe = await create(other.cookie, { vendorName: `${PREFIX}same-b`, invoiceNumber: `${PREFIX}Y1` })
+    // Same number, different owner: allowed, and B learns nothing about A.
+    const second = await create(b.cookie, { invoiceNumber: 'SHARED-1' })
+    expect(second.statusCode).toBe(201)
+    expect(second.json().invoiceNumber).toBe('SHARED-1')
+  })
+
+  it('still rejects a duplicate number within one tenant', async () => {
+    const first = await create(b.cookie, { invoiceNumber: 'DUPE-1' })
+    expect(first.statusCode).toBe(201)
+
+    const dupe = await create(b.cookie, { invoiceNumber: 'DUPE-1' })
     expect(dupe.statusCode).toBe(409)
   })
 
-  it('allows a landlord to hold many unnumbered invoices at once', async () => {
+  it('allows a tenant to hold many unnumbered invoices at once', async () => {
     // Contractor submissions are unnumbered until approved; the composite
     // unique must not collapse them (Postgres NULLs are never equal).
     for (const n of ['a', 'b', 'c']) {
       await app.prisma.invoice.create({
         data: {
           invoiceNumber: null,
-          vendorName: `${PREFIX}null-${n}`,
+          vendorName: `null-${n}`,
           amount: 100,
           invoiceDate: new Date('2026-02-01'),
           status: 'SUBMITTED',
-          userId: other.user.id,
+          userId: b.user.id,
         },
       })
     }
     const unnumbered = await app.prisma.invoice.count({
-      where: { userId: other.user.id, invoiceNumber: null },
+      where: { userId: b.user.id, invoiceNumber: null },
     })
     expect(unnumbered).toBe(3)
   })
 
   it("stamps an approved submission with the owner's next number", async () => {
-    const property = await app.prisma.property.create({
-      data: { landlordId: other.user.id, name: `${PREFIX}prop`, address: '1 Test St' },
-    })
-    const submission = await app.prisma.invoice.create({
-      data: {
-        invoiceNumber: null,
-        vendorName: `${PREFIX}submission`,
-        amount: 100,
-        invoiceDate: new Date('2026-02-01'),
-        status: 'SUBMITTED',
-        category: 'OTHER',
-        propertyId: property.id,
-        userId: other.user.id,
-        items: { createMany: { data: [{ description: 'Work', quantity: 1, total: 100, sortOrder: 0 }] } },
-      },
-    })
+    // A fresh tenant so the expected number is deterministic: they own exactly
+    // one numbered invoice ("7"), so approving a submission must yield "8".
+    const c = await createSecondUser(app)
+    try {
+      await seedNumbers(c.user.id, ['7'])
+      const property = await app.prisma.property.create({
+        data: { landlordId: c.user.id, name: 'Prop', address: '1 Test St' },
+      })
+      const submission = await app.prisma.invoice.create({
+        data: {
+          invoiceNumber: null,
+          vendorName: 'Submission',
+          amount: 100,
+          invoiceDate: new Date('2026-02-01'),
+          status: 'SUBMITTED',
+          category: 'OTHER',
+          propertyId: property.id,
+          userId: c.user.id,
+          items: { createMany: { data: [{ description: 'Work', quantity: 1, total: 100, sortOrder: 0 }] } },
+        },
+      })
 
-    const before = await app.prisma.invoice.findMany({
-      where: { userId: other.user.id, invoiceNumber: { not: null } },
-      select: { invoiceNumber: true },
-    })
-    const expected =
-      String(Math.max(0, ...before.map((r) => Number.parseInt(r.invoiceNumber!, 10)).filter(Number.isFinite)) + 1)
-
-    const res = await app.inject({
-      method: 'PATCH',
-      url: `/api/invoices/${submission.id}`,
-      payload: { status: 'APPROVED' },
-      headers: { cookie: other.cookie },
-    })
-    expect(res.statusCode).toBe(200)
-    expect(res.json().invoiceNumber).toBe(expected)
+      const res = await app.inject({
+        method: 'PATCH',
+        url: `/api/invoices/${submission.id}`,
+        payload: { status: 'APPROVED' },
+        headers: { cookie: c.cookie },
+      })
+      expect(res.statusCode).toBe(200)
+      expect(res.json().invoiceNumber).toBe('8')
+    } finally {
+      await c.cleanup()
+    }
   })
 })
 ```
