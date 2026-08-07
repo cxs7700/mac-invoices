@@ -60,7 +60,8 @@ export default function Login() {
         </Button>
 
         <div className="my-3 flex items-center gap-3 text-xs text-muted-foreground">
-          <span className="h-px flex-1 bg-border" /> {t('login.or')} <span className="h-px flex-1 bg-border" />
+          <span className="h-px flex-1 bg-border" /> {t('login.or')}{' '}
+          <span className="h-px flex-1 bg-border" />
         </div>
 
         {mode === 'login' ? <LoginForm /> : <SignupForm />}

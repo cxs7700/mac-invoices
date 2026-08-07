@@ -33,7 +33,10 @@ const validBody = (over: Record<string, unknown> = {}) => ({
   ...over,
 })
 
-async function signup(target: Awaited<ReturnType<typeof freshApp>>, payload: Record<string, unknown>) {
+async function signup(
+  target: Awaited<ReturnType<typeof freshApp>>,
+  payload: Record<string, unknown>,
+) {
   const res = await target.inject({ method: 'POST', url: '/api/auth/signup', payload })
   if (res.statusCode === 201) createdUserIds.push(res.json().id)
   return res
@@ -173,7 +176,13 @@ describe('signup rate limit', () => {
       last = await app.inject({
         method: 'POST',
         url: '/api/auth/signup',
-        payload: { inviteCode: 'guess', email: uniqueEmail('rl'), password: 'a-good-password', firstName: 'A', lastName: 'B' },
+        payload: {
+          inviteCode: 'guess',
+          email: uniqueEmail('rl'),
+          password: 'a-good-password',
+          firstName: 'A',
+          lastName: 'B',
+        },
       })
     }
     expect(last!.statusCode).toBe(429)

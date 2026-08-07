@@ -3,9 +3,9 @@ import { LoginSchema, SignupSchema } from '../src/index'
 
 describe('LoginSchema', () => {
   it('accepts a valid email + password', () => {
-    expect(LoginSchema.safeParse({ email: 'landlord@example.com', password: 'secret' }).success).toBe(
-      true,
-    )
+    expect(
+      LoginSchema.safeParse({ email: 'landlord@example.com', password: 'secret' }).success,
+    ).toBe(true)
   })
 
   it('rejects a malformed email', () => {
@@ -13,7 +13,9 @@ describe('LoginSchema', () => {
   })
 
   it('rejects an empty password', () => {
-    expect(LoginSchema.safeParse({ email: 'landlord@example.com', password: '' }).success).toBe(false)
+    expect(LoginSchema.safeParse({ email: 'landlord@example.com', password: '' }).success).toBe(
+      false,
+    )
   })
 })
 
@@ -38,7 +40,9 @@ describe('SignupSchema', () => {
   })
 
   it('normalizes the email to trimmed lowercase', () => {
-    expect(SignupSchema.parse({ ...valid, email: ' New@Example.COM ' }).email).toBe('new@example.com')
+    expect(SignupSchema.parse({ ...valid, email: ' New@Example.COM ' }).email).toBe(
+      'new@example.com',
+    )
   })
 
   it('rejects a password shorter than 8 characters', () => {
