@@ -47,7 +47,6 @@ async function makeInvoice(userId: string, extra: Record<string, unknown> = {}) 
     data: {
       invoiceNumber: `SS-INV-${uniq()}`,
       vendorName: 'V',
-      description: 'w',
       amount: 10,
       category: 'OTHER',
       invoiceDate: new Date('2026-03-01'),

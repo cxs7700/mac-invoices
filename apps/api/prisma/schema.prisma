@@ -86,10 +86,6 @@ model Invoice {
   invoiceNumber          String?          @unique
   vendorName             String
   vendorEmail            String?
-  // Legacy free-text summary — superseded by `items` (InvoiceItem). Dropped in
-  // a later, separate migration once the item-aware code is deployed and
-  // confirmed serving (see docs/DEPLOYMENT.md §3 destructive-migration order).
-  description            String
   // Server-computed sum of `items[].total`, recomputed inside the same
   // transaction that writes the items — never accepted as client input.
   amount                 Decimal          @db.Decimal(10, 2)

@@ -18,7 +18,6 @@ async function makeSubmitted(n: string) {
   return app.prisma.invoice.create({
     data: {
       vendorName: 'C',
-      description: 'work',
       amount: '100.00',
       invoiceDate: new Date('2026-03-01'),
       status: 'SUBMITTED',

@@ -24,7 +24,7 @@ const del = (id: string, cookie: string) =>
 const invoice = (userId: string, propertyId: string, status: string, amount: number) =>
   app.prisma.invoice.create({
     data: {
-      vendorName: 'V', description: 'D', amount, propertyId, userId,
+      vendorName: 'V', amount, propertyId, userId,
       status: status as never, invoiceDate: new Date(),
     },
   })

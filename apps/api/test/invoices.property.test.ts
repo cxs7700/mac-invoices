@@ -26,7 +26,7 @@ const base = {
 // A SUBMITTED row (contractor-style: no category, no property) created directly.
 const submitted = (n: string) =>
   app.prisma.invoice.create({
-    data: { vendorName: 'C', description: 'w', amount: '100.00', invoiceDate: new Date(), status: 'SUBMITTED', userId: a.user.id, invoiceNumber: `P-${n}` },
+    data: { vendorName: 'C', amount: '100.00', invoiceDate: new Date(), status: 'SUBMITTED', userId: a.user.id, invoiceNumber: `P-${n}` },
   })
 
 beforeAll(async () => {

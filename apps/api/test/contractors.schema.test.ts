@@ -43,7 +43,6 @@ describe('U1 schema: contractor + nullable invoice columns', () => {
     const inv = await app.prisma.invoice.create({
       data: {
         vendorName: 'Joe',
-        description: 'Fixed a leak',
         amount: '120.00',
         invoiceDate: new Date('2026-06-01'),
         status: 'PENDING',
@@ -74,7 +73,6 @@ describe('U1 schema: contractor + nullable invoice columns', () => {
     const inv = await app.prisma.invoice.create({
       data: {
         vendorName: 'Temp',
-        description: 'Work',
         amount: '50.00',
         invoiceDate: new Date('2026-06-01'),
         status: 'PENDING',

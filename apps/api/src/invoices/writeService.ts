@@ -48,13 +48,6 @@ function itemRows(invoiceId: string, items: readonly InvoiceItemInput[]) {
   return nestedItemRows(items).map((row) => ({ invoiceId, ...row }))
 }
 
-/** Legacy `invoices.description` mirror (NOT NULL until the follow-up drop
- * migration) — every item's description, joined, so a direct DB read isn't
- * blank. Nothing in the app reads this column anymore. */
-function legacyDescription(items: readonly InvoiceItemInput[]): string {
-  return items.map((i) => i.description).join(', ')
-}
-
 // --- Status transition guard (KTD-3) ---------------------------------------
 // SUBMITTED is the contractor-submission entry state. The guard governs that
 // lifecycle specifically; legacy transitions among the pre-existing statuses
@@ -258,10 +251,6 @@ export async function createInvoice(
         invoiceNumber,
         vendorName: input.vendorName,
         vendorEmail: input.vendorEmail ?? null,
-        // Legacy column, kept NOT NULL until the follow-up destructive
-        // migration — mirrors the item descriptions so a direct DB read
-        // isn't blank; nothing in the app reads it anymore.
-        description: legacyDescription(input.items),
         amount: sumItemTotals(input.items),
         currency: input.currency,
         category: input.category,
@@ -316,7 +305,6 @@ export async function createSubmission(
       data: {
         invoiceNumber: null,
         vendorName: args.vendorName,
-        description: input.description,
         amount: input.amount,
         category: null,
         invoiceDate: input.invoiceDate,
@@ -375,9 +363,11 @@ export async function contractorUpdateSubmission(
       data.status = 'CANCELLED'
       events.push({ ...base, type: 'STATUS_CHANGED', detail: { from: 'SUBMITTED', to: 'CANCELLED' } })
     } else {
-      const fields: { key: 'amount' | 'description' | 'invoiceDate'; value: unknown }[] = [
+      // `description` is no longer an Invoice column (it's the submission's
+      // one InvoiceItem, synced separately below) — only amount/invoiceDate
+      // are tracked here as direct Invoice-row fields.
+      const fields: { key: 'amount' | 'invoiceDate'; value: unknown }[] = [
         { key: 'amount', value: input.amount },
-        { key: 'description', value: input.description },
         { key: 'invoiceDate', value: input.invoiceDate },
       ]
       for (const { key, value } of fields) {
@@ -443,7 +433,6 @@ export async function updateInvoice(
     // items: full-replace when present (KTD) — the edit form always submits
     // the complete current list, not an incremental add/remove.
     if (input.items !== undefined) {
-      data.description = legacyDescription(input.items)
       data.amount = sumItemTotals(input.items)
     }
     if (input.currency !== undefined) data.currency = input.currency

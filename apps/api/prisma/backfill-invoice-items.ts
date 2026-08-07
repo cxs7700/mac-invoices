@@ -14,22 +14,34 @@ import { prisma as defaultPrisma } from '../src/lib/prisma'
 // Run once with `npm run db:backfill-invoice-items` — it is NOT a Prisma
 // migration and does not run on `prisma migrate deploy`.
 
-type Db = Pick<typeof defaultPrisma, 'invoice' | 'invoiceItem' | 'user'>
+type Db = Pick<typeof defaultPrisma, 'invoiceItem' | 'user' | '$queryRaw'>
 
+// Reads `description`/`amount` via raw SQL, not the typed Prisma client: the
+// follow-up destructive migration drops `invoices.description` from the
+// schema (and the generated types) once this backfill has run, but this
+// script must keep working against a production DB that still physically
+// has the column at the moment it's invoked — a typed `findMany` would stop
+// compiling the instant the schema is updated, even though the column is
+// still there until migration B actually runs.
+//
+// Idempotent beyond that window too: if `invoices.description` has already
+// been dropped (migration B already ran — this DB has nothing left to
+// backfill from), skip this pass instead of erroring, so a stray re-run of
+// the whole script doesn't crash the still-useful name-split pass.
 async function backfillItems(prisma: Db) {
-  const invoices = await prisma.invoice.findMany({
-    select: { id: true, description: true, amount: true },
-  })
-  const withItems = await prisma.invoiceItem.findMany({
-    select: { invoiceId: true },
-    distinct: ['invoiceId'],
-  })
-  const alreadyHasItems = new Set(withItems.map((i) => i.invoiceId))
+  const [{ exists }] = await prisma.$queryRaw<{ exists: boolean }[]>`
+    SELECT EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_name = 'invoices' AND column_name = 'description'
+    ) AS exists`
+  if (!exists) return 0
 
-  let invoicesBackfilled = 0
+  const invoices = await prisma.$queryRaw<{ id: string; description: string; amount: string }[]>`
+    SELECT i.id, i.description, i.amount::text AS amount
+    FROM invoices i
+    WHERE NOT EXISTS (SELECT 1 FROM invoice_items ii WHERE ii."invoiceId" = i.id)`
+
   for (const inv of invoices) {
-    if (alreadyHasItems.has(inv.id)) continue
-    invoicesBackfilled++
     await prisma.invoiceItem.create({
       data: {
         invoiceId: inv.id,
@@ -40,7 +52,7 @@ async function backfillItems(prisma: Db) {
       },
     })
   }
-  return invoicesBackfilled
+  return invoices.length
 }
 
 function splitName(name: string | null): { firstName: string | null; lastName: string | null } {

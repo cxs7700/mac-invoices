@@ -43,6 +43,7 @@ const seedLandlord = async () => {
       id: LANDLORD_ID,
       email: LANDLORD_EMAIL,
       name: 'Landlord',
+      firstName: 'Landlord',
       role: 'LANDLORD',
       passwordHash,
     },
@@ -97,7 +98,6 @@ const seedInvoices = async () => {
     const data: Prisma.InvoiceCreateInput = {
       invoiceNumber: String(row.number),
       vendorName: 'Unknown vendor',
-      description: row.description,
       amount,
       currency: 'USD',
       category: 'OTHER',
@@ -105,6 +105,7 @@ const seedInvoices = async () => {
       invoiceDate,
       notes: notes || null,
       user: { connect: { id: LANDLORD_ID } },
+      items: { create: [{ description: row.description, quantity: 1, total: amount, sortOrder: 0 }] },
     }
 
     await prisma.invoice.upsert({

@@ -22,7 +22,6 @@ async function preLedgerInvoice(n: string, over: Record<string, unknown> = {}) {
     data: {
       invoiceNumber: `${PREFIX}${n}`,
       vendorName: 'Vendor',
-      description: 'Work',
       amount: 100,
       category: 'OTHER',
       invoiceDate: createdAt,
@@ -59,8 +58,7 @@ describe('backfillEvents', () => {
       payload: {
         invoiceNumber: `${PREFIX}api`,
         vendorName: 'Vendor',
-        description: 'Work',
-        amount: 100,
+        items: [{ description: 'Work', quantity: 1, total: 100 }],
         category: 'OTHER',
         invoiceDate: '2026-02-01',
       },

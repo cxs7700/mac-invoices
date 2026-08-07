@@ -66,13 +66,13 @@ describe('GET /api/invoices/summary', () => {
     // byCategory — so the per-category breakdown still reconciles to the total.
     const submitted = await app.prisma.invoice.create({
       data: {
-        vendorName: 'Contractor', description: 'Submitted work', amount: '999.00',
+        vendorName: 'Contractor', amount: '999.00',
         invoiceDate: new Date('2026-03-01'), status: 'SUBMITTED', userId: user.user.id, invoiceNumber: `${PREFIX}sub`,
       },
     })
     const cancelled = await app.prisma.invoice.create({
       data: {
-        vendorName: 'Contractor', description: 'Withdrawn work', amount: '777.00',
+        vendorName: 'Contractor', amount: '777.00',
         invoiceDate: new Date('2026-03-01'), status: 'CANCELLED', userId: user.user.id, invoiceNumber: `${PREFIX}wd`,
       },
     })
