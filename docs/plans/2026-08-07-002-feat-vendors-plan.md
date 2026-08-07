@@ -1355,6 +1355,16 @@ Follow the existing DEC-029 style — a bolded title line, the plan/spec paths, 
 
 Add a step recording that `20260807190000_rename_contractor_to_vendor` must be applied to production, that it is data-preserving (`RENAME`, never DROP+CREATE), and that it rewrites `invoice_events.actorId` prefixes. Flag that the API and web deploy must go out together — the renamed API routes and the renamed columns land in the same migration.
 
+**Also add a required pre-deploy audit.** Both local databases had zero `contractors` rows, so the `contact` → `phone`/`email` backfill was proved only against a scratch table of boundary cases — never against real data. Production is the first place it meets real rows. Before migrating, run this read-only query against production and eyeball the routing:
+
+```sql
+SELECT name, contact,
+       CASE WHEN contact LIKE '%_@_%.__%' THEN 'email' ELSE 'phone' END AS routes_to
+FROM contractors ORDER BY name;
+```
+
+No row can be lost — the predicate and its complement are exhaustive, and the value is copied verbatim either way. What the audit catches is *misfiling*: an address without a dot in the domain (`bob@localhost`) routes to `phone`, and a phone number written as `555@home.com` would route to `email`. Anything misfiled is corrected with a one-line `UPDATE` after the migration; it is not a reason to block the deploy.
+
 - [ ] **Step 4: Run the full Definition of Done**
 
 ```bash
