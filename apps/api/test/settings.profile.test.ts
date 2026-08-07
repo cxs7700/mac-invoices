@@ -83,6 +83,29 @@ describe('PATCH /api/settings/profile', () => {
     expect((await patch({ email: 'not-an-email' })).statusCode).toBe(400)
   })
 
+  it('C1: lowercases a mixed-case email on save, and the account can still log in with it', async () => {
+    const email = `Mixed-Case-${Date.now()}@Example.COM`
+    const res = await patch({ email }, other.cookie)
+    expect(res.statusCode).toBe(200)
+    // Stored/returned email is lowercase, not the mixed case submitted.
+    expect(res.json().email).toBe(email.toLowerCase())
+
+    const me = (
+      await app.inject({ method: 'GET', url: '/api/auth/me', headers: { cookie: other.cookie } })
+    ).json()
+    expect(me.email).toBe(email.toLowerCase())
+
+    // The exact round trip C1 was about: login must still find the account,
+    // whether the submitted email is lowercase or the original mixed case
+    // (login itself lowercases before the exact-match lookup).
+    const login = await app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: { email, password: 'second-user-pass' },
+    })
+    expect(login.statusCode).toBe(200)
+  })
+
   it('rejects an empty or over-long firstName, and an over-long lastName', async () => {
     expect((await patch({ firstName: '   ' })).statusCode).toBe(400)
     expect((await patch({ firstName: 'a'.repeat(51) })).statusCode).toBe(400)

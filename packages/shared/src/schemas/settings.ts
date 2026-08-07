@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { EmailSchema } from './auth'
 
 // Supported UI languages (server-validated; mirrored by the web i18n config).
 export const Locale = z.enum(['en', 'zh'])
@@ -8,7 +9,10 @@ export type Locale = z.infer<typeof Locale>
 // the UI locale — all optional so the language switcher can PATCH just
 // `{ locale }`. Email has no confirmation/verification loop (a typo can lock
 // the landlord out); the unique constraint on `users.email` still returns 409
-// on a collision via the existing central P2002 handling.
+// on a collision via the existing central P2002 handling. Email reuses the
+// shared `EmailSchema` (trim + lowercase before validation) so a profile edit
+// can never write a mixed-case address that login's lowercase `findUnique`
+// could then never match — see EmailSchema's doc comment.
 export const UpdateProfileSchema = z.object({
   firstName: z.string().trim().min(1).max(50).optional(),
   // Unlike firstName, an empty string is valid here — it's the "clear this
@@ -16,7 +20,7 @@ export const UpdateProfileSchema = z.object({
   // "leave unchanged" (the PATCH-just-one-field contract); "" means "set to
   // null". Both are distinct from omitting the key entirely.
   lastName: z.string().trim().max(50).optional(),
-  email: z.string().trim().email().optional(),
+  email: EmailSchema.optional(),
   locale: Locale.optional(),
 })
 export type UpdateProfileInput = z.infer<typeof UpdateProfileSchema>
