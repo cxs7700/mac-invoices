@@ -11,11 +11,16 @@ describe('UpdateProfileSchema', () => {
     }
   })
 
-  it('rejects empty and over-long names', () => {
+  it('rejects an empty or over-long firstName', () => {
     expect(UpdateProfileSchema.safeParse({ firstName: '   ' }).success).toBe(false)
     expect(UpdateProfileSchema.safeParse({ firstName: 'a'.repeat(51) }).success).toBe(false)
-    expect(UpdateProfileSchema.safeParse({ lastName: '   ' }).success).toBe(false)
+  })
+
+  it('rejects an over-long lastName but accepts an empty one (clears the field)', () => {
     expect(UpdateProfileSchema.safeParse({ lastName: 'a'.repeat(51) }).success).toBe(false)
+    const r = UpdateProfileSchema.safeParse({ lastName: '   ' })
+    expect(r.success).toBe(true)
+    if (r.success) expect(r.data.lastName).toBe('')
   })
 
   it('accepts a partial body with only one field (PATCH contract)', () => {

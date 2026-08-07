@@ -56,7 +56,10 @@ function ProfileSection() {
           onClick={() =>
             update.mutate({
               firstName: firstNameValue.trim(),
-              lastName: lastNameValue.trim() || undefined,
+              // "" (not undefined) so an intentional clear reaches the API —
+              // undefined would mean "leave unchanged" and silently restore
+              // the previous value.
+              lastName: lastNameValue.trim(),
               email: emailValue.trim(),
             })
           }

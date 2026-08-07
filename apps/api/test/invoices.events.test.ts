@@ -169,6 +169,11 @@ describe('delete writes a surviving tombstone', () => {
     expect(snapshot.invoiceNumber).toBe(`${PREFIX}del`)
     expect(snapshot.amount).toBe('149.99')
     expect(snapshot.status).toBe('PENDING')
+    // The line items — where the work description now lives — must survive
+    // in the tombstone too, since the InvoiceItem rows cascade-delete.
+    expect(snapshot.items).toEqual([
+      { description: 'Work', quantity: 1, total: '149.99', sortOrder: 0 },
+    ])
   })
 
   it("does not record an event when deleting another user's invoice (404)", async () => {

@@ -363,9 +363,9 @@ export async function contractorUpdateSubmission(
       data.status = 'CANCELLED'
       events.push({ ...base, type: 'STATUS_CHANGED', detail: { from: 'SUBMITTED', to: 'CANCELLED' } })
     } else {
-      // `description` is no longer an Invoice column (it's the submission's
-      // one InvoiceItem, synced separately below) — only amount/invoiceDate
-      // are tracked here as direct Invoice-row fields.
+      // `description` is no longer an Invoice column — it's the submission's
+      // one InvoiceItem (synced below), so its old value for diffing comes
+      // from that row, not `before`.
       const fields: { key: 'amount' | 'invoiceDate'; value: unknown }[] = [
         { key: 'amount', value: input.amount },
         { key: 'invoiceDate', value: input.invoiceDate },
@@ -377,6 +377,18 @@ export async function contractorUpdateSubmission(
         const newValue = normalize(key, value)
         if (oldValue !== newValue) {
           events.push({ ...base, type: 'FIELD_EDITED', detail: { field: key, old: oldValue, new: newValue } })
+        }
+      }
+      if (input.description !== undefined) {
+        const item = await tx.invoiceItem.findFirst({ where: { invoiceId: args.invoiceId } })
+        const oldValue = normalize('description', item?.description ?? null)
+        const newValue = normalize('description', input.description)
+        if (oldValue !== newValue) {
+          events.push({
+            ...base,
+            type: 'FIELD_EDITED',
+            detail: { field: 'description', old: oldValue, new: newValue },
+          })
         }
       }
     }
@@ -533,23 +545,33 @@ export async function deleteInvoice(prisma: PrismaClient, actorId: string, id: s
   const imageUrls = await prisma.$transaction(async (tx) => {
     const before = await tx.invoice.findFirst({
       where: { id, userId: actorId },
-      include: { images: true },
+      include: { images: true, items: { orderBy: { sortOrder: 'asc' } } },
     })
     if (!before) throw new AppError('NOT_FOUND', 'Invoice not found', 404)
 
-    // Snapshot the scalar invoice plus EVERY image url, so the archive is complete
-    // even though the cascade drops all InvoiceImage rows with the invoice.
-    const { images, user: _user, ...scalar } = before as Record<string, unknown> & {
+    // Snapshot the scalar invoice, every image url, and every line item, so
+    // the archive is complete even though the cascade drops all InvoiceImage
+    // and InvoiceItem rows with the invoice — items now carry what used to
+    // be the scalar `description` column, so omitting them would silently
+    // lose the invoice's actual work description from history.
+    const { images, items, user: _user, ...scalar } = before as Record<string, unknown> & {
       images: { url: string }[]
+      items: { description: string; quantity: number; total: { toFixed: (n: number) => string }; sortOrder: number }[]
     }
     const urls = images.map((img) => img.url)
+    const itemSnapshots = items.map((i) => ({
+      description: i.description,
+      quantity: i.quantity,
+      total: i.total.toFixed(2),
+      sortOrder: i.sortOrder,
+    }))
     await tx.invoiceEvent.create({
       data: {
         invoiceId: id,
         actorId,
         ownerUserId: before.userId,
         type: 'DELETED',
-        detail: { snapshot: { ...serializeInvoice(scalar), imageUrls: urls } },
+        detail: { snapshot: { ...serializeInvoice(scalar), imageUrls: urls, items: itemSnapshots } },
       },
     })
     await tx.invoice.deleteMany({ where: { id, userId: actorId } })

@@ -83,10 +83,18 @@ describe('PATCH /api/settings/profile', () => {
     expect((await patch({ email: 'not-an-email' })).statusCode).toBe(400)
   })
 
-  it('rejects empty or over-long names', async () => {
+  it('rejects an empty or over-long firstName, and an over-long lastName', async () => {
     expect((await patch({ firstName: '   ' })).statusCode).toBe(400)
     expect((await patch({ firstName: 'a'.repeat(51) })).statusCode).toBe(400)
-    expect((await patch({ lastName: '   ' })).statusCode).toBe(400)
+    expect((await patch({ lastName: 'a'.repeat(51) })).statusCode).toBe(400)
+  })
+
+  it('clears lastName to null when sent as an empty string', async () => {
+    await patch({ firstName: 'Solo', lastName: 'Name' }, other.cookie)
+    const res = await patch({ lastName: '   ' }, other.cookie)
+    expect(res.statusCode).toBe(200)
+    expect(res.json().lastName).toBeNull()
+    expect(res.json().name).toBe('Solo')
   })
 
   it('is scoped to the session user (a second user edits only themselves)', async () => {

@@ -37,26 +37,35 @@ function displayName(firstName: string | null, lastName: string | null): string 
 export async function updateProfile(request: FastifyRequest, reply: FastifyReply) {
   const input = parseBody(UpdateProfileSchema, request.body)
   const prisma = request.server.prisma
+  // "" clears lastName to null (a landlord with no last name to give);
+  // `undefined` leaves it unchanged (the PATCH-just-one-field contract).
+  const lastNameInput = input.lastName === '' ? null : input.lastName
 
-  let nameUpdate = {}
-  if (input.firstName !== undefined || input.lastName !== undefined) {
-    const current = await prisma.user.findUniqueOrThrow({
+  const account = await prisma.$transaction(async (tx) => {
+    let nameUpdate = {}
+    if (input.firstName !== undefined || lastNameInput !== undefined) {
+      // `FOR UPDATE` (not a plain read): two concurrent PATCHes touching
+      // disjoint name fields (firstName-only vs. lastName-only) must not
+      // both read the same pre-update row — the row lock forces the second
+      // transaction to wait and then read the FIRST transaction's committed
+      // result, so its write layers on top instead of clobbering it with a
+      // stale snapshot.
+      const [current] = await tx.$queryRaw<{ firstName: string | null; lastName: string | null }[]>`
+        SELECT "firstName", "lastName" FROM "users" WHERE id = ${request.user.id} FOR UPDATE`
+      const firstName = input.firstName !== undefined ? input.firstName : current.firstName
+      const lastName = lastNameInput !== undefined ? lastNameInput : current.lastName
+      nameUpdate = { firstName, lastName, name: displayName(firstName, lastName) }
+    }
+
+    return tx.user.update({
       where: { id: request.user.id },
-      select: { firstName: true, lastName: true },
+      data: {
+        ...nameUpdate,
+        ...(input.email !== undefined && { email: input.email }),
+        ...(input.locale !== undefined && { locale: input.locale }),
+      },
+      select: accountSelect,
     })
-    const firstName = input.firstName !== undefined ? input.firstName : current.firstName
-    const lastName = input.lastName !== undefined ? input.lastName : current.lastName
-    nameUpdate = { firstName, lastName, name: displayName(firstName, lastName) }
-  }
-
-  const account = await prisma.user.update({
-    where: { id: request.user.id },
-    data: {
-      ...nameUpdate,
-      ...(input.email !== undefined && { email: input.email }),
-      ...(input.locale !== undefined && { locale: input.locale }),
-    },
-    select: accountSelect,
   })
   return reply.send(account)
 }

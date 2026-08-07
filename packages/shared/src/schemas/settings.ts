@@ -11,7 +11,11 @@ export type Locale = z.infer<typeof Locale>
 // on a collision via the existing central P2002 handling.
 export const UpdateProfileSchema = z.object({
   firstName: z.string().trim().min(1).max(50).optional(),
-  lastName: z.string().trim().min(1).max(50).optional(),
+  // Unlike firstName, an empty string is valid here — it's the "clear this
+  // field" signal (a landlord has no last name to give). `undefined` means
+  // "leave unchanged" (the PATCH-just-one-field contract); "" means "set to
+  // null". Both are distinct from omitting the key entirely.
+  lastName: z.string().trim().max(50).optional(),
   email: z.string().trim().email().optional(),
   locale: Locale.optional(),
 })

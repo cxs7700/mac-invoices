@@ -3,7 +3,11 @@ import type { UpdateInvoiceInput } from '@mac-invoices/shared'
 import { apiClient } from '@/lib/apiClient'
 import type { InvoiceListItem } from './useInvoices'
 
-export type Invoice = InvoiceListItem & {
+// GET /api/invoices/:id never sends `contractor` (that's a list-only field,
+// flattened from submittedByContractor by listInvoices) — it sends
+// `submitterName` instead. Omit it here so the type can't claim a field the
+// detail endpoint doesn't actually return.
+export type Invoice = Omit<InvoiceListItem, 'contractor'> & {
   currency: string
   propertyId: string | null
   paidDate: string | null

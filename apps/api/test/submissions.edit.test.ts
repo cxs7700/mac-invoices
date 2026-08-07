@@ -88,6 +88,35 @@ describe('contractor edit (U7)', () => {
     expect(afterReview.statusCode).toBe(409)
   })
 
+  it('editing only the description records a FIELD_EDITED event and updates the item', async () => {
+    const c = await makeContractor()
+    const id = await submit(c.id, c.token)
+    const edited = await app.inject({
+      method: 'PATCH',
+      url: `/api/submissions/${c.token}/${id}`,
+      payload: { description: 'Replaced the whole panel' },
+    })
+    expect(edited.statusCode).toBe(200)
+
+    const item = await app.prisma.invoiceItem.findFirstOrThrow({ where: { invoiceId: id } })
+    expect(item.description).toBe('Replaced the whole panel')
+
+    const ev = await app.prisma.invoiceEvent.findFirstOrThrow({
+      where: { invoiceId: id, type: 'FIELD_EDITED' },
+    })
+    expect(ev.actorId).toBe(`contractor:${c.id}`)
+    expect(ev.detail).toEqual({ field: 'description', old: 'work', new: 'Replaced the whole panel' })
+
+    // A no-op re-submit of the same description records nothing new.
+    const before = await app.prisma.invoiceEvent.count({ where: { invoiceId: id } })
+    await app.inject({
+      method: 'PATCH',
+      url: `/api/submissions/${c.token}/${id}`,
+      payload: { description: 'Replaced the whole panel' },
+    })
+    expect(await app.prisma.invoiceEvent.count({ where: { invoiceId: id } })).toBe(before)
+  })
+
   it('own-status list returns this contractor’s submissions with rejection reason', async () => {
     const c = await makeContractor()
     const ok = await submit(c.id, c.token)
