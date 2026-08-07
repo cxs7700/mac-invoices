@@ -12,7 +12,7 @@ vi.mock('../src/integrations/storage', () => storage)
 import { buildApp } from '../src/app'
 import { createSecondUser } from './helpers/auth'
 
-// U9 — landlord review surface: number assigned on approval, contractor name
+// U9 — landlord review surface: number assigned on approval, vendor name
 // resolved in the timeline + detail, the SUBMITTED queue + count.
 const app = buildApp()
 let landlord: Awaited<ReturnType<typeof createSecondUser>>
@@ -20,16 +20,16 @@ let propId: string // required-on-approval: the landlord assigns this when appro
 const cookie = () => landlord.cookie
 const tokenOf = (link: string) => link.split('/submit/')[1]
 
-async function makeContractor(name = 'Joe Plumber') {
+async function makeVendor(name = 'Joe Plumber') {
   const r = await app.inject({
     method: 'POST',
-    url: '/api/contractors',
-    payload: { name, contact: 'x' },
+    url: '/api/vendors',
+    payload: { name, phone: 'x' },
     headers: { cookie: cookie() },
   })
   return { id: r.json().id, token: tokenOf(r.json().link), name }
 }
-async function submit(contractorId: string, token: string) {
+async function submit(vendorId: string, token: string) {
   const r = await app.inject({
     method: 'POST',
     url: `/api/submissions/${token}`,
@@ -37,7 +37,7 @@ async function submit(contractorId: string, token: string) {
       amount: 100,
       description: 'work',
       invoiceDate: '2026-06-01',
-      images: [{ url: `https://blob/owners/c_${contractorId}/p.jpg`, type: 'OTHER' }],
+      images: [{ url: `https://blob/owners/c_${vendorId}/p.jpg`, type: 'OTHER' }],
     },
   })
   return r.json().id as string
@@ -58,7 +58,7 @@ afterAll(async () => {
 
 describe('U9 landlord review', () => {
   it('assigns an invoice number on the first APPROVED (KTD-11)', async () => {
-    const c = await makeContractor()
+    const c = await makeVendor()
     const id = await submit(c.id, c.token)
     expect((await app.prisma.invoice.findUniqueOrThrow({ where: { id } })).invoiceNumber).toBeNull()
     const res = await patch(id, { status: 'APPROVED', category: 'LABOR', propertyId: propId })
@@ -67,7 +67,7 @@ describe('U9 landlord review', () => {
   })
 
   it('approving a multi-image submission keeps every image on the materialized invoice', async () => {
-    const c = await makeContractor()
+    const c = await makeVendor()
     const images = Array.from({ length: 3 }, (_, i) => ({
       url: `https://blob/owners/c_${c.id}/p${i}.jpg`,
       type: 'OTHER',
@@ -84,7 +84,7 @@ describe('U9 landlord review', () => {
   })
 
   it('a withdrawn or rejected submission never consumes a number (no ledger gap)', async () => {
-    const c = await makeContractor()
+    const c = await makeVendor()
     const rejected = await submit(c.id, c.token)
     await patch(rejected, { status: 'REJECTED', rejectionReason: 'no' })
     const withdrawn = await submit(c.id, c.token)
@@ -93,19 +93,19 @@ describe('U9 landlord review', () => {
     expect((await app.prisma.invoice.findUniqueOrThrow({ where: { id: withdrawn } })).invoiceNumber).toBeNull()
   })
 
-  it('resolves the contractor name in the timeline (not null) and on the detail', async () => {
-    const c = await makeContractor('Pat Contractor')
+  it('resolves the vendor name in the timeline (not null) and on the detail', async () => {
+    const c = await makeVendor('Pat Vendor')
     const id = await submit(c.id, c.token)
     const events = (await app.inject({ method: 'GET', url: `/api/invoices/${id}/events`, headers: { cookie: cookie() } })).json().data
     const created = events.find((e: { type: string }) => e.type === 'CREATED')
-    expect(created.actor.id).toBe(`contractor:${c.id}`)
-    expect(created.actor.name).toBe('Pat Contractor') // resolved, not null
+    expect(created.actor.id).toBe(`vendor:${c.id}`)
+    expect(created.actor.name).toBe('Pat Vendor') // resolved, not null
     const detail = (await app.inject({ method: 'GET', url: `/api/invoices/${id}`, headers: { cookie: cookie() } })).json()
-    expect(detail.submitterName).toBe('Pat Contractor')
+    expect(detail.submitterName).toBe('Pat Vendor')
   })
 
   it('serves the SUBMITTED queue + count to the landlord', async () => {
-    const c = await makeContractor()
+    const c = await makeVendor()
     const id = await submit(c.id, c.token)
     const queue = (await app.inject({ method: 'GET', url: '/api/invoices?status=SUBMITTED', headers: { cookie: cookie() } })).json()
     expect(queue.data.map((i: { id: string }) => i.id)).toContain(id)

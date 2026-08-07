@@ -17,17 +17,17 @@ let landlord: Awaited<ReturnType<typeof createSecondUser>>
 let propId: string // required-on-approval: the landlord assigns this when approving
 const tokenOf = (link: string) => link.split('/submit/')[1]
 
-async function makeContractor(name = 'Joe') {
+async function makeVendor(name = 'Joe') {
   const r = await app.inject({
     method: 'POST',
-    url: '/api/contractors',
-    payload: { name, contact: 'x' },
+    url: '/api/vendors',
+    payload: { name, phone: 'x' },
     headers: { cookie: landlord.cookie },
   })
   return { id: r.json().id, token: tokenOf(r.json().link) }
 }
 
-async function submit(contractorId: string, token: string, over: Record<string, unknown> = {}) {
+async function submit(vendorId: string, token: string, over: Record<string, unknown> = {}) {
   const r = await app.inject({
     method: 'POST',
     url: `/api/submissions/${token}`,
@@ -35,7 +35,7 @@ async function submit(contractorId: string, token: string, over: Record<string, 
       amount: 100,
       description: 'work',
       invoiceDate: '2026-06-01',
-      images: [{ url: `https://blob/owners/c_${contractorId}/p.jpg`, type: 'OTHER' }],
+      images: [{ url: `https://blob/owners/c_${vendorId}/p.jpg`, type: 'OTHER' }],
       ...over,
     },
   })
@@ -61,9 +61,9 @@ afterAll(async () => {
   await app.close()
 })
 
-describe('contractor edit (U7)', () => {
+describe('vendor edit (U7)', () => {
   it('edits a SUBMITTED submission, then locks once the landlord has approved (AE2)', async () => {
-    const c = await makeContractor()
+    const c = await makeVendor()
     const id = await submit(c.id, c.token)
     const edited = await app.inject({
       method: 'PATCH',
@@ -74,9 +74,9 @@ describe('contractor edit (U7)', () => {
     const row = await app.prisma.invoice.findUniqueOrThrow({ where: { id } })
     expect(Number(row.amount)).toBe(250)
 
-    // FIELD_EDITED is attributed to the contractor.
+    // FIELD_EDITED is attributed to the vendor.
     const ev = await app.prisma.invoiceEvent.findFirstOrThrow({ where: { invoiceId: id, type: 'FIELD_EDITED' } })
-    expect(ev.actorId).toBe(`contractor:${c.id}`)
+    expect(ev.actorId).toBe(`vendor:${c.id}`)
 
     // After approval the submission is locked: the same edit is a 409.
     expect((await approve(id)).statusCode).toBe(200)
@@ -89,7 +89,7 @@ describe('contractor edit (U7)', () => {
   })
 
   it('editing only the description records a FIELD_EDITED event and updates the item', async () => {
-    const c = await makeContractor()
+    const c = await makeVendor()
     const id = await submit(c.id, c.token)
     const edited = await app.inject({
       method: 'PATCH',
@@ -104,7 +104,7 @@ describe('contractor edit (U7)', () => {
     const ev = await app.prisma.invoiceEvent.findFirstOrThrow({
       where: { invoiceId: id, type: 'FIELD_EDITED' },
     })
-    expect(ev.actorId).toBe(`contractor:${c.id}`)
+    expect(ev.actorId).toBe(`vendor:${c.id}`)
     expect(ev.detail).toEqual({ field: 'description', old: 'work', new: 'Replaced the whole panel' })
 
     // A no-op re-submit of the same description records nothing new.
@@ -117,8 +117,8 @@ describe('contractor edit (U7)', () => {
     expect(await app.prisma.invoiceEvent.count({ where: { invoiceId: id } })).toBe(before)
   })
 
-  it('own-status list returns this contractor’s submissions with rejection reason', async () => {
-    const c = await makeContractor()
+  it('own-status list returns this vendor’s submissions with rejection reason', async () => {
+    const c = await makeVendor()
     const ok = await submit(c.id, c.token)
     const rejectMe = await submit(c.id, c.token)
     await app.inject({
@@ -138,8 +138,8 @@ describe('contractor edit (U7)', () => {
     expect(Object.keys(rejected)).not.toContain('invoiceNumber')
   })
 
-  it('two concurrent contractor edits both pass the CAS (last-write-wins, v1)', async () => {
-    const c = await makeContractor()
+  it('two concurrent vendor edits both pass the CAS (last-write-wins, v1)', async () => {
+    const c = await makeVendor()
     const id = await submit(c.id, c.token)
     const [a, b] = await Promise.all([
       app.inject({ method: 'PATCH', url: `/api/submissions/${c.token}/${id}`, payload: { amount: 200 } }),
@@ -152,12 +152,12 @@ describe('contractor edit (U7)', () => {
   })
 })
 
-describe('contractor withdraw (U8)', () => {
+describe('vendor withdraw (U8)', () => {
   const withdraw = (token: string, id: string) =>
     app.inject({ method: 'POST', url: `/api/submissions/${token}/${id}/withdraw` })
 
   it('withdraws a SUBMITTED submission → CANCELLED; row + photo survive', async () => {
-    const c = await makeContractor()
+    const c = await makeVendor()
     const id = await submit(c.id, c.token)
     const res = await withdraw(c.token, id)
     expect(res.statusCode).toBe(200)
@@ -167,20 +167,20 @@ describe('contractor withdraw (U8)', () => {
     const ev = await app.prisma.invoiceEvent.findFirstOrThrow({
       where: { invoiceId: id, type: 'STATUS_CHANGED' },
     })
-    expect(ev.actorId).toBe(`contractor:${c.id}`)
+    expect(ev.actorId).toBe(`vendor:${c.id}`)
     const img = await app.prisma.invoiceImage.count({ where: { invoiceId: id } })
     expect(img).toBe(1) // photo retained
   })
 
   it('withdraw on an already-reviewed submission is a 409', async () => {
-    const c = await makeContractor()
+    const c = await makeVendor()
     const id = await submit(c.id, c.token)
     await approve(id)
     expect((await withdraw(c.token, id)).statusCode).toBe(409)
   })
 
   it('concurrent withdraw vs landlord approve resolves to exactly one terminal state', async () => {
-    const c = await makeContractor()
+    const c = await makeVendor()
     const id = await submit(c.id, c.token)
     const [w, a] = await Promise.all([withdraw(c.token, id), approve(id)])
     // Exactly one wins: the other gets a 409 (withdraw) or 422 (approve race).

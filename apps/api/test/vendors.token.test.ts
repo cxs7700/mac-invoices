@@ -43,7 +43,7 @@ describe('U4 link token', () => {
   it('a freshly generated token validates to its vendor + landlord', async () => {
     const { vendor, link } = await makeVendor()
     const resolved = await validateLinkToken(app.prisma, link.plaintext)
-    expect(resolved).toEqual({ contractorId: vendor.id, landlordId })
+    expect(resolved).toEqual({ vendorId: vendor.id, landlordId })
   })
 
   it('stores only the hash, never the plaintext secret (hashed at rest)', async () => {
