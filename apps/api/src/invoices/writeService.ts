@@ -163,13 +163,20 @@ function serializeInvoice(inv: Record<string, unknown>): Prisma.InputJsonObject 
 }
 
 /**
- * Next sequential invoice number, scanning the current max. Runs on the
- * transaction client so the read-max and the insert stay race-consistent within
- * the same transaction; the auto-number retry (in the handler) opens a fresh
- * transaction per attempt.
+ * Next sequential invoice number **for one owner**, scanning that owner's max.
+ * Runs on the transaction client so the read-max and the insert stay
+ * race-consistent within the same transaction; the auto-number retry (in the
+ * handler) opens a fresh transaction per attempt.
+ *
+ * Scoped by `userId`: numbers are unique per tenant, not globally
+ * (`@@unique([userId, invoiceNumber])`). An unscoped scan would start a new
+ * landlord's first invoice at the incumbent's max + 1, leaking their count.
+ *
+ * The max is computed by parsing in memory rather than a SQL `MAX()` because
+ * the column is a string — `"9" > "10"` lexicographically.
  */
-async function nextInvoiceNumber(tx: Prisma.TransactionClient): Promise<string> {
-  const rows = await tx.invoice.findMany({ select: { invoiceNumber: true } })
+async function nextInvoiceNumber(tx: Prisma.TransactionClient, userId: string): Promise<string> {
+  const rows = await tx.invoice.findMany({ where: { userId }, select: { invoiceNumber: true } })
   let max = 0
   for (const { invoiceNumber } of rows) {
     // invoiceNumber is nullable now (contractor submissions are unnumbered until
@@ -245,7 +252,7 @@ export async function createInvoice(
       const owned = await tx.property.findFirst({ where: { id: input.propertyId, landlordId: actorId } })
       if (!owned) throw new AppError('NOT_FOUND', 'Property not found', 404)
     }
-    const invoiceNumber = input.invoiceNumber ?? (await nextInvoiceNumber(tx))
+    const invoiceNumber = input.invoiceNumber ?? (await nextInvoiceNumber(tx, actorId))
     const invoice = await tx.invoice.create({
       data: {
         invoiceNumber,
@@ -482,7 +489,7 @@ export async function updateInvoice(
       // so withdrawn/rejected submissions never leave gaps in the ledger. Assign
       // the next sequential number on the first transition into APPROVED.
       if (next === 'APPROVED' && before.invoiceNumber === null) {
-        data.invoiceNumber = await nextInvoiceNumber(tx)
+        data.invoiceNumber = await nextInvoiceNumber(tx, actorId)
       }
       events.push({ ...base, type: 'STATUS_CHANGED', detail: { from: before.status, to: next } })
     }
