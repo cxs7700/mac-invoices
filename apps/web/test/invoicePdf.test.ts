@@ -266,4 +266,34 @@ describe('generateInvoicesPdf', () => {
     expect(textSpy.mock.calls.some((c) => c[0] === '$120.00')).toBe(true)
     expect(saveSpy).toHaveBeenCalledWith('invoices-2026-08-05.pdf')
   })
+
+  // The items table's startY is computed from the sender block's actual line
+  // count so a taller sender can't be overlapped by a table pinned at a
+  // fixed offset (Bill-To is always two lines and sets the floor).
+  it('starts the table at the Bill-To floor when the sender has zero contact lines', async () => {
+    await generateInvoicesPdf(
+      [inv({ vendorName: 'Legacy Co', vendorEmail: null, vendor: null })],
+      addresses,
+      landlord,
+    )
+    expect(autoTableSpy.mock.calls[0][1]).toMatchObject({ startY: 184 })
+  })
+
+  it('starts the table at the same Bill-To floor when the sender has one contact line', async () => {
+    await generateInvoicesPdf(
+      [inv({ vendor: { name: 'Ace', phone: null, email: 'ace@x.com' } })],
+      addresses,
+      landlord,
+    )
+    expect(autoTableSpy.mock.calls[0][1]).toMatchObject({ startY: 184 })
+  })
+
+  it('starts the table below a two-line sender (email + phone)', async () => {
+    await generateInvoicesPdf(
+      [inv({ vendor: { name: 'Ace', phone: '555-0100', email: 'ace@x.com' } })],
+      addresses,
+      landlord,
+    )
+    expect(autoTableSpy.mock.calls[0][1]).toMatchObject({ startY: 198 })
+  })
 })
