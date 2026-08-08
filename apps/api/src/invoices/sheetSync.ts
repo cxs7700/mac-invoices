@@ -121,12 +121,15 @@ export type SyncFlushLogger = { warn: (obj: object, msg?: string) => void }
 /**
  * Mirror every connected landlord whose data changed since their last sync.
  *
- * Candidates are users with a saved `sheetSpreadsheetId` ONLY — continuous sync
- * never uses the shared `GOOGLE_SHEET_ID` env default, because a per-user
- * clear+rewrite against one shared sheet would let users clobber each other. A
- * user is skipped when nothing changed since `sheetSyncedAt` (saves Sheets
- * quota). Each user is its own commit/error boundary: one user's permission/429
- * failure is counted and never crashes the job or blocks the others.
+ * Candidates are users with a saved `sheetSpreadsheetId` ONLY. This was once the
+ * distinguishing rule — the manual export fell back to a shared `GOOGLE_SHEET_ID`
+ * env default while this job never did, because a clear+rewrite against one
+ * shared sheet would let users clobber each other. That env default is now gone
+ * everywhere (DEC-031 era cleanup); every path reads the per-user target and an
+ * unconnected user is simply skipped. A user is also skipped when nothing changed
+ * since `sheetSyncedAt` (saves Sheets quota). Each user is its own commit/error
+ * boundary: one user's permission/429 failure is counted and never crashes the
+ * job or blocks the others.
  */
 export async function runSheetsSyncFlush(
   prisma: PrismaClient,
