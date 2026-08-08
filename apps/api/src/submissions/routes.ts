@@ -1,12 +1,12 @@
 import type { FastifyInstance } from 'fastify'
 import rateLimit from '@fastify/rate-limit'
 import { AppError } from '../middleware/errorHandler'
-import { parseLinkToken } from '../contractors/token'
+import { parseLinkToken } from '../vendors/token'
 import * as handlers from './handlers'
 import type { TokenParams } from './handlers'
 
 /**
- * Public (unauthenticated) contractor submission routes — the app's first
+ * Public (unauthenticated) vendor submission routes — the app's first
  * no-session write path. Authorization is the link token alone; there is NO
  * requireAuth. The plugin registers its own rate limiter keyed by the token's
  * (non-secret) lookupId AND the client IP, so one abusive link or IP cannot

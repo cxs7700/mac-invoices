@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 
-// Mock the storage adapter — the contractor blob-prefix gate is what we test, no
+// Mock the storage adapter — the vendor blob-prefix gate is what we test, no
 // live Blob. isOwnedBy mirrors the real owner-prefix parsing.
 const storage = vi.hoisted(() => {
   const path = (u: string) => {
@@ -14,7 +14,10 @@ const storage = vi.hoisted(() => {
     ownerOf: (url: string) => /^owners\/([^/]+)\//.exec(path(url))?.[1] ?? null,
     isOwnedBy: (url: string, owner: string) => path(url).startsWith(`owners/${owner}/`),
     deleteBlob: vi.fn(async () => {}),
-    issueUploadToken: vi.fn(async (ownerId: string) => ({ token: 'client-token', pathname: `owners/${ownerId}/p` })),
+    issueUploadToken: vi.fn(async (ownerId: string) => ({
+      token: 'client-token',
+      pathname: `owners/${ownerId}/p`,
+    })),
     signedReadUrl: vi.fn(() => 'https://signed/url'),
   }
 })
@@ -28,12 +31,15 @@ let landlord: Awaited<ReturnType<typeof createSecondUser>>
 
 const tokenOf = (link: string) => link.split('/submit/')[1]
 
-/** Create a contractor (as the landlord) and return { id, token, blobOwner }. */
-async function makeContractor(name = 'Joe') {
+/** Create a vendor (as the landlord) and return { id, token, blobOwner }. Name
+ * defaults to a fresh unique value per call: vendor names are now unique per
+ * landlord (case-insensitively — migration 20260807200000), and this file
+ * creates several vendors under the one shared landlord. */
+async function makeVendor(name = `Joe-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`) {
   const res = await app.inject({
     method: 'POST',
-    url: '/api/contractors',
-    payload: { name, contact: 'x' },
+    url: '/api/vendors',
+    payload: { name, phone: 'x' },
     headers: { cookie: landlord.cookie },
   })
   const body = res.json()
@@ -62,36 +68,36 @@ afterAll(async () => {
 })
 
 describe('POST /api/submissions/:token', () => {
-  it('creates a SUBMITTED invoice owned by the landlord, attributed to the contractor (AE1, AE6)', async () => {
-    const c = await makeContractor('Joe Plumber')
+  it('creates a SUBMITTED invoice owned by the landlord, attributed to the vendor (AE1, AE6)', async () => {
+    const c = await makeVendor('Joe Plumber')
     const res = await submit(c.token, submitBody({}, c.blobOwner))
     expect(res.statusCode).toBe(201)
     expect(res.json().status).toBe('SUBMITTED')
 
     const inv = await app.prisma.invoice.findUniqueOrThrow({ where: { id: res.json().id } })
     expect(inv.userId).toBe(landlord.user.id) // landlord-owned
-    expect(inv.submittedByContractorId).toBe(c.id) // contractor recorded
+    expect(inv.submittedByVendorId).toBe(c.id) // vendor recorded
     expect(inv.status).toBe('SUBMITTED')
     expect(inv.category).toBeNull() // no category until review (AE6)
     expect(inv.invoiceNumber).toBeNull() // unnumbered until approval (KTD-11)
-    expect(inv.vendorName).toBe('Joe Plumber') // vendor defaults to contractor name (AE6)
+    expect(inv.vendorName).toBe('Joe Plumber') // vendor defaults to vendor name (AE6)
 
     const created = await app.prisma.invoiceEvent.findFirstOrThrow({
       where: { invoiceId: inv.id, type: 'CREATED' },
     })
-    expect(created.actorId).toBe(`contractor:${c.id}`) // contractor-attributed
+    expect(created.actorId).toBe(`vendor:${c.id}`) // vendor-attributed
     expect(created.ownerUserId).toBe(landlord.user.id) // landlord-owned event
   })
 
-  it('rejects a photo outside the contractor’s own prefix (blob gate, not conflated with actorId)', async () => {
-    const c = await makeContractor()
-    // A blob under the landlord's prefix, or another contractor's, must be refused.
+  it('rejects a photo outside the vendor’s own prefix (blob gate, not conflated with actorId)', async () => {
+    const c = await makeVendor()
+    // A blob under the landlord's prefix, or another vendor's, must be refused.
     const res = await submit(c.token, submitBody({}, landlord.user.id))
     expect(res.statusCode).toBe(403)
   })
 
   it('requires at least one photo (400 with none / empty array) — AE2', async () => {
-    const c = await makeContractor()
+    const c = await makeVendor()
     const none = await submit(c.token, { amount: 10, description: 'x', invoiceDate: '2026-06-01' })
     expect(none.statusCode).toBe(400) // schema: images required
     const empty = await submit(c.token, submitBody({ images: [] }, c.blobOwner))
@@ -99,7 +105,7 @@ describe('POST /api/submissions/:token', () => {
   })
 
   it('accepts up to the cap, persisting every image; a 6th is rejected — AE2', async () => {
-    const c = await makeContractor()
+    const c = await makeVendor()
     const five = Array.from({ length: 5 }, (_, i) => ({
       url: `https://blob.example/owners/${c.blobOwner}/p${i}.jpg`,
       type: 'OTHER',
@@ -109,41 +115,52 @@ describe('POST /api/submissions/:token', () => {
     const rows = await app.prisma.invoiceImage.findMany({ where: { invoiceId: ok.json().id } })
     expect(rows).toHaveLength(5)
 
-    const six = [...five, { url: `https://blob.example/owners/${c.blobOwner}/p5.jpg`, type: 'OTHER' }]
+    const six = [
+      ...five,
+      { url: `https://blob.example/owners/${c.blobOwner}/p5.jpg`, type: 'OTHER' },
+    ]
     expect((await submit(c.token, submitBody({ images: six }, c.blobOwner))).statusCode).toBe(400)
   })
 
-  it('rejects the whole submission if any one photo is outside the contractor’s prefix (gate)', async () => {
-    const c = await makeContractor()
+  it('rejects the whole submission if any one photo is outside the vendor’s prefix (gate)', async () => {
+    const c = await makeVendor()
     const mixed = [
       { url: `https://blob.example/owners/${c.blobOwner}/ok.jpg`, type: 'OTHER' },
       { url: `https://blob.example/owners/${landlord.user.id}/evil.jpg`, type: 'OTHER' },
     ]
     const res = await submit(c.token, submitBody({ images: mixed }, c.blobOwner))
     expect(res.statusCode).toBe(403)
-    expect(await app.prisma.invoice.count({ where: { submittedByContractorId: c.id } })).toBe(0)
+    expect(await app.prisma.invoice.count({ where: { submittedByVendorId: c.id } })).toBe(0)
   })
 
   it('rejects a future or too-old invoiceDate', async () => {
-    const c = await makeContractor()
-    expect((await submit(c.token, submitBody({ invoiceDate: '2099-01-01' }, c.blobOwner))).statusCode).toBe(400)
-    expect((await submit(c.token, submitBody({ invoiceDate: '2000-01-01' }, c.blobOwner))).statusCode).toBe(400)
+    const c = await makeVendor()
+    expect(
+      (await submit(c.token, submitBody({ invoiceDate: '2099-01-01' }, c.blobOwner))).statusCode,
+    ).toBe(400)
+    expect(
+      (await submit(c.token, submitBody({ invoiceDate: '2000-01-01' }, c.blobOwner))).statusCode,
+    ).toBe(400)
   })
 
   it('a revoked or unknown token returns a uniform 404 and creates nothing', async () => {
-    const c = await makeContractor()
-    await app.inject({ method: 'POST', url: `/api/contractors/${c.id}/revoke`, headers: { cookie: landlord.cookie } })
+    const c = await makeVendor()
+    await app.inject({
+      method: 'POST',
+      url: `/api/vendors/${c.id}/revoke`,
+      headers: { cookie: landlord.cookie },
+    })
     const revoked = await submit(c.token, submitBody({}, c.blobOwner))
     const unknown = await submit('inv_deadbeef_nope', submitBody())
     expect(revoked.statusCode).toBe(404)
     expect(unknown.statusCode).toBe(404)
     expect(revoked.json().error.message).toBe(unknown.json().error.message) // identical
-    const count = await app.prisma.invoice.count({ where: { submittedByContractorId: c.id } })
+    const count = await app.prisma.invoice.count({ where: { submittedByVendorId: c.id } })
     expect(count).toBe(0)
   })
 
   it('rate-limits the submit endpoint (429 past the per-token threshold)', async () => {
-    const c = await makeContractor()
+    const c = await makeVendor()
     // Send empty bodies: under the limit they 422; past it the limiter 429s
     // before the handler — no invoices created.
     const codes: number[] = []
@@ -151,13 +168,13 @@ describe('POST /api/submissions/:token', () => {
       codes.push((await submit(c.token, {})).statusCode)
     }
     expect(codes).toContain(429)
-    expect(await app.prisma.invoice.count({ where: { submittedByContractorId: c.id } })).toBe(0)
+    expect(await app.prisma.invoice.count({ where: { submittedByVendorId: c.id } })).toBe(0)
   })
 })
 
 describe('POST /api/submissions/:token/upload-token', () => {
-  it('mints an upload token scoped to the contractor prefix', async () => {
-    const c = await makeContractor()
+  it('mints an upload token scoped to the vendor prefix', async () => {
+    const c = await makeVendor()
     const res = await app.inject({
       method: 'POST',
       url: `/api/submissions/${c.token}/upload-token`,

@@ -8,7 +8,7 @@ import { errorHandler, notFoundHandler } from './middleware/errorHandler'
 import authRoutes from './auth/routes'
 import healthRoutes from './routes/health'
 import invoiceRoutes from './invoices/routes'
-import contractorRoutes from './contractors/routes'
+import vendorRoutes from './vendors/routes'
 import propertyRoutes from './properties/routes'
 import submissionRoutes from './submissions/routes'
 import settingsRoutes from './settings/routes'
@@ -18,7 +18,7 @@ import notificationRoutes from './notifications/routes'
 export const BODY_LIMIT_BYTES = 64 * 1024 // 64 KB
 
 /**
- * Strip the contractor link token's SECRET from a logged URL. The token rides in
+ * Strip the vendor link token's SECRET from a logged URL. The token rides in
  * the request path (`/api/submissions/inv_<lookupId>_<secret>/…`) — a bearer
  * credential that `redact.paths` (header-only) does not cover — so without this
  * the plaintext secret lands in the request log and a log reader could replay a
@@ -93,9 +93,9 @@ export function buildApp() {
       directives: { defaultSrc: ["'none'"], frameAncestors: ["'none'"] },
     },
     frameguard: { action: 'deny' },
-    // The contractor link carries its bearer token in the URL. no-referrer keeps
+    // The vendor link carries its bearer token in the URL. no-referrer keeps
     // that token out of the Referer header on any cross-origin request the
-    // contractor page makes (e.g. loading a signed Blob photo URL), so it never
+    // vendor page makes (e.g. loading a signed Blob photo URL), so it never
     // leaks to a third-party CDN's access logs (R-3).
     referrerPolicy: { policy: 'no-referrer' },
   })
@@ -112,7 +112,7 @@ export function buildApp() {
   app.register(healthRoutes)
   app.register(authRoutes)
   app.register(invoiceRoutes)
-  app.register(contractorRoutes)
+  app.register(vendorRoutes)
   app.register(propertyRoutes)
   app.register(submissionRoutes)
   app.register(settingsRoutes)

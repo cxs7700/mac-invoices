@@ -13,7 +13,7 @@ const markSeen = vi.fn()
 const item = (over = {}) => ({
   id: 'e1',
   type: 'CREATED',
-  contractorName: 'Joe',
+  vendorName: 'Joe',
   invoiceId: 'inv_1',
   summary: 'submitted an invoice',
   createdAt: '2026-06-25T00:00:00.000Z',
@@ -65,6 +65,6 @@ describe('NotificationsBell', () => {
     renderBell()
     fireEvent.click(screen.getByRole('button', { name: /notifications/i }))
     expect(markSeen).not.toHaveBeenCalled()
-    expect(screen.getByText(/no contractor activity yet/i)).toBeDefined()
+    expect(screen.getByText(/no vendor activity yet/i)).toBeDefined()
   })
 })

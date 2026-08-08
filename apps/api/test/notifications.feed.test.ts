@@ -4,22 +4,22 @@ import { createSecondUser } from './helpers/auth'
 
 const app = buildApp()
 
-async function contractor(landlordId: string, name: string) {
-  return app.prisma.contractor.create({
+async function vendor(landlordId: string, name: string) {
+  return app.prisma.vendor.create({
     data: {
       landlordId,
       name,
-      contact: 'x',
+      phone: 'x',
       tokenLookupId: `fk-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       tokenHash: 'h',
     },
   })
 }
-const ev = (ownerUserId: string, contractorId: string, type: string, detail: object = {}) =>
+const ev = (ownerUserId: string, vendorId: string, type: string, detail: object = {}) =>
   app.prisma.invoiceEvent.create({
     data: {
       invoiceId: `inv-${Math.random().toString(36).slice(2)}`,
-      actorId: `contractor:${contractorId}`,
+      actorId: `vendor:${vendorId}`,
       ownerUserId,
       type: type as never,
       detail,
@@ -44,8 +44,8 @@ describe('GET /api/notifications', () => {
     // A different landlord's activity must never leak into this feed.
     const other = await createSecondUser(app)
     try {
-      const c = await contractor(user.id, 'Joe')
-      const oc = await contractor(other.user.id, 'Eve')
+      const c = await vendor(user.id, 'Joe')
+      const oc = await vendor(other.user.id, 'Eve')
       await ev(user.id, c.id, 'CREATED')
       await ev(user.id, c.id, 'FIELD_EDITED', { field: 'amount', old: '1', new: '2' })
       await ev(user.id, c.id, 'STATUS_CHANGED', { from: 'SUBMITTED', to: 'CANCELLED' })
@@ -55,8 +55,8 @@ describe('GET /api/notifications', () => {
       expect(res.statusCode).toBe(200)
       const body = res.json()
       expect(body.data).toHaveLength(3)
-      // Scoped: every item is one of this landlord's contractors.
-      expect(body.data.every((i: { contractorName: string }) => i.contractorName === 'Joe')).toBe(true)
+      // Scoped: every item is one of this landlord's vendors.
+      expect(body.data.every((i: { vendorName: string }) => i.vendorName === 'Joe')).toBe(true)
       // Newest-first ordering.
       const ts = body.data.map((i: { createdAt: string }) => new Date(i.createdAt).getTime())
       expect([...ts].sort((a, b) => b - a)).toEqual(ts)
@@ -75,7 +75,7 @@ describe('GET /api/notifications', () => {
   it('counts unread vs seen, and POST /seen clears the count', async () => {
     const { user, cookie, cleanup } = await createSecondUser(app)
     try {
-      const c = await contractor(user.id, 'Pat')
+      const c = await vendor(user.id, 'Pat')
       await ev(user.id, c.id, 'CREATED')
       await ev(user.id, c.id, 'CREATED')
 

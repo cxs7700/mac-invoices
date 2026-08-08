@@ -20,7 +20,9 @@ describe('Sidebar', () => {
   it('shows the active Invoices link and disabled "Soon" items, and logs out', async () => {
     const fetchMock = vi.fn().mockImplementation((url: string) => {
       if (String(url).includes('/api/auth/logout')) return Promise.resolve(jsonResponse(204, ''))
-      return Promise.resolve(jsonResponse(200, { id: 'u', email: 'a@b.com', name: 'Landlord', role: 'LANDLORD' }))
+      return Promise.resolve(
+        jsonResponse(200, { id: 'u', email: 'a@b.com', name: 'Landlord', role: 'LANDLORD' }),
+      )
     })
     vi.stubGlobal('fetch', fetchMock)
 
@@ -35,13 +37,15 @@ describe('Sidebar', () => {
 
     expect(screen.getByRole('link', { name: 'Invoices' })).toBeDefined()
     expect(screen.getByRole('link', { name: 'Dashboard' })).toBeDefined() // now a real route
-    expect(screen.getByRole('link', { name: 'Contractors' })).toBeDefined() // now a real route
+    expect(screen.getByRole('link', { name: 'Vendors' })).toBeDefined() // now a real route
     expect(screen.getByRole('link', { name: 'Settings' })).toBeDefined() // now a real route
     expect(screen.getByRole('link', { name: 'Properties' })).toBeDefined() // now a real route
 
     fireEvent.click(screen.getByRole('button', { name: /log out/i }))
     await waitFor(() =>
-      expect(fetchMock.mock.calls.some((c) => String(c[0]).includes('/api/auth/logout'))).toBe(true),
+      expect(fetchMock.mock.calls.some((c) => String(c[0]).includes('/api/auth/logout'))).toBe(
+        true,
+      ),
     )
   })
 })

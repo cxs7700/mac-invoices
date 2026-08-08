@@ -11,7 +11,12 @@
 import { compareInvoiceOrder } from '@mac-invoices/shared'
 
 /** One itemized line, as the PDF needs it. */
-export type PdfInvoiceItem = { description: string; quantity: number; total: string; sortOrder: number }
+export type PdfInvoiceItem = {
+  description: string
+  quantity: number
+  total: string
+  sortOrder: number
+}
 
 /** The fields a PDF page needs — a subset of the invoice list row. */
 export type PdfInvoiceInput = {
@@ -24,10 +29,10 @@ export type PdfInvoiceInput = {
   status: string
   invoiceDate: string
   propertyId: string | null
-  // The submitting contractor, when this invoice came from one — the PDF
-  // Sender section. Null for a landlord-entered invoice, which falls back to
+  // The attribution vendor — "who this invoice is from" — the PDF Sender
+  // section. Null only when no vendor could be resolved, which falls back to
   // vendorName/vendorEmail (the closest "who this is from" data available).
-  contractor: { name: string; contact: string } | null
+  vendor: { name: string; phone: string | null; email: string | null } | null
 }
 
 /** The landlord's identity for the Bill-To section — the same block on every
@@ -41,7 +46,9 @@ export type InvoicePdfPage = {
   date: string
   status: string
   location: string
-  sender: { name: string; contact: string }
+  // Variable-height: email and phone are each omitted when blank, so a vendor
+  // with no contact details renders a name only rather than empty gaps.
+  sender: { name: string; lines: string[] }
   billTo: { name: string; email: string }
   items: { description: string; quantity: string; total: string }[]
   balanceDue: string
@@ -118,13 +125,26 @@ export function pdfFileName(now: Date): string {
   return `invoices-${y}-${m}-${d}.pdf`
 }
 
+/** Sender block: the linked vendor when there is one, else the invoice's own
+ * free-text vendor fields. Blank contact lines are dropped, not rendered
+ * empty. Order is email then phone. */
+function senderBlock(inv: PdfInvoiceInput): { name: string; lines: string[] } {
+  if (inv.vendor) {
+    return {
+      name: inv.vendor.name,
+      lines: [inv.vendor.email, inv.vendor.phone].filter((s): s is string => !!s),
+    }
+  }
+  return { name: inv.vendorName, lines: [inv.vendorEmail].filter((s): s is string => !!s) }
+}
+
 /**
  * Pure page-model builder: selected rows + property-address lookup + the
  * landlord's identity → ordered page descriptions. Pages sort by the shared
  * natural-order rule so the PDF and the Sheets mirror can never disagree on
  * ordering. The Bill-To block is the same landlord on every page (the
- * recipient is always the landlord); Sender is per-invoice (the submitting
- * contractor, or the invoice's own vendor info when there isn't one).
+ * recipient is always the landlord); Sender is per-invoice (the attribution
+ * vendor, or the invoice's own vendorName/vendorEmail when there isn't one).
  */
 export function buildInvoicePdfModel(
   invoices: PdfInvoiceInput[],
@@ -137,7 +157,7 @@ export function buildInvoicePdfModel(
     date: formatPdfDate(inv.invoiceDate),
     status: statusLabel(inv.status),
     location: (inv.propertyId && addressByPropertyId.get(inv.propertyId)) || EMPTY,
-    sender: inv.contractor ?? { name: inv.vendorName, contact: inv.vendorEmail ?? EMPTY },
+    sender: senderBlock(inv),
     billTo,
     items: [...inv.items]
       .sort((a, b) => a.sortOrder - b.sortOrder)
@@ -190,12 +210,21 @@ export async function generateInvoicesPdf(
     doc.text(PDF_LABELS.billTo, pageWidth / 2, senderY)
     doc.setFont('helvetica', 'normal')
     doc.text(page.sender.name, MARGIN, senderY + 14)
-    doc.text(page.sender.contact, MARGIN, senderY + 28)
+    page.sender.lines.forEach((line, li) => {
+      doc.text(line, MARGIN, senderY + 28 + li * 14)
+    })
     doc.text(page.billTo.name, pageWidth / 2, senderY + 14)
     doc.text(page.billTo.email, pageWidth / 2, senderY + 28)
 
+    // The sender block grows with its contact lines while Bill-To is always
+    // two lines; start the table below whichever ran longer, or a
+    // three-line sender would collide with it.
+    const senderBottom = senderY + 14 + (1 + page.sender.lines.length) * 14
+    const billToBottom = senderY + 42
+    const tableStartY = Math.max(senderBottom, billToBottom) + 20
+
     autoTable(doc, {
-      startY: senderY + 48,
+      startY: tableStartY,
       margin: { left: MARGIN, right: MARGIN },
       head: [PDF_ITEMS_COLUMNS.map((c) => c.label)],
       body: page.items.map((item) => [item.description, item.quantity, item.total]),
@@ -208,7 +237,8 @@ export async function generateInvoicesPdf(
     // autotable leaves the cursor on the table's last (possibly continuation)
     // page and records where it ended.
     const finalY =
-      (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? senderY + 88
+      (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ??
+      tableStartY + 40
 
     // Balance due: right-aligned, highlighted in green.
     const boxWidth = 180

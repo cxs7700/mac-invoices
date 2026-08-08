@@ -31,15 +31,24 @@ const row = {
   status: 'PENDING',
   invoiceDate: '2026-01-15',
   propertyId: 'prop-1',
-  contractor: null,
+  vendor: null,
 }
 
 function propertiesResponse() {
-  return jsonRes(200, { data: [{ id: 'prop-1', name: 'Main', address: '12 Main St', notes: null }] })
+  return jsonRes(200, {
+    data: [{ id: 'prop-1', name: 'Main', address: '12 Main St', notes: null }],
+  })
 }
 
 function meResponse() {
-  return jsonRes(200, { id: 'landlord-1', email: 'landlord@example.com', firstName: 'Jane', lastName: 'Doe', role: 'LANDLORD', locale: 'en' })
+  return jsonRes(200, {
+    id: 'landlord-1',
+    email: 'landlord@example.com',
+    firstName: 'Jane',
+    lastName: 'Doe',
+    role: 'LANDLORD',
+    locale: 'en',
+  })
 }
 
 function statsResponse() {
@@ -118,7 +127,9 @@ describe('InvoiceList', () => {
     renderList(fetchMock)
     await waitFor(() => expect(screen.getByText('INV-1')).toBeDefined())
 
-    fireEvent.change(screen.getByLabelText('Search by description'), { target: { value: 'faucet' } })
+    fireEvent.change(screen.getByLabelText('Search by description'), {
+      target: { value: 'faucet' },
+    })
     await waitFor(() =>
       expect(fetchMock.mock.calls.some((c) => String(c[0]).includes('search=faucet'))).toBe(true),
     )
@@ -142,7 +153,9 @@ describe('InvoiceList', () => {
       expect(fetchMock.mock.calls.some((c) => String(c[0]).includes('status=PAID'))).toBe(true),
     )
     // The post-change query carries offset=0, not offset=40.
-    const afterChange = fetchMock.mock.calls.map((c) => String(c[0])).filter((u) => u.includes('status=PAID'))
+    const afterChange = fetchMock.mock.calls
+      .map((c) => String(c[0]))
+      .filter((u) => u.includes('status=PAID'))
     expect(afterChange.every((u) => u.includes('offset=0'))).toBe(true)
   })
 
@@ -194,7 +207,9 @@ describe('InvoiceList — export to Sheets', () => {
     const btn = screen.getByRole('button', { name: /export to sheets/i })
     fireEvent.click(btn)
     // Pending: button disabled + label change.
-    await waitFor(() => expect(screen.getByRole('button', { name: /exporting/i })).toHaveProperty('disabled', true))
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /exporting/i })).toHaveProperty('disabled', true),
+    )
 
     resolveExport(jsonRes(200, { exported: 3 }))
     await waitFor(() => expect(screen.getByText(/exported 3 invoices to sheets/i)).toBeDefined())
@@ -213,7 +228,9 @@ describe('InvoiceList — export to Sheets', () => {
   it('surfaces the durable count on a 502 partial export', async () => {
     const exportImpl = () =>
       Promise.resolve(
-        jsonRes(502, { error: { code: 'EXPORT_INTERRUPTED', message: 'boom', details: { exported: 2 } } }),
+        jsonRes(502, {
+          error: { code: 'EXPORT_INTERRUPTED', message: 'boom', details: { exported: 2 } },
+        }),
       )
     renderList(vi.fn().mockResolvedValue(listResponse([row])), '/', exportImpl)
     await waitFor(() => expect(screen.getByText('INV-1')).toBeDefined())
@@ -325,20 +342,20 @@ describe('InvoiceList — PDF selection mode', () => {
   })
 
   it('gives checkboxes accessible names with an em-dash fallback for null numbers', async () => {
-    renderList(
-      vi.fn().mockResolvedValue(listResponse([row, { ...rowB, invoiceNumber: null }])),
-    )
+    renderList(vi.fn().mockResolvedValue(listResponse([row, { ...rowB, invoiceNumber: null }])))
     await enterSelectionMode()
     expect(screen.getByRole('checkbox', { name: 'Select invoice INV-1 — Acme' })).toBeDefined()
     expect(screen.getByRole('checkbox', { name: 'Select invoice — — Bolt Co' })).toBeDefined()
   })
 
   it('selection survives a page change and the counter keeps off-screen selections visible', async () => {
-    const listMock = vi.fn().mockImplementation((url: string) =>
-      Promise.resolve(
-        String(url).includes('offset=20') ? listResponse([rowB], 40) : listResponse([row], 40),
-      ),
-    )
+    const listMock = vi
+      .fn()
+      .mockImplementation((url: string) =>
+        Promise.resolve(
+          String(url).includes('offset=20') ? listResponse([rowB], 40) : listResponse([row], 40),
+        ),
+      )
     renderList(listMock)
     await enterSelectionMode()
     fireEvent.click(screen.getByRole('checkbox'))
@@ -414,11 +431,13 @@ describe('InvoiceList — PDF confirm flow', () => {
   })
 
   it('exports selections from a page that is no longer displayed', async () => {
-    const listMock = vi.fn().mockImplementation((url: string) =>
-      Promise.resolve(
-        String(url).includes('offset=20') ? listResponse([rowB], 40) : listResponse([row], 40),
-      ),
-    )
+    const listMock = vi
+      .fn()
+      .mockImplementation((url: string) =>
+        Promise.resolve(
+          String(url).includes('offset=20') ? listResponse([rowB], 40) : listResponse([row], 40),
+        ),
+      )
     renderList(listMock)
     await enterSelectionMode()
     fireEvent.click(screen.getByRole('checkbox'))
@@ -436,7 +455,9 @@ describe('InvoiceList — PDF confirm flow', () => {
     await enterSelectionMode()
     fireEvent.click(screen.getByRole('checkbox'))
     fireEvent.click(screen.getByRole('button', { name: /confirm/i }))
-    await waitFor(() => expect(screen.getByRole('alert').textContent).toMatch(/pdf generation failed/i))
+    await waitFor(() =>
+      expect(screen.getByRole('alert').textContent).toMatch(/pdf generation failed/i),
+    )
     // Selection mode and the checked row survive for a retry.
     expect((screen.getByRole('checkbox') as HTMLInputElement).checked).toBe(true)
     expect(generatePdfMock).not.toHaveBeenCalled()
@@ -448,7 +469,9 @@ describe('InvoiceList — PDF confirm flow', () => {
     await enterSelectionMode()
     fireEvent.click(screen.getByRole('checkbox'))
     fireEvent.click(screen.getByRole('button', { name: /confirm/i }))
-    await waitFor(() => expect(screen.getByRole('alert').textContent).toMatch(/pdf generation failed/i))
+    await waitFor(() =>
+      expect(screen.getByRole('alert').textContent).toMatch(/pdf generation failed/i),
+    )
     expect((screen.getByRole('checkbox') as HTMLInputElement).checked).toBe(true)
   })
 

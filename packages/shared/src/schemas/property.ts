@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 // A landlord's rental property — the entity invoices are assigned to so spend can
-// be organized by property. Per-landlord; mirrors the Contractor shape. The API
+// be organized by property. Per-landlord; mirrors the Vendor shape. The API
 // never returns cross-landlord data (ownership-scoped routes).
 
 export const CreatePropertySchema = z.object({

@@ -43,9 +43,9 @@ describe('InvoiceItemInputSchema', () => {
     expect(InvoiceItemInputSchema.safeParse({ ...oneItem[0], total: 100_000_000 }).success).toBe(
       false,
     )
-    expect(
-      InvoiceItemInputSchema.safeParse({ ...oneItem[0], total: 99_999_999.99 }).success,
-    ).toBe(true)
+    expect(InvoiceItemInputSchema.safeParse({ ...oneItem[0], total: 99_999_999.99 }).success).toBe(
+      true,
+    )
   })
 })
 

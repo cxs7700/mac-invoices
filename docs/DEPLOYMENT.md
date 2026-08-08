@@ -149,6 +149,53 @@ DATABASE_URL="<target-db-url>" LANDLORD_PASSWORD="<strong-secret>" \
 > logged into. If an existing deploy has uppercase in `LANDLORD_EMAIL`, lowercase it and
 > re-run the seed when shipping this change.
 
+### Contractor → Vendor rename (2026-08-07)
+
+Two migrations, applied in order, ship the `Contractor` → `Vendor` rename (`docs/DECISIONS.md`
+DEC-032). **The API and web deploys must go out together** — the renamed API routes
+(`/api/vendors`) and the renamed columns land in the same release; running old web against the
+new API (or vice versa) breaks the vendor picker and submission flow.
+
+**Migration 1 — `20260807190000_rename_contractor_to_vendor`.** Data-preserving: table/column
+`RENAME`s (never `DROP`+`CREATE`), splits `contact` into nullable `phone`/`email`, and rewrites
+`invoice_events.actorId` values that carried a literal `'contractor:'` prefix to `'vendor:'`.
+
+**Required pre-deploy audit — `contact` → `phone`/`email` routing.** The backfill predicate was
+only ever proved against a scratch table of boundary cases, never against real data — both local
+databases have zero `contractors` rows, so production is the first place it meets real rows.
+Before migrating, run this read-only query against production and eyeball the routing:
+
+```sql
+SELECT name, contact,
+       CASE WHEN contact LIKE '%_@_%.__%' THEN 'email' ELSE 'phone' END AS routes_to
+FROM contractors ORDER BY name;
+```
+
+No row can be lost — the predicate and its complement are exhaustive, and the value is copied
+verbatim either way. What the audit catches is *misfiling*: an address without a dot in the
+domain (`bob@localhost`) routes to `phone`, and a phone number written as `555@home.com` would
+route to `email`. Anything misfiled is corrected with a one-line `UPDATE` after the migration —
+it is not a reason to block the deploy.
+
+**Migration 2 — `20260807200000_vendor_unique_name_per_landlord`.** Adds a UNIQUE index on
+`(landlordId, lower(name))` plus a P2002 catch-and-reread in `resolveVendorId`, closing a race
+where two concurrent invoice saves could each auto-create a duplicate vendor.
+
+**Required pre-deploy check — duplicate vendor names.** Unlike migration 1, this one **fails
+outright** if production already holds two vendors with the same name (ignoring case) for one
+landlord. Check first:
+
+```sql
+SELECT "landlordId", lower(name) AS name, count(*)
+FROM contractors
+GROUP BY "landlordId", lower(name)
+HAVING count(*) > 1;
+```
+
+Any row returned must be merged or renamed by hand **before** migrating — decide which record
+survives, repoint its invoices, and delete the loser. An empty result means the index will
+create cleanly.
+
 ## 5. Set environment variables in Vercel
 
 Project → **Settings → Environment Variables**. Set for **Production** (and **Preview** if

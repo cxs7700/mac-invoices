@@ -19,9 +19,9 @@ describe('InvoiceEventSchema', () => {
   })
 
   it('accepts a null actor name', () => {
-    expect(InvoiceEventSchema.safeParse({ ...validEvent, actor: { id: 'u', name: null } }).success).toBe(
-      true,
-    )
+    expect(
+      InvoiceEventSchema.safeParse({ ...validEvent, actor: { id: 'u', name: null } }).success,
+    ).toBe(true)
   })
 
   it('rejects an unknown event type', () => {

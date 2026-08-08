@@ -10,7 +10,7 @@ const LABEL: Record<Locale, string> = { en: 'EN', zh: '中文' }
  * Compact EN/中文 toggle. Always switches the UI language immediately (and the
  * detector mirrors it to localStorage). When `persist` is set (the authenticated
  * chrome), it also saves the choice to the user's profile so it carries across
- * devices; on the public contractor page `persist` is omitted (no session).
+ * devices; on the public vendor page `persist` is omitted (no session).
  */
 export function LanguageSwitcher({ persist = false }: { persist?: boolean }) {
   const { t, i18n } = useTranslation()

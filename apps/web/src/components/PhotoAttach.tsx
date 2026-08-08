@@ -17,7 +17,7 @@ export function PhotoAttach({
   onUploaded: (url: string) => void
   disabled?: boolean
   label?: string
-  // Defaults to the authed invoice upload; the public contractor page passes a
+  // Defaults to the authed invoice upload; the public vendor page passes a
   // token-scoped uploader instead.
   upload?: (file: File, onProgress?: (percent: number) => void) => Promise<string>
 }) {
@@ -57,13 +57,32 @@ export function PhotoAttach({
 
   return (
     <div className="space-y-2">
-      <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={onChange} />
+      <input
+        ref={cameraRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={onChange}
+      />
       <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onChange} />
       <div className="flex flex-wrap gap-2">
-        <Button type="button" variant="outline" size="sm" disabled={disabled || uploading} onClick={() => cameraRef.current?.click()}>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={disabled || uploading}
+          onClick={() => cameraRef.current?.click()}
+        >
           {t('photo.take', { label: labelText })}
         </Button>
-        <Button type="button" variant="outline" size="sm" disabled={disabled || uploading} onClick={() => fileRef.current?.click()}>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={disabled || uploading}
+          onClick={() => fileRef.current?.click()}
+        >
           {t('photo.choose', { label: labelText })}
         </Button>
       </div>

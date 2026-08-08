@@ -12,10 +12,10 @@ type Props = {
 }
 
 /**
- * Landlord review actions for a SUBMITTED contractor submission. Approve opens a
+ * Landlord review actions for a SUBMITTED vendor submission. Approve opens a
  * required category picker (the API blocks APPROVED until a category is set, so
  * this enforces it by construction); Reject opens a required reason (surfaced
- * back to the contractor). Mirrors the detail page's two-step confirm pattern.
+ * back to the vendor). Mirrors the detail page's two-step confirm pattern.
  */
 export function ReviewActions({ onApprove, onReject, isPending }: Props) {
   const { t } = useTranslation()

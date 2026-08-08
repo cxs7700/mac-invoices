@@ -1,7 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { QueryClientProvider } from '@tanstack/react-query'
-import { createBrowserRouter, RouterProvider } from 'react-router'
+import { createBrowserRouter, RouterProvider, Navigate } from 'react-router'
 import '@fontsource/public-sans/400.css'
 import '@fontsource/public-sans/500.css'
 import '@fontsource/public-sans/600.css'
@@ -18,8 +18,8 @@ import InvoiceList from './pages/InvoiceList.tsx'
 import InvoiceNew from './pages/InvoiceNew.tsx'
 import InvoiceDetail from './pages/InvoiceDetail.tsx'
 import InvoiceEdit from './pages/InvoiceEdit.tsx'
-import ContractorSubmit from './pages/ContractorSubmit.tsx'
-import Contractors from './pages/Contractors.tsx'
+import VendorSubmit from './pages/VendorSubmit.tsx'
+import Vendors from './pages/Vendors.tsx'
 import Properties from './pages/Properties.tsx'
 import PropertyDetail from './pages/PropertyDetail.tsx'
 import PropertyEdit from './pages/PropertyEdit.tsx'
@@ -31,9 +31,9 @@ initTheme()
 
 const router = createBrowserRouter([
   { path: '/login', element: <Login /> },
-  // Public, no-login contractor submission link — a top-level sibling of /login,
+  // Public, no-login vendor submission link — a top-level sibling of /login,
   // deliberately OUTSIDE the AuthGuard subtree. Authorization is the path token.
-  { path: '/submit/:token', element: <ContractorSubmit /> },
+  { path: '/submit/:token', element: <VendorSubmit /> },
   {
     path: '/',
     element: <AuthGuard />,
@@ -47,7 +47,8 @@ const router = createBrowserRouter([
           { path: 'invoices/new', element: <InvoiceNew /> },
           { path: 'invoices/:id', element: <InvoiceDetail /> },
           { path: 'invoices/:id/edit', element: <InvoiceEdit /> },
-          { path: 'contractors', element: <Contractors /> },
+          { path: 'contractors', element: <Navigate to="/vendors" replace /> },
+          { path: 'vendors', element: <Vendors /> },
           { path: 'properties', element: <Properties /> },
           { path: 'properties/:id', element: <PropertyDetail /> },
           { path: 'properties/:id/edit', element: <PropertyEdit /> },

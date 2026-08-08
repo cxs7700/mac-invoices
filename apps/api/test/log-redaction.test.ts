@@ -12,7 +12,7 @@ function capture() {
 }
 
 describe('logger redaction (loggerOptions)', () => {
-  it('redacts the contractor link-token secret from the request URL', () => {
+  it('redacts the vendor link-token secret from the request URL', () => {
     const { logger, lines } = capture()
     logger.info(
       { req: { method: 'POST', url: '/api/submissions/inv_ab12cd34_THE-SECRET_part/upload-token' } },

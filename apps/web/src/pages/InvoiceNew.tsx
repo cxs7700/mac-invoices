@@ -23,7 +23,7 @@ export default function InvoiceNew() {
       <h1 className="mt-2 text-2xl font-bold text-foreground">{t('invoiceNew.title')}</h1>
       <p className="text-muted-foreground mb-6">{t('invoiceNew.subtitle')}</p>
 
-      {/* Attach the contractor's invoice photo as proof (optional). */}
+      {/* Attach the vendor's invoice photo as proof (optional). */}
       <div className="mb-6 rounded-lg border border-border bg-card p-5">
         <div className="mb-2 text-sm font-medium text-foreground">
           {t('invoiceNew.invoicePhoto')}{' '}

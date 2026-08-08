@@ -38,7 +38,9 @@ vi.mock('jspdf-autotable', () => ({
   }),
 }))
 
-const item = (over: Partial<{ description: string; quantity: number; total: string; sortOrder: number }> = {}) => ({
+const item = (
+  over: Partial<{ description: string; quantity: number; total: string; sortOrder: number }> = {},
+) => ({
   description: 'Fix sink',
   quantity: 1,
   total: '120.00',
@@ -56,7 +58,7 @@ const inv = (over: Partial<PdfInvoiceInput> = {}): PdfInvoiceInput => ({
   status: 'PENDING',
   invoiceDate: '2026-03-05T00:00:00.000Z',
   propertyId: 'prop-1',
-  contractor: null,
+  vendor: null,
   ...over,
 })
 
@@ -66,7 +68,15 @@ const landlord: PdfLandlord = { firstName: 'Jane', lastName: 'Doe', email: 'jane
 describe('buildInvoicePdfModel', () => {
   it('builds one page per invoice with address, items, status, balance', () => {
     const pages = buildInvoicePdfModel(
-      [inv(), inv({ id: 'inv-2', invoiceNumber: '2', items: [item({ description: 'Paint', total: '80.50' })], amount: '80.50' })],
+      [
+        inv(),
+        inv({
+          id: 'inv-2',
+          invoiceNumber: '2',
+          items: [item({ description: 'Paint', total: '80.50' })],
+          amount: '80.50',
+        }),
+      ],
       addresses,
       landlord,
     )
@@ -83,42 +93,81 @@ describe('buildInvoicePdfModel', () => {
   })
 
   it('every page carries the same Bill-To (the landlord), regardless of which invoice', () => {
-    const pages = buildInvoicePdfModel(
-      [inv({ id: 'a' }), inv({ id: 'b' })],
-      addresses,
-      landlord,
-    )
+    const pages = buildInvoicePdfModel([inv({ id: 'a' }), inv({ id: 'b' })], addresses, landlord)
     expect(pages[0].billTo).toEqual({ name: 'Jane Doe', email: 'jane@example.com' })
     expect(pages[1].billTo).toEqual({ name: 'Jane Doe', email: 'jane@example.com' })
   })
 
   it('Bill-To falls back to the email when the landlord has no name set', () => {
-    const pages = buildInvoicePdfModel([inv()], addresses, { firstName: null, lastName: null, email: 'x@example.com' })
+    const pages = buildInvoicePdfModel([inv()], addresses, {
+      firstName: null,
+      lastName: null,
+      email: 'x@example.com',
+    })
     expect(pages[0].billTo.name).toBe('x@example.com')
   })
 
-  it('Sender is the contractor when the invoice has one', () => {
+  it('prefers the linked vendor over the invoice free text', () => {
     const pages = buildInvoicePdfModel(
-      [inv({ contractor: { name: 'Joe the Plumber', contact: '555-1234' } })],
+      [
+        inv({
+          vendorName: 'Typed Name',
+          vendorEmail: 'typed@x.com',
+          vendor: { name: 'Ace Plumbing', phone: '555-0100', email: 'ace@x.com' },
+        }),
+      ],
       addresses,
       landlord,
     )
-    expect(pages[0].sender).toEqual({ name: 'Joe the Plumber', contact: '555-1234' })
+    expect(pages[0].sender).toEqual({ name: 'Ace Plumbing', lines: ['ace@x.com', '555-0100'] })
   })
 
-  it('Sender falls back to vendorName/vendorEmail when there is no contractor', () => {
-    const pages = buildInvoicePdfModel([inv({ contractor: null })], addresses, landlord)
-    expect(pages[0].sender).toEqual({ name: 'Acme Plumbing', contact: 'acme@example.com' })
+  it('skips a blank phone rather than emitting an empty line', () => {
+    const pages = buildInvoicePdfModel(
+      [inv({ vendor: { name: 'Ace', phone: null, email: 'ace@x.com' } })],
+      addresses,
+      landlord,
+    )
+    expect(pages[0].sender.lines).toEqual(['ace@x.com'])
   })
 
-  it('Sender contact falls back to — when vendorEmail is null', () => {
-    const pages = buildInvoicePdfModel([inv({ contractor: null, vendorEmail: null })], addresses, landlord)
-    expect(pages[0].sender.contact).toBe('—')
+  it('emits a name-only sender when the vendor has no contact details', () => {
+    const pages = buildInvoicePdfModel(
+      [inv({ vendor: { name: 'Ace', phone: null, email: null } })],
+      addresses,
+      landlord,
+    )
+    expect(pages[0].sender.lines).toEqual([])
+  })
+
+  it('falls back to the invoice free text for a legacy unlinked invoice', () => {
+    const pages = buildInvoicePdfModel(
+      [inv({ vendorName: 'Legacy Co', vendorEmail: 'legacy@x.com', vendor: null })],
+      addresses,
+      landlord,
+    )
+    expect(pages[0].sender).toEqual({ name: 'Legacy Co', lines: ['legacy@x.com'] })
+  })
+
+  it('omits the contact line entirely when a legacy invoice has no vendor email', () => {
+    const pages = buildInvoicePdfModel(
+      [inv({ vendorName: 'Legacy Co', vendorEmail: null, vendor: null })],
+      addresses,
+      landlord,
+    )
+    expect(pages[0].sender.lines).toEqual([])
   })
 
   it('renders items in sortOrder regardless of input order', () => {
     const pages = buildInvoicePdfModel(
-      [inv({ items: [item({ description: 'Second', sortOrder: 1 }), item({ description: 'First', sortOrder: 0 })] })],
+      [
+        inv({
+          items: [
+            item({ description: 'Second', sortOrder: 1 }),
+            item({ description: 'First', sortOrder: 0 }),
+          ],
+        }),
+      ],
       addresses,
       landlord,
     )
@@ -160,7 +209,10 @@ describe('buildInvoicePdfModel', () => {
 
   it('formats item totals as en-US USD and falls back to — on invalid input', () => {
     const pages = buildInvoicePdfModel(
-      [inv({ items: [item({ total: '1234.5' })] }), inv({ id: 'inv-2', items: [item({ total: 'not-a-number' })] })],
+      [
+        inv({ items: [item({ total: '1234.5' })] }),
+        inv({ id: 'inv-2', items: [item({ total: 'not-a-number' })] }),
+      ],
       addresses,
       landlord,
     )
@@ -213,5 +265,35 @@ describe('generateInvoicesPdf', () => {
     expect(rectSpy).toHaveBeenCalledTimes(2)
     expect(textSpy.mock.calls.some((c) => c[0] === '$120.00')).toBe(true)
     expect(saveSpy).toHaveBeenCalledWith('invoices-2026-08-05.pdf')
+  })
+
+  // The items table's startY is computed from the sender block's actual line
+  // count so a taller sender can't be overlapped by a table pinned at a
+  // fixed offset (Bill-To is always two lines and sets the floor).
+  it('starts the table at the Bill-To floor when the sender has zero contact lines', async () => {
+    await generateInvoicesPdf(
+      [inv({ vendorName: 'Legacy Co', vendorEmail: null, vendor: null })],
+      addresses,
+      landlord,
+    )
+    expect(autoTableSpy.mock.calls[0][1]).toMatchObject({ startY: 184 })
+  })
+
+  it('starts the table at the same Bill-To floor when the sender has one contact line', async () => {
+    await generateInvoicesPdf(
+      [inv({ vendor: { name: 'Ace', phone: null, email: 'ace@x.com' } })],
+      addresses,
+      landlord,
+    )
+    expect(autoTableSpy.mock.calls[0][1]).toMatchObject({ startY: 184 })
+  })
+
+  it('starts the table below a two-line sender (email + phone)', async () => {
+    await generateInvoicesPdf(
+      [inv({ vendor: { name: 'Ace', phone: '555-0100', email: 'ace@x.com' } })],
+      addresses,
+      landlord,
+    )
+    expect(autoTableSpy.mock.calls[0][1]).toMatchObject({ startY: 198 })
   })
 })

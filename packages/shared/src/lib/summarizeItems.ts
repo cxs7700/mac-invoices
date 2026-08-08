@@ -16,7 +16,9 @@ export type SummarizableItem = { description: string; sortOrder?: number }
 export function summarizeItems(items: readonly SummarizableItem[], max = DEFAULT_MAX): string {
   if (items.length === 0) return ''
   const ordered =
-    items[0]?.sortOrder !== undefined ? [...items].sort((a, b) => a.sortOrder! - b.sortOrder!) : items
+    items[0]?.sortOrder !== undefined
+      ? [...items].sort((a, b) => a.sortOrder! - b.sortOrder!)
+      : items
   const shown = ordered.slice(0, max).map((i) => i.description)
   const rest = ordered.length - shown.length
   return rest > 0 ? `${shown.join(', ')} +${rest} more` : shown.join(', ')

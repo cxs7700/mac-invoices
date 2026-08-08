@@ -9,12 +9,25 @@ vi.mock('@/hooks/useProperties', () => ({ useProperty }))
 vi.mock('@/hooks/useInvoices', () => ({ useInvoices }))
 
 const property = (over = {}) => ({
-  id: 'p1', name: 'Maple Duplex', address: '1 Maple Ave', notes: null, createdAt: '2026-06-01', totalSpend: '150.00', ...over,
+  id: 'p1',
+  name: 'Maple Duplex',
+  address: '1 Maple Ave',
+  notes: null,
+  createdAt: '2026-06-01',
+  totalSpend: '150.00',
+  ...over,
 })
 const invoiceItem = {
-  id: 'i1', invoiceNumber: 'INV-1', vendorName: 'Acme', vendorEmail: null,
+  id: 'i1',
+  invoiceNumber: 'INV-1',
+  vendorName: 'Acme',
+  vendorEmail: null,
   items: [{ id: 'i1-1', description: 'Roof repair', quantity: 1, total: '100.00', sortOrder: 0 }],
-  invoiceDate: '2026-03-01', amount: '100.00', status: 'PAID', sheetsSyncedAt: null, contractor: null,
+  invoiceDate: '2026-03-01',
+  amount: '100.00',
+  status: 'PAID',
+  sheetsSyncedAt: null,
+  vendor: null,
 }
 
 function renderDetail() {

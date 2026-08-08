@@ -23,7 +23,7 @@ const base = {
   items: [{ description: 'work', quantity: 1, total: 100 }],
   invoiceDate: '2026-03-01',
 }
-// A SUBMITTED row (contractor-style: no category, no property) created directly.
+// A SUBMITTED row (vendor-style: no category, no property) created directly.
 const submitted = (n: string) =>
   app.prisma.invoice.create({
     data: { vendorName: 'C', amount: '100.00', invoiceDate: new Date(), status: 'SUBMITTED', userId: a.user.id, invoiceNumber: `P-${n}` },

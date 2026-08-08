@@ -1,13 +1,17 @@
 import type { FastifyRequest, FastifyReply } from 'fastify'
-import { SubmissionSchema, EditSubmissionSchema, ImageUploadTokenSchema } from '@mac-invoices/shared'
+import {
+  SubmissionSchema,
+  EditSubmissionSchema,
+  ImageUploadTokenSchema,
+} from '@mac-invoices/shared'
 import { AppError } from '../middleware/errorHandler'
 import { parseBody } from '../lib/validate'
-import { validateLinkToken } from '../contractors/token'
+import { validateLinkToken } from '../vendors/token'
 import { issueUploadToken } from '../integrations/storage'
 import {
   createSubmission,
-  contractorUpdateSubmission,
-  contractorBlobOwner,
+  vendorUpdateSubmission,
+  vendorBlobOwner,
 } from '../invoices/writeService'
 
 // Public (no-session) endpoints authorized purely by the link token. Every
@@ -18,7 +22,7 @@ import {
 
 export type TokenParams = { token: string }
 
-/** Resolve the path token to a contractor, or throw the uniform dead-link 404. */
+/** Resolve the path token to a vendor, or throw the uniform dead-link 404. */
 async function resolveLink(request: FastifyRequest<{ Params: TokenParams }>) {
   const link = await validateLinkToken(request.server.prisma, request.params.token)
   if (!link) throw new AppError('NOT_FOUND', 'This link is no longer active', 404)
@@ -27,22 +31,22 @@ async function resolveLink(request: FastifyRequest<{ Params: TokenParams }>) {
 
 /**
  * POST /api/submissions/:token — create a SUBMITTED invoice owned by the
- * landlord, attributed to the contractor. Vendor defaults to the contractor's
- * name; the photo is required and gated to the contractor's own uploads.
+ * landlord, attributed to the vendor. Vendor name defaults to the vendor's
+ * name; the photo is required and gated to the vendor's own uploads.
  */
 export async function submit(
   request: FastifyRequest<{ Params: TokenParams }>,
   reply: FastifyReply,
 ) {
-  const { contractorId, landlordId } = await resolveLink(request)
+  const { vendorId, landlordId } = await resolveLink(request)
   const input = parseBody(SubmissionSchema, request.body)
-  const contractor = await request.server.prisma.contractor.findUniqueOrThrow({
-    where: { id: contractorId },
+  const vendor = await request.server.prisma.vendor.findUniqueOrThrow({
+    where: { id: vendorId },
     select: { name: true },
   })
   const invoice = await createSubmission(
     request.server.prisma,
-    { ownerUserId: landlordId, contractorId, vendorName: contractor.name },
+    { ownerUserId: landlordId, vendorId, vendorName: vendor.name },
     input,
   )
   return reply.code(201).send({ id: invoice.id, status: invoice.status })
@@ -50,32 +54,32 @@ export async function submit(
 
 /**
  * POST /api/submissions/:token/upload-token — mint a short-lived Vercel Blob
- * client token scoped to the contractor's own prefix (`c_<id>`), so the photo
- * the contractor uploads passes the submit gate and can never reference the
- * landlord's or another contractor's blobs.
+ * client token scoped to the vendor's own prefix (`c_<id>`), so the photo
+ * the vendor uploads passes the submit gate and can never reference the
+ * landlord's or another vendor's blobs.
  */
 export async function createUploadToken(
   request: FastifyRequest<{ Params: TokenParams }>,
   reply: FastifyReply,
 ) {
-  const { contractorId } = await resolveLink(request)
+  const { vendorId } = await resolveLink(request)
   const { contentType } = parseBody(ImageUploadTokenSchema, request.body)
-  const result = await issueUploadToken(contractorBlobOwner(contractorId), contentType)
+  const result = await issueUploadToken(vendorBlobOwner(vendorId), contentType)
   return reply.send(result)
 }
 
 /**
- * GET /api/submissions/:token — the contractor's OWN submissions and statuses,
- * scoped to their contractor id. Safe fields only: never invoiceNumber, never
- * another contractor's or the landlord's invoices (no existence leak, AE4).
+ * GET /api/submissions/:token — the vendor's OWN submissions and statuses,
+ * scoped to their vendor id. Safe fields only: never invoiceNumber, never
+ * another vendor's or the landlord's invoices (no existence leak, AE4).
  */
 export async function listOwn(
   request: FastifyRequest<{ Params: TokenParams }>,
   reply: FastifyReply,
 ) {
-  const { contractorId } = await resolveLink(request)
+  const { vendorId } = await resolveLink(request)
   const rows = await request.server.prisma.invoice.findMany({
-    where: { submittedByContractorId: contractorId },
+    where: { submittedByVendorId: vendorId },
     orderBy: { createdAt: 'desc' },
     select: {
       id: true,
@@ -102,18 +106,15 @@ type EditParams = TokenParams & { id: string }
 
 /**
  * PATCH /api/submissions/:token/:id — edit a still-SUBMITTED submission. The
- * write is a compare-and-set scoped to this contractor; a reviewed (or foreign,
+ * write is a compare-and-set scoped to this vendor; a reviewed (or foreign,
  * or absent) submission returns a uniform 409.
  */
-export async function edit(
-  request: FastifyRequest<{ Params: EditParams }>,
-  reply: FastifyReply,
-) {
-  const { contractorId } = await resolveLink(request)
+export async function edit(request: FastifyRequest<{ Params: EditParams }>, reply: FastifyReply) {
+  const { vendorId } = await resolveLink(request)
   const input = parseBody(EditSubmissionSchema, request.body)
-  const inv = await contractorUpdateSubmission(
+  const inv = await vendorUpdateSubmission(
     request.server.prisma,
-    { contractorId, invoiceId: request.params.id },
+    { vendorId, invoiceId: request.params.id },
     input,
   )
   return reply.send({ id: inv.id, status: inv.status })
@@ -129,10 +130,10 @@ export async function withdraw(
   request: FastifyRequest<{ Params: EditParams }>,
   reply: FastifyReply,
 ) {
-  const { contractorId } = await resolveLink(request)
-  const inv = await contractorUpdateSubmission(
+  const { vendorId } = await resolveLink(request)
+  const inv = await vendorUpdateSubmission(
     request.server.prisma,
-    { contractorId, invoiceId: request.params.id },
+    { vendorId, invoiceId: request.params.id },
     { withdraw: true },
   )
   return reply.send({ id: inv.id, status: inv.status })

@@ -1,11 +1,17 @@
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { apiClient } from '@/lib/apiClient'
 
-export type InvoiceItem = { id: string; description: string; quantity: number; total: string; sortOrder: number }
+export type InvoiceItem = {
+  id: string
+  description: string
+  quantity: number
+  total: string
+  sortOrder: number
+}
 
 export type InvoiceListItem = {
   id: string
-  // Nullable: a contractor submission is unnumbered/uncategorized until the
+  // Nullable: a vendor submission is unnumbered/uncategorized until the
   // landlord approves/categorizes it on review.
   invoiceNumber: string | null
   vendorName: string
@@ -26,9 +32,14 @@ export type InvoiceListItem = {
   // Number of attached photos (from the API _count) — drives the add-photo
   // indicator without fetching the image rows.
   imageCount: number
-  // The submitting contractor's info (PDF Sender section); null for a
-  // landlord-entered invoice (the PDF falls back to vendorName/vendorEmail).
-  contractor: { name: string; contact: string } | null
+  // Attribution vendor — "who this invoice is from" (PDF Sender section).
+  // Set on every landlord-entered invoice with a resolved/auto-created vendor,
+  // and on a self-submission too; the PDF falls back to vendorName/vendorEmail
+  // only when this is null (no vendor could be resolved).
+  vendor: { name: string; phone: string | null; email: string | null } | null
+  // Raw scalar FK behind `vendor` above — needed client-side so the edit form
+  // can round-trip a pre-existing pick without re-matching by name.
+  vendorId: string | null
 }
 
 export type InvoiceListResponse = {

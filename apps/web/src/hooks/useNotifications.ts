@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { NotificationFeed } from '@mac-invoices/shared'
 import { apiClient } from '@/lib/apiClient'
 
-// The landlord's in-app notification feed (contractor submissions, edits,
+// The landlord's in-app notification feed (vendor submissions, edits,
 // withdrawals). Polls periodically so the unread badge stays roughly live
 // without a websocket.
 

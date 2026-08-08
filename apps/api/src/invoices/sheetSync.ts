@@ -11,7 +11,7 @@ import {
 // Continuous Google Sheets sync — the connected sheet is a FULL MIRROR of a
 // landlord's exportable invoices (new + edits + deletes), refreshed by a
 // CRON_SECRET-gated cron (see docs/specs/continuous-sheets-sync.md). It mirrors
-// the contractor-digest flush: poll for change, act, then stamp a high-water
+// the vendor-digest flush: poll for change, act, then stamp a high-water
 // mark, with per-user error isolation. Postgres stays the source of truth; the
 // mirror overwrites whatever is in the sheet (DEC-001).
 

@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-// SUBMITTED is the entry state for a contractor-submitted invoice, awaiting
+// SUBMITTED is the entry state for a vendor-submitted invoice, awaiting
 // landlord review (approve/reject). Appended (not reordered) so existing
 // `.options`-derived UI/zero-fills stay stable.
 export const InvoiceStatus = z.enum([
@@ -96,6 +96,10 @@ export const CreateInvoiceSchema = z.object({
   invoiceNumber: z.string().min(1).max(50).optional(),
   vendorName: z.string().min(1).max(100),
   vendorEmail: z.string().email().optional(),
+  // The saved vendor this invoice is from. Optional: when omitted and
+  // `vendorName` names a vendor the landlord doesn't have yet, the server
+  // creates one and links it (see writeService.resolveVendorId).
+  vendorId: z.string().optional(),
   // The invoice's total is derived from `items` — the server computes and
   // stores `amount` as their sum; it is never accepted as input.
   items: z.array(InvoiceItemInputSchema).min(1).max(MAX_INVOICE_ITEMS),
@@ -115,8 +119,8 @@ export const CreateInvoiceSchema = z.object({
 export const UpdateInvoiceSchema = CreateInvoiceSchema.partial().extend({
   status: InvoiceStatus.optional(),
   paidDate: z.coerce.date().optional(),
-  // Set by the landlord when rejecting a contractor submission (required on the
-  // SUBMITTED → REJECTED transition; surfaced back to the contractor).
+  // Set by the landlord when rejecting a vendor submission (required on the
+  // SUBMITTED → REJECTED transition; surfaced back to the vendor).
   rejectionReason: z.string().min(1).max(500).optional(),
 })
 

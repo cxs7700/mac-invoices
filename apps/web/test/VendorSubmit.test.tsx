@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router'
-import ContractorSubmit from '@/pages/ContractorSubmit'
+import VendorSubmit from '@/pages/VendorSubmit'
 import { ApiError } from '@/lib/apiClient'
 
 const { useSubmissionStatus, useSubmit, useWithdraw, uploadSubmissionPhoto } = vi.hoisted(() => ({
@@ -24,14 +24,14 @@ const renderPage = () =>
   render(
     <MemoryRouter initialEntries={['/submit/inv_abc_def']}>
       <Routes>
-        <Route path="/submit/:token" element={<ContractorSubmit />} />
+        <Route path="/submit/:token" element={<VendorSubmit />} />
       </Routes>
     </MemoryRouter>,
   )
 
 const submitMock = { mutate: vi.fn(), isPending: false, error: null as unknown }
 
-describe('ContractorSubmit', () => {
+describe('VendorSubmit', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     submitMock.error = null
@@ -46,7 +46,11 @@ describe('ContractorSubmit', () => {
   })
 
   it('shows a dead-link state and no form when the token is invalid', () => {
-    useSubmissionStatus.mockReturnValue({ isPending: false, isError: true, error: new ApiError('NOT_FOUND', 'x', 404) })
+    useSubmissionStatus.mockReturnValue({
+      isPending: false,
+      isError: true,
+      error: new ApiError('NOT_FOUND', 'x', 404),
+    })
     renderPage()
     expect(screen.getByText('This link is no longer active')).toBeDefined()
     expect(screen.queryByLabelText('Amount')).toBeNull()
@@ -58,7 +62,9 @@ describe('ContractorSubmit', () => {
     expect(screen.getByLabelText('Amount')).toBeDefined()
     expect(screen.getByText(/no submissions yet/i)).toBeDefined()
     // Submit is disabled with no photo/values.
-    expect((screen.getByRole('button', { name: 'Submit' }) as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByRole('button', { name: 'Submit' }) as HTMLButtonElement).disabled).toBe(
+      true,
+    )
   })
 
   it('renders submissions with statuses and a resubmit affordance on rejected ones', () => {
@@ -67,8 +73,24 @@ describe('ContractorSubmit', () => {
       isError: false,
       data: {
         data: [
-          { id: '1', status: 'SUBMITTED', amount: '100.00', description: 'a', invoiceDate: '2026-06-01', rejectionReason: null, createdAt: '2026-06-01' },
-          { id: '2', status: 'REJECTED', amount: '50.00', description: 'b', invoiceDate: '2026-06-01', rejectionReason: 'Wrong amount', createdAt: '2026-06-01' },
+          {
+            id: '1',
+            status: 'SUBMITTED',
+            amount: '100.00',
+            description: 'a',
+            invoiceDate: '2026-06-01',
+            rejectionReason: null,
+            createdAt: '2026-06-01',
+          },
+          {
+            id: '2',
+            status: 'REJECTED',
+            amount: '50.00',
+            description: 'b',
+            invoiceDate: '2026-06-01',
+            rejectionReason: 'Wrong amount',
+            createdAt: '2026-06-01',
+          },
         ],
       },
     })
@@ -96,7 +118,9 @@ describe('ContractorSubmit', () => {
     fireEvent.change(fileInput, { target: { files: [file] } })
 
     await waitFor(() =>
-      expect((screen.getByRole('button', { name: 'Submit' }) as HTMLButtonElement).disabled).toBe(false),
+      expect((screen.getByRole('button', { name: 'Submit' }) as HTMLButtonElement).disabled).toBe(
+        false,
+      ),
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
@@ -111,7 +135,7 @@ describe('ContractorSubmit', () => {
     )
   })
 
-  it('lets the contractor retype a photo and submits the chosen type', async () => {
+  it('lets the vendor retype a photo and submits the chosen type', async () => {
     useSubmissionStatus.mockReturnValue({ isPending: false, isError: false, data: { data: [] } })
     uploadSubmissionPhoto.mockResolvedValue('https://blob.example/owners/c/p.jpg')
     const { container } = renderPage()
@@ -120,7 +144,9 @@ describe('ContractorSubmit', () => {
     fireEvent.change(screen.getByLabelText('Date'), { target: { value: '2026-06-01' } })
     fireEvent.change(screen.getByLabelText('Description'), { target: { value: 'Fixed a leak' } })
     const fileInput = container.querySelectorAll('input[type="file"]')[1] as HTMLInputElement
-    fireEvent.change(fileInput, { target: { files: [new File(['x'], 'p.png', { type: 'image/png' })] } })
+    fireEvent.change(fileInput, {
+      target: { files: [new File(['x'], 'p.png', { type: 'image/png' })] },
+    })
 
     // Once uploaded, a per-photo type select appears; retype it to PARTS.
     await waitFor(() => expect(screen.getByLabelText('Type for photo 1')).toBeDefined())

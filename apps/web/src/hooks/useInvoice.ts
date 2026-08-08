@@ -3,11 +3,10 @@ import type { UpdateInvoiceInput } from '@mac-invoices/shared'
 import { apiClient } from '@/lib/apiClient'
 import type { InvoiceListItem } from './useInvoices'
 
-// GET /api/invoices/:id never sends `contractor` (that's a list-only field,
-// flattened from submittedByContractor by listInvoices) — it sends
-// `submitterName` instead. Omit it here so the type can't claim a field the
-// detail endpoint doesn't actually return.
-export type Invoice = Omit<InvoiceListItem, 'contractor'> & {
+// GET /api/invoices/:id passes `vendor` (attribution) through as-is, same as
+// listInvoices. It never sends `submittedByVendor` (that relation is
+// list/detail-internal) — it sends the flattened `submitterName` instead.
+export type Invoice = InvoiceListItem & {
   currency: string
   propertyId: string | null
   paidDate: string | null
@@ -15,7 +14,7 @@ export type Invoice = Omit<InvoiceListItem, 'contractor'> & {
   notes: string | null
   partsOrdered: string | null
   createdAt: string
-  // Present on a contractor-submitted invoice (R11 — "by whom").
+  // Present on a vendor-submitted invoice (R11 — "by whom").
   submitterName: string | null
   user?: { id: string; name: string | null; email: string }
 }

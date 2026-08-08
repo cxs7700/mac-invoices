@@ -5,7 +5,7 @@ import type { NotificationItem } from '@mac-invoices/shared'
 import { useNotifications, useMarkNotificationsSeen } from '@/hooks/useNotifications'
 import { formatDate } from '@/lib/format'
 
-/** Bell + unread badge with a dropdown of recent contractor activity. Opening
+/** Bell + unread badge with a dropdown of recent vendor activity. Opening
  * the panel marks the feed seen (clears the badge); each item links to its
  * invoice. */
 export function NotificationsBell() {
@@ -34,8 +34,19 @@ export function NotificationsBell() {
         aria-expanded={open}
         className="relative rounded-md p-1.5 text-foreground hover:bg-accent"
       >
-        <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden fill="none" stroke="currentColor" strokeWidth="1.6">
-          <path d="M10 3a4 4 0 0 0-4 4v2.5L4.5 13h11L14 9.5V7a4 4 0 0 0-4-4Z" strokeLinejoin="round" />
+        <svg
+          width="20"
+          height="20"
+          viewBox="0 0 20 20"
+          aria-hidden
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.6"
+        >
+          <path
+            d="M10 3a4 4 0 0 0-4 4v2.5L4.5 13h11L14 9.5V7a4 4 0 0 0-4-4Z"
+            strokeLinejoin="round"
+          />
           <path d="M8 16a2 2 0 0 0 4 0" strokeLinecap="round" />
         </svg>
         {unread > 0 && (
@@ -88,11 +99,13 @@ function NotificationRow({ item, onNavigate }: { item: NotificationItem; onNavig
       >
         <span className="text-foreground">
           <span className="font-medium">
-            {item.contractorName ?? t('notifications.fallbackContractor')}
+            {item.vendorName ?? t('notifications.fallbackVendor')}
           </span>{' '}
           {item.summary}
         </span>
-        <span className="mt-0.5 block text-xs text-muted-foreground">{formatDate(item.createdAt)}</span>
+        <span className="mt-0.5 block text-xs text-muted-foreground">
+          {formatDate(item.createdAt)}
+        </span>
       </Link>
     </li>
   )

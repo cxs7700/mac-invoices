@@ -30,7 +30,7 @@ model User {
   // A user is "dirty" when their newest Invoice.updatedAt (or newest DELETED
   // event) is after this, which triggers a clear+rewrite of their sheet.
   sheetSyncedAt DateTime?
-  // In-app notification read-state: contractor activity newer than this is
+  // In-app notification read-state: vendor activity newer than this is
   // "unread". Cleared (set to now) when the landlord opens the notifications feed.
   notificationsSeenAt DateTime?
   // UI language preference (server source of truth, mirrored to localStorage).
@@ -39,34 +39,50 @@ model User {
   updatedAt    DateTime     @updatedAt
   invoices     Invoice[]
   sessions     Session[]
-  contractors  Contractor[]
+  vendors      Vendor[]
   properties   Property[]
 
   @@map("users")
 }
 
-// A lightweight contractor the landlord collects invoices from via a no-login
+// A lightweight vendor the landlord collects invoices from via a no-login
 // tokenized link. NOT a User: no password, no session. The link is a bearer
 // credential — `tokenLookupId` is a non-secret indexed handle for a point
 // lookup; `tokenHash` is the SHA-256 of the secret (never stored in plaintext,
 // mirroring Session). `revokedAt` invalidates the link; regenerate overwrites
-// the lookupId + hash. A contractor belongs to exactly one landlord (v1).
-model Contractor {
+// the lookupId + hash. A vendor belongs to exactly one landlord (v1).
+//
+// `phone` and `email` are both nullable: the invoice-form auto-create path
+// writes a name-only vendor. The "at least one contact" rule is enforced in
+// Zod (CreateVendorSchema) for landlord-entered vendors only.
+//
+// A raw expression index — `UNIQUE ("landlordId", lower("name"))`, migration
+// 20260807200000_vendor_unique_name_per_landlord — enforces case-insensitive
+// per-landlord name uniqueness at the DB level, backing writeService's
+// find-then-create auto-vendor path against a double-click/concurrent race.
+// It is deliberately NOT modeled here as `@@unique([landlordId, name])`:
+// Prisma's schema DSL can't express a `lower()` expression index, and a
+// case-SENSITIVE `@@unique` would be a different constraint that puts this
+// schema out of sync with the DB (which `migrate dev` would then try to
+// "fix" by dropping the real index).
+model Vendor {
   id            String    @id @default(cuid())
   landlordId    String
   landlord      User      @relation(fields: [landlordId], references: [id], onDelete: Cascade)
   name          String
-  contact       String
+  phone         String?
+  email         String?
   tokenLookupId String    @unique
   tokenHash     String
   revokedAt     DateTime?
   lastUsedAt    DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
-  submissions   Invoice[]
+  submissions   Invoice[] @relation("InvoiceSubmittedByVendor")
+  invoices      Invoice[] @relation("InvoiceVendor")
 
   @@index([landlordId])
-  @@map("contractors")
+  @@map("vendors")
 }
 
 model Session {
@@ -80,7 +96,7 @@ model Session {
 
 model Invoice {
   id                     String           @id @default(cuid())
-  // Nullable: contractor submissions are created before a number is assigned.
+  // Nullable: vendor submissions are created before a number is assigned.
   // The sequential number is stamped on the first APPROVED transition (KTD-11)
   // so withdrawn/rejected submissions never leave gaps in the landlord's ledger.
   // Sequential per OWNER, not globally: see @@unique([userId, invoiceNumber])
@@ -94,7 +110,7 @@ model Invoice {
   // transaction that writes the items — never accepted as client input.
   amount                 Decimal          @db.Decimal(10, 2)
   currency               String           @default("USD")
-  // Nullable: a contractor submission carries no category — the landlord sets
+  // Nullable: a vendor submission carries no category — the landlord sets
   // it on review (APPROVED is blocked until it is set).
   category               InvoiceCategory?
   // The property this invoice is assigned to, if any. Optional at create/submit,
@@ -115,17 +131,26 @@ model Invoice {
   updatedAt              DateTime         @updatedAt
   userId                 String
   user                   User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  // The contractor who submitted this invoice, if any. The invoice is still
-  // owned by the landlord (`userId`); this only records the submitter. SetNull
-  // so deleting a contractor never cascades into the landlord's owned invoice.
-  submittedByContractorId String?
-  submittedByContractor   Contractor?     @relation(fields: [submittedByContractorId], references: [id], onDelete: SetNull)
+  // The vendor who submitted this invoice, if any. The invoice is still
+  // owned by the landlord (`userId`); this only records the submitter, AND it
+  // is the authorization scope for that vendor's no-login link (see
+  // submissions/handlers.ts). SetNull so deleting a vendor never cascades into
+  // the landlord's owned invoice.
+  submittedByVendorId    String?
+  submittedByVendor      Vendor?          @relation("InvoiceSubmittedByVendor", fields: [submittedByVendorId], references: [id], onDelete: SetNull)
+  // Attribution: which vendor this invoice is FROM. Set by the invoice form's
+  // picker or by auto-create. Deliberately separate from submittedByVendorId —
+  // sharing one column would let a vendor's public link read landlord-entered
+  // invoices merely attributed to them.
+  vendorId               String?
+  vendor                 Vendor?          @relation("InvoiceVendor", fields: [vendorId], references: [id], onDelete: SetNull)
   images                 InvoiceImage[]
   items                  InvoiceItem[]
 
   @@index([userId, status])
   @@index([userId, invoiceDate])
-  @@index([submittedByContractorId])
+  @@index([submittedByVendorId])
+  @@index([vendorId])
   @@index([propertyId])
   // Per-tenant numbering: two landlords may each hold invoice "1". A global
   // unique here would leak across tenants — a collision with ANOTHER user's
@@ -135,7 +160,7 @@ model Invoice {
 }
 
 // A landlord's rental property. Invoices are assigned to a property to organize
-// spend. Per-landlord (landlordId); mirrors the Contractor entity.
+// spend. Per-landlord (landlordId); mirrors the Vendor entity.
 model Property {
   id         String   @id @default(cuid())
   landlordId String
@@ -194,7 +219,7 @@ model InvoiceImage {
 // DELETED event must outlive its invoice (the snapshot in `detail` is the
 // archive), so the row must NOT cascade-delete with the invoice. `actorId` is
 // who caused the event; `ownerUserId` is the invoice owner and the read-scoping
-// key (a future contractor can author an event the landlord still owns/reads).
+// key (a future vendor can author an event the landlord still owns/reads).
 model InvoiceEvent {
   id          String    @id @default(cuid())
   invoiceId   String
@@ -224,7 +249,7 @@ enum EventType {
 
 enum Role {
   LANDLORD
-  CONTRACTOR
+  VENDOR
   ADMIN
 }
 
@@ -241,7 +266,7 @@ enum InvoiceStatus {
   PAID
   REJECTED
   CANCELLED
-  // Entry state for a contractor-submitted invoice, awaiting landlord review.
+  // Entry state for a vendor-submitted invoice, awaiting landlord review.
   SUBMITTED
 }
 

@@ -59,7 +59,7 @@ const ymd = (d: Date) => d.toISOString().slice(0, 10)
 /** The app's invoice-detail URL — the gallery page with fresh signed photo URLs.
  * A direct blob link would be useless in a sheet (private store, 15-min expiry);
  * this link never expires and stays behind the login. WEB_ORIGIN fallback matches
- * the digest/contractor-link convention. Rendered as a HYPERLINK formula so the
+ * the digest/vendor-link convention. Rendered as a HYPERLINK formula so the
  * cell shows "Link" instead of the raw URL; the embedded quote-escape keeps the
  * formula well-formed no matter what WEB_ORIGIN holds. */
 const invoiceLink = (id: string) => {

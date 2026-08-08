@@ -104,7 +104,19 @@ export async function listInvoices(
       include: {
         user: userSelect,
         items: { orderBy: { sortOrder: 'asc' } },
-        submittedByContractor: { select: { name: true, contact: true } },
+        // Two distinct relations, deliberately both surfaced under their own
+        // keys (see writeService.resolveVendorId / createSubmission):
+        //  - `vendor` is ATTRIBUTION (Invoice.vendorId) — "who this invoice is
+        //    from". Set on every landlord-entered invoice with a resolved/
+        //    auto-created vendor, and on a self-submission too. This is what
+        //    the PDF "Sender" block (U8) consumes.
+        //  - `submittedByVendor` is PROVENANCE — who submitted it via their
+        //    no-login link, if anyone. Null for a landlord-entered invoice.
+        // Do not flatten one into the other: a landlord-entered invoice has
+        // vendor set and submittedByVendor null, while a self-submission has
+        // both set to the same vendor.
+        vendor: { select: { name: true, phone: true, email: true } },
+        submittedByVendor: { select: { name: true, phone: true, email: true } },
         _count: { select: { images: true } },
       },
       take: q.limit,
@@ -116,12 +128,9 @@ export async function listInvoices(
 
   // Expose imageCount (cheap _count, no N+1) so the list can render the add-photo
   // indicator without fetching each invoice's image rows. Drop the raw _count.
-  // Flatten submittedByContractor → contractor (PDF Sender section, U8); null
-  // for a landlord-entered invoice (the PDF falls back to vendorName/vendorEmail).
-  const data = invoices.map(({ _count, submittedByContractor, ...inv }) => ({
+  const data = invoices.map(({ _count, ...inv }) => ({
     ...inv,
     imageCount: _count.images,
-    contractor: submittedByContractor,
   }))
   return reply.send({ data, pagination: { total, limit: q.limit, offset: q.offset } })
 }
@@ -159,7 +168,7 @@ export async function invoiceSummary(request: FastifyRequest, reply: FastifyRepl
   // "Spend" is real committed money: PENDING / APPROVED / PAID. SUBMITTED
   // (un-vetted), REJECTED (declined) and CANCELLED (withdrawn) are excluded from
   // the grand total and the per-category breakdown — these are exactly the
-  // statuses that can carry a null category (a contractor submission), so
+  // statuses that can carry a null category (a vendor submission), so
   // excluding them also keeps byCategory reconciled with the total (no stray
   // null-category bucket). byStatus KEEPS every status — its SUBMITTED count is
   // the landlord's "to review" signal.
@@ -171,12 +180,26 @@ export async function invoiceSummary(request: FastifyRequest, reply: FastifyRepl
 
   const [agg, byCat, byStat] = await Promise.all([
     prisma.invoice.aggregate({ where: spend, _sum: { amount: true }, _count: { _all: true } }),
-    prisma.invoice.groupBy({ by: ['category'], where: spend, _sum: { amount: true }, _count: { _all: true } }),
-    prisma.invoice.groupBy({ by: ['status'], where: owned, _sum: { amount: true }, _count: { _all: true } }),
+    prisma.invoice.groupBy({
+      by: ['category'],
+      where: spend,
+      _sum: { amount: true },
+      _count: { _all: true },
+    }),
+    prisma.invoice.groupBy({
+      by: ['status'],
+      where: owned,
+      _sum: { amount: true },
+      _count: { _all: true },
+    }),
   ])
 
-  const catMap = new Map(byCat.map((r) => [r.category, { count: r._count._all, amount: money(r._sum.amount) }]))
-  const statMap = new Map(byStat.map((r) => [r.status, { count: r._count._all, amount: money(r._sum.amount) }]))
+  const catMap = new Map(
+    byCat.map((r) => [r.category, { count: r._count._all, amount: money(r._sum.amount) }]),
+  )
+  const statMap = new Map(
+    byStat.map((r) => [r.status, { count: r._count._all, amount: money(r._sum.amount) }]),
+  )
 
   return reply.send({
     total: { count: agg._count._all, amount: money(agg._sum.amount) },
@@ -201,7 +224,11 @@ export async function getInvoice(
     include: {
       user: userSelect,
       items: { orderBy: { sortOrder: 'asc' } },
-      submittedByContractor: { select: { name: true } },
+      // Attribution vendor (Invoice.vendorId) — additive, so the detail
+      // response agrees with listInvoices. `submitterName` below keeps its
+      // existing, distinct meaning (the no-login-link submitter).
+      vendor: { select: { name: true, phone: true, email: true } },
+      submittedByVendor: { select: { name: true } },
       _count: { select: { images: true } },
     },
   })
@@ -213,10 +240,11 @@ export async function getInvoice(
   // Surface the submitter's name on the detail (R11 — "by whom"); strip the
   // joined relation object in favour of a flat field. imageCount drives the
   // add-photo indicator + gallery presence without embedding the image rows here.
-  const { submittedByContractor, _count, ...rest } = invoice
+  // `vendor` (attribution) passes through as-is via `...rest`.
+  const { submittedByVendor, _count, ...rest } = invoice
   return reply.send({
     ...rest,
-    submitterName: submittedByContractor?.name ?? null,
+    submitterName: submittedByVendor?.name ?? null,
     imageCount: _count.images,
   })
 }
@@ -236,30 +264,33 @@ export async function listInvoiceEvents(
     orderBy: { createdAt: 'asc' },
   })
 
-  // Actor ids are either a user id (landlord) or a `contractor:<id>` namespace
-  // (a contractor who submitted/edited). Resolve each kind to a display name.
-  // Contractors are scoped to this landlord, so a contractor name never leaks
+  // Actor ids are either a user id (landlord) or a `vendor:<id>` namespace
+  // (a vendor who submitted/edited). Resolve each kind to a display name.
+  // Vendors are scoped to this landlord, so a vendor name never leaks
   // across owners.
   const actorIds = [...new Set(events.map((e) => e.actorId))]
-  const contractorPrefix = 'contractor:'
-  const userIds = actorIds.filter((id) => !id.startsWith(contractorPrefix))
-  const contractorIds = actorIds
-    .filter((id) => id.startsWith(contractorPrefix))
-    .map((id) => id.slice(contractorPrefix.length))
+  const vendorPrefix = 'vendor:'
+  const userIds = actorIds.filter((id) => !id.startsWith(vendorPrefix))
+  const vendorIds = actorIds
+    .filter((id) => id.startsWith(vendorPrefix))
+    .map((id) => id.slice(vendorPrefix.length))
 
-  const [users, contractors] = await Promise.all([
+  const [users, vendors] = await Promise.all([
     userIds.length
-      ? request.server.prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, name: true } })
+      ? request.server.prisma.user.findMany({
+          where: { id: { in: userIds } },
+          select: { id: true, name: true },
+        })
       : [],
-    contractorIds.length
-      ? request.server.prisma.contractor.findMany({
-          where: { id: { in: contractorIds }, landlordId: request.user.id },
+    vendorIds.length
+      ? request.server.prisma.vendor.findMany({
+          where: { id: { in: vendorIds }, landlordId: request.user.id },
           select: { id: true, name: true },
         })
       : [],
   ])
   const nameById = new Map<string, string | null>(users.map((u) => [u.id, u.name]))
-  for (const c of contractors) nameById.set(`${contractorPrefix}${c.id}`, c.name)
+  for (const v of vendors) nameById.set(`${vendorPrefix}${v.id}`, v.name)
 
   const data = events.map((e) => ({
     id: e.id,

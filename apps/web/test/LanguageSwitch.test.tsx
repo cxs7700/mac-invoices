@@ -24,7 +24,7 @@ describe('LanguageSwitcher', () => {
     await waitFor(() => expect(i18n.language).toBe('zh'))
   })
 
-  it('switches without persisting when persist is omitted (public contractor page)', async () => {
+  it('switches without persisting when persist is omitted (public vendor page)', async () => {
     render(<LanguageSwitcher />)
     fireEvent.click(screen.getByRole('button', { name: '中文' }))
     expect(mutate).not.toHaveBeenCalled()
