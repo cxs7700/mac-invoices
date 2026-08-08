@@ -107,39 +107,55 @@ describe('buildInvoicePdfModel', () => {
     expect(pages[0].billTo.name).toBe('x@example.com')
   })
 
-  it('Sender is the attribution vendor when the invoice has one', () => {
+  it('prefers the linked vendor over the invoice free text', () => {
     const pages = buildInvoicePdfModel(
-      [inv({ vendor: { name: 'Joe the Plumber', phone: '555-1234', email: null } })],
+      [
+        inv({
+          vendorName: 'Typed Name',
+          vendorEmail: 'typed@x.com',
+          vendor: { name: 'Ace Plumbing', phone: '555-0100', email: 'ace@x.com' },
+        }),
+      ],
       addresses,
       landlord,
     )
-    expect(pages[0].sender).toEqual({ name: 'Joe the Plumber', contact: '555-1234' })
+    expect(pages[0].sender).toEqual({ name: 'Ace Plumbing', lines: ['ace@x.com', '555-0100'] })
   })
 
-  it('Sender joins phone and email when the vendor has both', () => {
+  it('skips a blank phone rather than emitting an empty line', () => {
     const pages = buildInvoicePdfModel(
-      [inv({ vendor: { name: 'Joe the Plumber', phone: '555-1234', email: 'joe@example.com' } })],
+      [inv({ vendor: { name: 'Ace', phone: null, email: 'ace@x.com' } })],
       addresses,
       landlord,
     )
-    expect(pages[0].sender).toEqual({
-      name: 'Joe the Plumber',
-      contact: '555-1234 · joe@example.com',
-    })
+    expect(pages[0].sender.lines).toEqual(['ace@x.com'])
   })
 
-  it('Sender falls back to vendorName/vendorEmail when there is no attribution vendor', () => {
-    const pages = buildInvoicePdfModel([inv({ vendor: null })], addresses, landlord)
-    expect(pages[0].sender).toEqual({ name: 'Acme Plumbing', contact: 'acme@example.com' })
-  })
-
-  it('Sender contact falls back to — when vendorEmail is null', () => {
+  it('emits a name-only sender when the vendor has no contact details', () => {
     const pages = buildInvoicePdfModel(
-      [inv({ vendor: null, vendorEmail: null })],
+      [inv({ vendor: { name: 'Ace', phone: null, email: null } })],
       addresses,
       landlord,
     )
-    expect(pages[0].sender.contact).toBe('—')
+    expect(pages[0].sender.lines).toEqual([])
+  })
+
+  it('falls back to the invoice free text for a legacy unlinked invoice', () => {
+    const pages = buildInvoicePdfModel(
+      [inv({ vendorName: 'Legacy Co', vendorEmail: 'legacy@x.com', vendor: null })],
+      addresses,
+      landlord,
+    )
+    expect(pages[0].sender).toEqual({ name: 'Legacy Co', lines: ['legacy@x.com'] })
+  })
+
+  it('omits the contact line entirely when a legacy invoice has no vendor email', () => {
+    const pages = buildInvoicePdfModel(
+      [inv({ vendorName: 'Legacy Co', vendorEmail: null, vendor: null })],
+      addresses,
+      landlord,
+    )
+    expect(pages[0].sender.lines).toEqual([])
   })
 
   it('renders items in sortOrder regardless of input order', () => {
