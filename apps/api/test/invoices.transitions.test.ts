@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { buildApp } from '../src/app'
 import { createSecondUser } from './helpers/auth'
 
-// U2 status-transition guard (KTD-3). SUBMITTED is the contractor-submission
+// U2 status-transition guard (KTD-3). SUBMITTED is the vendor-submission
 // entry state: nothing moves *into* it, and from SUBMITTED the landlord may only
 // approve (needs a category) or reject (needs a reason). Legacy transitions among
 // the pre-existing statuses keep their prior freedom (R-8 — no regression of the

@@ -28,7 +28,7 @@ describe('U1 notification markers', () => {
 
   it('InvoiceEvent persists notifiedAt null and can be stamped', async () => {
     const ev = await app.prisma.invoiceEvent.create({
-      data: { invoiceId: 'inv-x', actorId: `contractor:c1`, ownerUserId: userId, type: 'CREATED', detail: {} },
+      data: { invoiceId: 'inv-x', actorId: `vendor:c1`, ownerUserId: userId, type: 'CREATED', detail: {} },
     })
     expect(ev.notifiedAt).toBeNull()
     const stamped = await app.prisma.invoiceEvent.update({ where: { id: ev.id }, data: { notifiedAt: new Date() } })

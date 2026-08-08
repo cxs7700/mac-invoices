@@ -30,7 +30,7 @@ model User {
   // A user is "dirty" when their newest Invoice.updatedAt (or newest DELETED
   // event) is after this, which triggers a clear+rewrite of their sheet.
   sheetSyncedAt DateTime?
-  // In-app notification read-state: contractor activity newer than this is
+  // In-app notification read-state: vendor activity newer than this is
   // "unread". Cleared (set to now) when the landlord opens the notifications feed.
   notificationsSeenAt DateTime?
   // UI language preference (server source of truth, mirrored to localStorage).
@@ -96,7 +96,7 @@ model Session {
 
 model Invoice {
   id                     String           @id @default(cuid())
-  // Nullable: contractor submissions are created before a number is assigned.
+  // Nullable: vendor submissions are created before a number is assigned.
   // The sequential number is stamped on the first APPROVED transition (KTD-11)
   // so withdrawn/rejected submissions never leave gaps in the landlord's ledger.
   invoiceNumber          String?          @unique
@@ -106,7 +106,7 @@ model Invoice {
   // transaction that writes the items — never accepted as client input.
   amount                 Decimal          @db.Decimal(10, 2)
   currency               String           @default("USD")
-  // Nullable: a contractor submission carries no category — the landlord sets
+  // Nullable: a vendor submission carries no category — the landlord sets
   // it on review (APPROVED is blocked until it is set).
   category               InvoiceCategory?
   // The property this invoice is assigned to, if any. Optional at create/submit,
@@ -211,7 +211,7 @@ model InvoiceImage {
 // DELETED event must outlive its invoice (the snapshot in `detail` is the
 // archive), so the row must NOT cascade-delete with the invoice. `actorId` is
 // who caused the event; `ownerUserId` is the invoice owner and the read-scoping
-// key (a future contractor can author an event the landlord still owns/reads).
+// key (a future vendor can author an event the landlord still owns/reads).
 model InvoiceEvent {
   id          String    @id @default(cuid())
   invoiceId   String
@@ -258,7 +258,7 @@ enum InvoiceStatus {
   PAID
   REJECTED
   CANCELLED
-  // Entry state for a contractor-submitted invoice, awaiting landlord review.
+  // Entry state for a vendor-submitted invoice, awaiting landlord review.
   SUBMITTED
 }
 

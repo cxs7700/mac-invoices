@@ -4,7 +4,7 @@ import { NotificationItemSchema, NotificationFeedSchema } from '../src/index'
 const validItem = {
   id: 'evt_1',
   type: 'CREATED',
-  contractorName: 'Joe',
+  vendorName: 'Joe',
   invoiceId: 'inv_1',
   summary: 'submitted an invoice',
   createdAt: '2026-06-25T00:00:00.000Z',
@@ -18,10 +18,8 @@ describe('NotificationItemSchema', () => {
     if (result.success) expect(result.data.createdAt).toBeInstanceOf(Date)
   })
 
-  it('accepts a null contractorName', () => {
-    expect(NotificationItemSchema.safeParse({ ...validItem, contractorName: null }).success).toBe(
-      true,
-    )
+  it('accepts a null vendorName', () => {
+    expect(NotificationItemSchema.safeParse({ ...validItem, vendorName: null }).success).toBe(true)
   })
 })
 
