@@ -15,6 +15,7 @@ const saveSpy = vi.hoisted(() => vi.fn())
 const textSpy = vi.hoisted(() => vi.fn())
 const autoTableSpy = vi.hoisted(() => vi.fn())
 const rectSpy = vi.hoisted(() => vi.fn())
+const roundedRectSpy = vi.hoisted(() => vi.fn())
 
 vi.mock('jspdf', () => {
   jspdfImported.value = true
@@ -25,6 +26,12 @@ vi.mock('jspdf', () => {
     setFont = vi.fn()
     setTextColor = vi.fn()
     setFillColor = vi.fn()
+    setDrawColor = vi.fn()
+    setLineWidth = vi.fn()
+    setCharSpace = vi.fn()
+    getTextWidth = vi.fn(() => 40)
+    line = vi.fn()
+    roundedRect = roundedRectSpy
     rect = rectSpy
     text = textSpy
     save = saveSpy
@@ -244,6 +251,7 @@ describe('generateInvoicesPdf', () => {
     textSpy.mockClear()
     autoTableSpy.mockClear()
     rectSpy.mockClear()
+    roundedRectSpy.mockClear()
   })
 
   it('does not load jspdf at module import time', () => {
@@ -261,31 +269,62 @@ describe('generateInvoicesPdf', () => {
     )
     expect(jspdfImported.value).toBe(true)
     expect(autoTableSpy).toHaveBeenCalledTimes(2)
-    // The balance box is drawn once per page (right-aligned green highlight).
-    expect(rectSpy).toHaveBeenCalledTimes(2)
+    // Three filled rects per page: the masthead rule, the balance panel, and
+    // its accent spine.
+    expect(rectSpy).toHaveBeenCalledTimes(6)
     expect(textSpy.mock.calls.some((c) => c[0] === '$120.00')).toBe(true)
     expect(saveSpy).toHaveBeenCalledWith('invoices-2026-08-05.pdf')
   })
 
+  it('renders the masthead and the invoice number as separate elements', async () => {
+    await generateInvoicesPdf([inv({ invoiceNumber: '42' })], addresses, landlord)
+    const drawn = textSpy.mock.calls.map((c) => c[0])
+    expect(drawn).toContain('INVOICE')
+    expect(drawn).toContain('#42')
+  })
+
+  it('stacks each field label above its value rather than on one line', async () => {
+    await generateInvoicesPdf([inv()], addresses, landlord)
+    const drawn = textSpy.mock.calls.map((c) => c[0])
+    // Labels are drawn standalone and uppercased — never "Date: Mar 5, 2026".
+    for (const label of ['DATE', 'STATUS', 'LOCATION', 'SENDER', 'BILL TO', 'BALANCE DUE']) {
+      expect(drawn).toContain(label)
+    }
+    expect(drawn.some((s) => typeof s === 'string' && s.includes(': '))).toBe(false)
+
+    // The value sits below its own label, in the same column.
+    const labelCall = textSpy.mock.calls.find((c) => c[0] === 'DATE')!
+    const valueCall = textSpy.mock.calls.find((c) => c[0] === 'Mar 5, 2026')!
+    expect(valueCall[1]).toBe(labelCall[1]) // same x
+    expect(valueCall[2]).toBeGreaterThan(labelCall[2]) // lower down the page
+  })
+
+  it('draws the status as a chip', async () => {
+    await generateInvoicesPdf([inv({ status: 'PAID' })], addresses, landlord)
+    expect(roundedRectSpy).toHaveBeenCalledTimes(1)
+    expect(textSpy.mock.calls.some((c) => c[0] === 'Paid')).toBe(true)
+  })
+
   // The items table's startY is computed from the sender block's actual line
-  // count so a taller sender can't be overlapped by a table pinned at a
-  // fixed offset (Bill-To is always two lines and sets the floor).
+  // count, so a taller sender can never be overlapped by a table pinned at a
+  // fixed offset.
   it('starts the table at the Bill-To floor when the sender has zero contact lines', async () => {
     await generateInvoicesPdf(
       [inv({ vendorName: 'Legacy Co', vendorEmail: null, vendor: null })],
       addresses,
       landlord,
     )
-    expect(autoTableSpy.mock.calls[0][1]).toMatchObject({ startY: 184 })
+    // Bill-To is one line, so a contact-less sender is level with it.
+    expect(autoTableSpy.mock.calls[0][1]).toMatchObject({ startY: 215 })
   })
 
-  it('starts the table at the same Bill-To floor when the sender has one contact line', async () => {
+  it('drops the table when the sender has one contact line', async () => {
     await generateInvoicesPdf(
       [inv({ vendor: { name: 'Ace', phone: null, email: 'ace@x.com' } })],
       addresses,
       landlord,
     )
-    expect(autoTableSpy.mock.calls[0][1]).toMatchObject({ startY: 184 })
+    expect(autoTableSpy.mock.calls[0][1]).toMatchObject({ startY: 228 })
   })
 
   it('starts the table below a two-line sender (email + phone)', async () => {
@@ -294,6 +333,6 @@ describe('generateInvoicesPdf', () => {
       addresses,
       landlord,
     )
-    expect(autoTableSpy.mock.calls[0][1]).toMatchObject({ startY: 198 })
+    expect(autoTableSpy.mock.calls[0][1]).toMatchObject({ startY: 241 })
   })
 })
