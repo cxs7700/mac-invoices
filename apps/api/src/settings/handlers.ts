@@ -136,13 +136,44 @@ export async function getSheets(request: FastifyRequest, reply: FastifyReply) {
   return reply.send({ configured, serviceAccountEmail: email, targetSpreadsheetId, reachable })
 }
 
-/** PATCH /api/settings/sheets — save the per-landlord target spreadsheet id. */
+/**
+ * PATCH /api/settings/sheets — save the per-landlord target spreadsheet id.
+ *
+ * The UNIQUE index on `users.sheetSpreadsheetId` is the authority, and this
+ * catch is only its translator. Deliberately NOT a read-then-write "is it
+ * taken?" check: two concurrent saves would both read the id as free and both
+ * proceed, which is exactly the collision the constraint exists to prevent.
+ * The message never names the other account (DEC-033).
+ */
 export async function saveSheet(request: FastifyRequest, reply: FastifyReply) {
-  const { spreadsheetId } = parseBody(SaveSheetSchema, request.body)
-  await request.server.prisma.user.update({
-    where: { id: request.user.id },
-    data: { sheetSpreadsheetId: spreadsheetId },
-  })
+  // The third argument overrides parseBody's default "Invalid request body".
+  // It matters: the central errorHandler puts the Zod message in `details`,
+  // and the web Settings page renders `error.message` only — so without this
+  // the landlord sees "Invalid request body" and never learns what shape the
+  // field wants. Every way this parse can fail (not an id, not a Sheets URL,
+  // over 500 chars) is fairly described by this one sentence.
+  const { spreadsheetId } = parseBody(
+    SaveSheetSchema,
+    request.body,
+    "That doesn't look like a Google Sheets ID or URL",
+  )
+  try {
+    await request.server.prisma.user.update({
+      where: { id: request.user.id },
+      data: { sheetSpreadsheetId: spreadsheetId },
+    })
+  } catch (err) {
+    // `sheetSpreadsheetId` is the only unique column this update touches, so a
+    // P2002 here can only mean another account already holds this spreadsheet.
+    if ((err as { code?: unknown })?.code === 'P2002') {
+      throw new AppError(
+        'SHEET_ALREADY_CONNECTED',
+        'That spreadsheet is already connected to another account. Please use a different one.',
+        409,
+      )
+    }
+    throw err
+  }
   return getSheets(request, reply)
 }
 

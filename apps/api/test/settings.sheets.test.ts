@@ -154,4 +154,80 @@ describe('Sheets settings', () => {
       await b.cleanup()
     }
   })
+
+  it('refuses a spreadsheet another account has already connected (AE1)', async () => {
+    const taken = '1AlreadyConnectedElsewhereEEEEEEEEEEEEEEEEE'
+    const other = await createSecondUser(app)
+    try {
+      await app.prisma.user.update({
+        where: { id: other.user.id },
+        data: { sheetSpreadsheetId: taken },
+      })
+      const res = await save(taken)
+      expect(res.statusCode).toBe(409)
+      expect(res.json().error.code).toBe('SHEET_ALREADY_CONNECTED')
+      expect(res.json().error.message).toMatch(/already connected to another account/)
+      // The other account's identity must never leak in the message.
+      expect(res.json().error.message).not.toMatch(other.user.email)
+      // And our own target is untouched by the failed save.
+      const me = await app.prisma.user.findUniqueOrThrow({ where: { id: u.user.id } })
+      expect(me.sheetSpreadsheetId).not.toBe(taken)
+    } finally {
+      await other.cleanup()
+    }
+  })
+
+  it('refuses the URL form of a spreadsheet another account holds as a bare id (AE2)', async () => {
+    // The reason normalization exists: without it these are two different
+    // strings, the unique index sees no conflict, and the wipe still happens.
+    const taken = '1UrlFormCollidesFFFFFFFFFFFFFFFFFFFFFFFFFFF'
+    const other = await createSecondUser(app)
+    try {
+      await app.prisma.user.update({
+        where: { id: other.user.id },
+        data: { sheetSpreadsheetId: taken },
+      })
+      const res = await save(`https://docs.google.com/spreadsheets/d/${taken}/edit#gid=0`)
+      expect(res.statusCode).toBe(409)
+      expect(res.json().error.code).toBe('SHEET_ALREADY_CONNECTED')
+    } finally {
+      await other.cleanup()
+    }
+  })
+
+  it('lets a landlord re-save their own current spreadsheet (AE4)', async () => {
+    const mine = '1MyOwnSheetReSavedGGGGGGGGGGGGGGGGGGGGGGGGG'
+    expect((await save(mine)).statusCode).toBe(200)
+    // Same row, same value — not a collision.
+    const res = await save(mine)
+    expect(res.statusCode).toBe(200)
+    expect(res.json().targetSpreadsheetId).toBe(mine)
+  })
+
+  it('rejects input that is not a spreadsheet id or URL (AE5)', async () => {
+    const before = (await app.prisma.user.findUniqueOrThrow({ where: { id: u.user.id } }))
+      .sheetSpreadsheetId
+    const res = await save('my sheet')
+    expect(res.statusCode).toBe(400)
+    // The landlord must SEE why. `errOf` in the web Settings page renders
+    // `error.message` only — it never reads `details` — so a generic
+    // "Invalid request body" here would leave the person staring at a
+    // rejected field with no idea what shape is wanted.
+    expect(res.json().error.message).toMatch(/Google Sheets ID or URL/)
+    const after = (await app.prisma.user.findUniqueOrThrow({ where: { id: u.user.id } }))
+      .sheetSpreadsheetId
+    expect(after).toBe(before) // nothing stored
+  })
+
+  it('frees the spreadsheet when the holding account is deleted (AE8)', async () => {
+    const contested = '1FreedOnDeleteHHHHHHHHHHHHHHHHHHHHHHHHHHHH'
+    const other = await createSecondUser(app)
+    await app.prisma.user.update({
+      where: { id: other.user.id },
+      data: { sheetSpreadsheetId: contested },
+    })
+    expect((await save(contested)).statusCode).toBe(409)
+    await other.cleanup()
+    expect((await save(contested)).statusCode).toBe(200)
+  })
 })
