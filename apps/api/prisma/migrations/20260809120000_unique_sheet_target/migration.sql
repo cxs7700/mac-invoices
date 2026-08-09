@@ -1,0 +1,19 @@
+-- One spreadsheet per account.
+--
+-- The Sheets mirror is clear-and-rewrite (DEC-001): it wipes the tab and
+-- rewrites it from one user's invoices. Two accounts sharing a target
+-- therefore means whichever syncs second erases the other's ledger — with no
+-- error, because from the job's perspective both mirrors succeeded.
+--
+-- Ownership cannot be verified from Google's side: the integration works by
+-- the landlord sharing their sheet with the service account as an Editor, so
+-- the service account has write access to every connected sheet by design.
+-- This index is the entire defense (DEC-033).
+--
+-- NULL is distinct from NULL in a Postgres unique index, so any number of
+-- users with no connected sheet is fine.
+--
+-- PRE-CHECK (must return 0 rows before running this against any environment):
+--   SELECT "sheetSpreadsheetId", count(*) FROM users
+--    WHERE "sheetSpreadsheetId" IS NOT NULL GROUP BY 1 HAVING count(*) > 1;
+CREATE UNIQUE INDEX "users_sheetSpreadsheetId_key" ON "users"("sheetSpreadsheetId");

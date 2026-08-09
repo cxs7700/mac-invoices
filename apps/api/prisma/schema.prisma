@@ -25,7 +25,14 @@ model User {
   // Per-user Google Sheets export target — the only source for both the manual
   // "Sync now" export and continuous sync (the cron mirror). Null = no sheet
   // connected; there is no server-side fallback (removed — see DEC-029(i)).
-  sheetSpreadsheetId String?
+  //
+  // UNIQUE: two accounts must never target one spreadsheet. The mirror is
+  // clear-and-rewrite (DEC-001), so a shared target means the second sync
+  // silently erases the first's ledger. Ownership can't be verified — the
+  // service account holds Editor on every connected sheet by design — so this
+  // constraint is the whole defense, not defense in depth (DEC-033). NULLs are
+  // distinct in Postgres, so any number of unconnected users is fine.
+  sheetSpreadsheetId String?   @unique
   // High-water mark for continuous Sheets sync: the last successful full mirror.
   // A user is "dirty" when their newest Invoice.updatedAt (or newest DELETED
   // event) is after this, which triggers a clear+rewrite of their sheet.

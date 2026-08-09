@@ -109,4 +109,49 @@ describe('Sheets settings', () => {
     expect(sheets.overwriteRows).toHaveBeenCalled()
     expect(sheets.overwriteRows.mock.calls[0][0]).toBe(ID_TARGET) // targeted the saved id
   })
+
+  it('the database refuses two accounts pointing at one spreadsheet', async () => {
+    // Direct Prisma writes, deliberately bypassing the API: this asserts the
+    // INDEX exists, not the handler's error translation (that is a separate
+    // test). Without the index this write simply succeeds.
+    const shared = '1DbLevelUniquenessDDDDDDDDDDDDDDDDDDDDDDDDD'
+    const other = await createSecondUser(app)
+    try {
+      await app.prisma.user.update({
+        where: { id: u.user.id },
+        data: { sheetSpreadsheetId: shared },
+      })
+      await expect(
+        app.prisma.user.update({
+          where: { id: other.user.id },
+          data: { sheetSpreadsheetId: shared },
+        }),
+      ).rejects.toMatchObject({ code: 'P2002' })
+    } finally {
+      await app.prisma.user.update({
+        where: { id: u.user.id },
+        data: { sheetSpreadsheetId: null },
+      })
+      await other.cleanup()
+    }
+  })
+
+  it('allows any number of accounts with no connected sheet (AE6)', async () => {
+    // NULL is distinct from NULL in a Postgres unique index. Without this the
+    // constraint would let exactly one landlord be unconnected, which would
+    // break signup outright — worth pinning rather than trusting.
+    const a = await createSecondUser(app)
+    const b = await createSecondUser(app)
+    try {
+      const both = await app.prisma.user.findMany({
+        where: { id: { in: [a.user.id, b.user.id] } },
+        select: { sheetSpreadsheetId: true },
+      })
+      expect(both).toHaveLength(2)
+      expect(both.every((x) => x.sheetSpreadsheetId === null)).toBe(true)
+    } finally {
+      await a.cleanup()
+      await b.cleanup()
+    }
+  })
 })
