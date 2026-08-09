@@ -16,7 +16,9 @@
 - **NEVER run the api test suite bare.** The root `.env` `DATABASE_URL` points at the **production** database. Every api test command in this plan is written in full — run it exactly as written:
   `DATABASE_URL="postgresql://postgres:postgres@localhost:5433/invoices" LANDLORD_PASSWORD="changeme-dev" npm test -w @mac-invoices/api`
 - **Never run `npm run test` from the repo root** for the api workspace for the same reason. Shared and web suites are safe (`npm test -w @mac-invoices/shared`, `npm test -w @mac-invoices/web`).
-- **Node 24 is required.** On Node 20 every Prisma command dies with a misleading zeptomatch ESM error. Check with `node -v` before any `db:*` command.
+- **Node 24 is required.** The shell defaults to Node 20, where every Prisma command dies with a misleading zeptomatch ESM error. Prefix any shell that runs Prisma or the test suites with:
+  `export PATH="$HOME/.nvm/versions/node/v24.12.0/bin:$PATH"` — then confirm `node -v` prints `v24.12.0`.
+- **Prisma must run with cwd at `apps/api`**, because `apps/api/prisma.config.ts` supplies the datasource url. `npx prisma migrate deploy --schema apps/api/prisma/schema.prisma` from the repo root fails with "The datasource.url property is required". Use the workspace scripts instead: `npm run db:deploy`, `npm run db:generate` (both delegate to `-w @mac-invoices/api`), with `DATABASE_URL` set to the local database on the same command line.
 - **Local Postgres** runs on port **5433** (`docker compose up -d`); a native host Postgres shadows 5432.
 - **Commits go directly on `main`.** No feature branch. Do not push — the user pushes when they ask.
 - **The api suite has a known pre-existing flake** (~1 run in 3): `settings.profile.test.ts:65` mutates the shared landlord's email mid-run, so a parallel file's `loginCookie()` 401s. If a failure is in a file you did not touch and mentions a login/401, re-run once before investigating. Do not "fix" it in this plan.
@@ -475,12 +477,15 @@ CREATE UNIQUE INDEX "users_sheetSpreadsheetId_key" ON "users"("sheetSpreadsheetI
 
 - [ ] **Step 6: Apply the migration locally and regenerate the client**
 
-Run (check `node -v` shows 24 first):
+Run from the repo root:
 ```bash
-DATABASE_URL="postgresql://postgres:postgres@localhost:5433/invoices" npx prisma migrate deploy --schema apps/api/prisma/schema.prisma
-npm run db:generate
+export PATH="$HOME/.nvm/versions/node/v24.12.0/bin:$PATH"   # node -v must print v24.12.0
+DATABASE_URL="postgresql://postgres:postgres@localhost:5433/invoices" npm run db:deploy
+DATABASE_URL="postgresql://postgres:postgres@localhost:5433/invoices" npm run db:generate
 ```
-Expected: the migration applies; the client regenerates without error.
+Expected: `20260809120000_unique_sheet_target` applies; the client regenerates without error.
+
+Do **not** use `npx prisma migrate deploy --schema apps/api/prisma/schema.prisma` — Prisma needs cwd at `apps/api` to pick up `prisma.config.ts`, which supplies the datasource url, and fails from the repo root.
 
 - [ ] **Step 7: Verify the index exists**
 
