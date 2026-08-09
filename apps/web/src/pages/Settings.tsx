@@ -155,7 +155,7 @@ function SheetsSection() {
             </div>
           )}
           <div>
-            <label htmlFor="sheetId" className="text-sm font-medium text-foreground">Target spreadsheet ID</label>
+            <label htmlFor="sheetId" className="text-sm font-medium text-foreground">Target spreadsheet ID or URL</label>
             <input id="sheetId" value={value} onChange={(e) => setSheetId(e.target.value)} className={inputClass} />
           </div>
           {errOf(save.error) && <p className="text-sm text-destructive" role="alert">{errOf(save.error)}</p>}

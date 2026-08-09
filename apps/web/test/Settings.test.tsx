@@ -138,4 +138,11 @@ describe('Settings page', () => {
     )
     expect(screen.getByLabelText('New password').getAttribute('autocomplete')).toBe('new-password')
   })
+
+  it('tells landlords the Sheets field accepts a URL as well as an id', async () => {
+    render(<Settings />)
+    // Pasting the share URL is the natural action; the label should not imply
+    // only a bare id works.
+    expect(await screen.findByLabelText('Target spreadsheet ID or URL')).toBeTruthy()
+  })
 })

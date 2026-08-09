@@ -196,6 +196,33 @@ Any row returned must be merged or renamed by hand **before** migrating — deci
 survives, repoint its invoices, and delete the loser. An empty result means the index will
 create cleanly.
 
+### Unique Sheets target (2026-08-09)
+
+`20260809120000_unique_sheet_target` adds `UNIQUE (users."sheetSpreadsheetId")`.
+
+**Pre-check — must return 0 rows, or the migration fails halfway:**
+
+```sql
+SELECT "sheetSpreadsheetId", count(*)
+  FROM users
+ WHERE "sheetSpreadsheetId" IS NOT NULL
+ GROUP BY 1 HAVING count(*) > 1;
+```
+
+If it returns rows, two accounts are already sharing a spreadsheet and one of
+them has been having its ledger overwritten. Resolve by hand — decide which
+account keeps the sheet and null the other's target — before migrating. Do not
+work around the constraint.
+
+The index builds instantly at current scale (a single-digit number of
+connected users), so a plain `CREATE UNIQUE INDEX` inside the migration
+transaction is correct; `CONCURRENTLY` is not needed and would prevent the
+migration from being transactional.
+
+**Rollback:** `DROP INDEX "users_sheetSpreadsheetId_key";` then
+`prisma migrate resolve --rolled-back 20260809120000_unique_sheet_target`.
+Dropping it reopens the cross-tenant wipe, so treat rollback as a last resort.
+
 ## 5. Set environment variables in Vercel
 
 Project → **Settings → Environment Variables**. Set for **Production** (and **Preview** if
