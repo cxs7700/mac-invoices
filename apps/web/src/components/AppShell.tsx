@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
+import { PanelLeftOpen } from 'lucide-react'
 import { Sidebar } from './Sidebar'
 import { NavLinks } from './NavLinks'
 import { NotificationsBell } from './NotificationsBell'
@@ -8,20 +9,64 @@ import { LanguageSwitcher } from './LanguageSwitcher'
 import { ThemeSwitcher } from './ThemeSwitcher'
 import { useLogout } from '@/hooks/useAuth'
 
-/** Authenticated layout: sidebar (desktop) + a mobile top bar with a slide-out
- * nav drawer + content area. */
+const SIDEBAR_HIDDEN_KEY = 'sidebarHidden'
+
+function getStoredSidebarHidden(): boolean {
+  try {
+    return localStorage.getItem(SIDEBAR_HIDDEN_KEY) === 'true'
+  } catch {
+    return false
+  }
+}
+
+function storeSidebarHidden(hidden: boolean) {
+  try {
+    localStorage.setItem(SIDEBAR_HIDDEN_KEY, String(hidden))
+  } catch {
+    // A blocked localStorage (private mode, disabled cookies) must not break
+    // the toggle — it just will not survive a reload.
+  }
+}
+
+/** Authenticated layout: sidebar (desktop, collapsible) + a mobile top bar with
+ * a slide-out nav drawer + content area. */
 export function AppShell({ children }: { children: ReactNode }) {
   const logout = useLogout()
   const navigate = useNavigate()
   const { t } = useTranslation()
   const [drawerOpen, setDrawerOpen] = useState(false)
+  // Device-local, like the theme preference (DEC-025): a layout choice belongs
+  // to the screen you are sitting at, not to the account.
+  const [sidebarHidden, setSidebarHidden] = useState(getStoredSidebarHidden)
   const doLogout = () =>
     logout.mutate(undefined, { onSuccess: () => navigate('/login', { replace: true }) })
 
+  const toggleSidebar = () => {
+    setSidebarHidden((hidden) => {
+      const next = !hidden
+      storeSidebarHidden(next)
+      return next
+    })
+  }
+
   return (
     <div className="flex h-screen overflow-hidden bg-background">
-      <Sidebar />
+      {!sidebarHidden && <Sidebar onHide={toggleSidebar} />}
       <div className="flex-1 flex flex-col min-w-0">
+        {sidebarHidden && (
+          <div className="hidden md:flex print:hidden shrink-0 items-center gap-2 px-4 pt-4">
+            <button
+              type="button"
+              aria-label={t('common.showSidebar')}
+              aria-expanded={false}
+              onClick={toggleSidebar}
+              className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+            >
+              <PanelLeftOpen className="h-5 w-5" aria-hidden="true" />
+            </button>
+            <span className="font-bold text-foreground">{t('app.name')}</span>
+          </div>
+        )}
         <header className="md:hidden print:hidden flex shrink-0 items-center justify-between border-b border-border bg-card px-4 py-3">
           <div className="flex items-center gap-2">
             <button

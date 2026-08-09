@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { render, screen, fireEvent, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
 import { AppShell } from '@/components/AppShell'
@@ -24,6 +24,36 @@ const renderShell = () =>
       </AppShell>
     </MemoryRouter>,
   )
+
+describe('AppShell sidebar toggle', () => {
+  beforeEach(() => localStorage.clear())
+
+  it('hides and restores the sidebar', () => {
+    renderShell()
+    // The sidebar's own nav is present until hidden.
+    expect(screen.getByLabelText('Hide sidebar')).toBeDefined()
+
+    fireEvent.click(screen.getByLabelText('Hide sidebar'))
+    expect(screen.queryByLabelText('Hide sidebar')).toBeNull()
+
+    fireEvent.click(screen.getByLabelText('Show sidebar'))
+    expect(screen.getByLabelText('Hide sidebar')).toBeDefined()
+  })
+
+  it('remembers the choice across mounts', () => {
+    const first = renderShell()
+    fireEvent.click(screen.getByLabelText('Hide sidebar'))
+    first.unmount()
+
+    renderShell()
+    expect(screen.getByLabelText('Show sidebar')).toBeDefined()
+  })
+
+  it('starts visible when nothing has been stored', () => {
+    renderShell()
+    expect(screen.getByLabelText('Hide sidebar')).toBeDefined()
+  })
+})
 
 describe('AppShell mobile drawer', () => {
   it('opens and closes the nav drawer', () => {

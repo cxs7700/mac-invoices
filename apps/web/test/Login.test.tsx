@@ -58,13 +58,11 @@ describe('Login', () => {
   it('surfaces a 401 server error and stays on the form', async () => {
     vi.stubGlobal(
       'fetch',
-      vi
-        .fn()
-        .mockResolvedValue(
-          jsonResponse(401, {
-            error: { code: 'UNAUTHORIZED', message: 'Invalid email or password' },
-          }),
-        ),
+      vi.fn().mockResolvedValue(
+        jsonResponse(401, {
+          error: { code: 'UNAUTHORIZED', message: 'Invalid email or password' },
+        }),
+      ),
     )
     renderLogin()
 
