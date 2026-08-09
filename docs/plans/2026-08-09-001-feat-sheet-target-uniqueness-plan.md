@@ -592,6 +592,11 @@ Add to `apps/api/test/settings.sheets.test.ts`, inside the `describe('Sheets set
       .sheetSpreadsheetId
     const res = await save('my sheet')
     expect(res.statusCode).toBe(400)
+    // The landlord must SEE why. `errOf` in the web Settings page renders
+    // `error.message` only — it never reads `details` — so a generic
+    // "Invalid request body" here would leave the person staring at a
+    // rejected field with no idea what shape is wanted.
+    expect(res.json().error.message).toMatch(/Google Sheets ID or URL/)
     const after = (await app.prisma.user.findUniqueOrThrow({ where: { id: u.user.id } }))
       .sheetSpreadsheetId
     expect(after).toBe(before) // nothing stored
@@ -632,7 +637,17 @@ In `apps/api/src/settings/handlers.ts`, replace `saveSheet` (lines 139-147) with
  * The message never names the other account (DEC-033).
  */
 export async function saveSheet(request: FastifyRequest, reply: FastifyReply) {
-  const { spreadsheetId } = parseBody(SaveSheetSchema, request.body)
+  // The third argument overrides parseBody's default "Invalid request body".
+  // It matters: the central errorHandler puts the Zod message in `details`,
+  // and the web Settings page renders `error.message` only — so without this
+  // the landlord sees "Invalid request body" and never learns what shape the
+  // field wants. Every way this parse can fail (not an id, not a Sheets URL,
+  // over 500 chars) is fairly described by this one sentence.
+  const { spreadsheetId } = parseBody(
+    SaveSheetSchema,
+    request.body,
+    "That doesn't look like a Google Sheets ID or URL",
+  )
   try {
     await request.server.prisma.user.update({
       where: { id: request.user.id },
