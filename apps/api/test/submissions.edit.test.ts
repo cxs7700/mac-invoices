@@ -122,6 +122,20 @@ describe('vendor edit (U7)', () => {
     expect(row.amount.toString()).toBe('175.5')
   })
 
+  it('summarizes every line in the vendor’s own status list, not just the first', async () => {
+    const c = await makeVendor()
+    const id = await submit(c.id, c.token, {
+      items: [
+        { description: 'Labour', quantity: 1, total: 100 },
+        { description: 'Valve', quantity: 1, total: 20 },
+      ],
+    })
+    const list = (await app.inject({ method: 'GET', url: `/api/submissions/${c.token}` })).json()
+      .data
+    const row = list.find((r: { id: string }) => r.id === id)
+    expect(row.description).toBe('Labour, Valve')
+  })
+
   it('accepts notes and parts ordered on edit', async () => {
     const c = await makeVendor()
     const id = await submit(c.id, c.token)
