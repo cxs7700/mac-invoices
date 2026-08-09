@@ -195,9 +195,11 @@ Deferred or excluded:
   until they are resolved by hand.
 - `sheets.sync.test.ts` already assigns a unique target per landlord, and
   `invoices.export.test.ts` writes distinct values directly through Prisma, so
-  neither is disturbed by the constraint. `settings.sheets.test.ts:73` saves
-  `SHEET-ABC` *through the API* and will need a realistic id under R6 — the only
-  existing test the format rule breaks (verified).
+  neither is disturbed by the constraint. `settings.sheets.test.ts` saves
+  `SHEET-ABC`, `UNREACHABLE`, and `SAVED-TARGET` *through the API* (lines 70, 77,
+  87); all three are rejected by the format rule under R6 and must become
+  realistic ids. Those three are the whole of the existing-test fallout
+  (verified by reading every `sheetSpreadsheetId` write site).
 - The web Settings error path (`errOf(save.error)`) already renders server
   messages, so R2 needs no new frontend plumbing.
 
