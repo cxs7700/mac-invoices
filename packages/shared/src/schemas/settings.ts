@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { EmailSchema } from './auth'
+import { normalizeSpreadsheetId } from '../lib/spreadsheetId'
 
 // Supported UI languages (server-validated; mirrored by the web i18n config).
 export const Locale = z.enum(['en', 'zh'])
@@ -49,9 +50,26 @@ export const AccountSchema = z.object({
 })
 export type Account = z.infer<typeof AccountSchema>
 
-// Save a per-landlord Google Sheets target.
+// Save a per-landlord Google Sheets target. Accepts a bare id or a pasted
+// Sheets URL and ALWAYS stores the bare id — normalizing here is what makes
+// the UNIQUE index on `users.sheetSpreadsheetId` mean "one sheet per account"
+// (two spellings of one sheet would otherwise be two distinct strings and slip
+// past it). The cap is 500, not 200: a full share URL is longer than an id.
 export const SaveSheetSchema = z.object({
-  spreadsheetId: z.string().trim().min(1).max(200),
+  spreadsheetId: z
+    .string()
+    .max(500)
+    .transform((value, ctx) => {
+      const id = normalizeSpreadsheetId(value)
+      if (id === null) {
+        ctx.addIssue({
+          code: 'custom',
+          message: "That doesn't look like a Google Sheets ID or URL",
+        })
+        return z.NEVER
+      }
+      return id
+    }),
 })
 export type SaveSheetInput = z.infer<typeof SaveSheetSchema>
 

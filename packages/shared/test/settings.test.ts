@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { UpdateProfileSchema } from '../src/schemas/settings'
+import { UpdateProfileSchema, SaveSheetSchema } from '../src/schemas/settings'
 
 describe('UpdateProfileSchema', () => {
   it('accepts a trimmed first/last name', () => {
@@ -31,5 +31,35 @@ describe('UpdateProfileSchema', () => {
 
   it('rejects a malformed email', () => {
     expect(UpdateProfileSchema.safeParse({ email: 'not-an-email' }).success).toBe(false)
+  })
+})
+
+describe('SaveSheetSchema', () => {
+  const ID = '1AbCdEfGhIjKlMnOpQrStUvWxYz0123456789_-AbCd'
+
+  it('accepts a bare spreadsheet id', () => {
+    expect(SaveSheetSchema.parse({ spreadsheetId: ID }).spreadsheetId).toBe(ID)
+  })
+
+  it('stores the bare id when given a full URL', () => {
+    const parsed = SaveSheetSchema.parse({
+      spreadsheetId: `https://docs.google.com/spreadsheets/d/${ID}/edit#gid=0`,
+    })
+    expect(parsed.spreadsheetId).toBe(ID)
+  })
+
+  it('rejects input that is not an id or a URL', () => {
+    const result = SaveSheetSchema.safeParse({ spreadsheetId: 'my sheet' })
+    expect(result.success).toBe(false)
+    expect(result.error!.issues[0].message).toMatch(/Google Sheets ID or URL/)
+  })
+
+  it('rejects an empty value', () => {
+    expect(SaveSheetSchema.safeParse({ spreadsheetId: '' }).success).toBe(false)
+  })
+
+  it('accepts a URL long enough that the old 200-char cap would have rejected it', () => {
+    const long = `https://docs.google.com/spreadsheets/d/${ID}/edit?usp=sharing&${'x'.repeat(180)}`
+    expect(SaveSheetSchema.parse({ spreadsheetId: long }).spreadsheetId).toBe(ID)
   })
 })

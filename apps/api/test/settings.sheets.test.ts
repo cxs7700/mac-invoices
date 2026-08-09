@@ -17,6 +17,12 @@ vi.mock('../src/integrations/sheets', () => sheets)
 import { buildApp } from '../src/app'
 import { createSecondUser } from './helpers/auth'
 
+// Realistic Drive file ids — SaveSheetSchema rejects anything that isn't one,
+// and each is distinct because users.sheetSpreadsheetId is UNIQUE.
+const ID_SAVED = '1SettingsSheetsSavedAAAAAAAAAAAAAAAAAAAAAAAA'
+const ID_UNREACHABLE = '1SettingsSheetsUnreachableBBBBBBBBBBBBBBBBBB'
+const ID_TARGET = '1SettingsSheetsSyncNowCCCCCCCCCCCCCCCCCCCCCC'
+
 const app = buildApp()
 let u: Awaited<ReturnType<typeof createSecondUser>>
 
@@ -67,14 +73,14 @@ describe('Sheets settings', () => {
   })
 
   it('saves a target spreadsheet id and reflects it in status', async () => {
-    const res = await save('SHEET-ABC')
+    const res = await save(ID_SAVED)
     expect(res.statusCode).toBe(200)
-    expect(res.json().targetSpreadsheetId).toBe('SHEET-ABC')
-    expect((await app.prisma.user.findUniqueOrThrow({ where: { id: u.user.id } })).sheetSpreadsheetId).toBe('SHEET-ABC')
+    expect(res.json().targetSpreadsheetId).toBe(ID_SAVED)
+    expect((await app.prisma.user.findUniqueOrThrow({ where: { id: u.user.id } })).sheetSpreadsheetId).toBe(ID_SAVED)
   })
 
   it('test connection surfaces the share-as-Editor error, not a raw error (AE3)', async () => {
-    await save('UNREACHABLE')
+    await save(ID_UNREACHABLE)
     sheets.checkAccess.mockRejectedValueOnce(
       new AppError('SHEET_PERMISSION_DENIED', 'share it as Editor with the service-account email', 502),
     )
@@ -84,7 +90,7 @@ describe('Sheets settings', () => {
   })
 
   it('"Sync now" mirrors to the saved spreadsheet id', async () => {
-    await save('SAVED-TARGET')
+    await save(ID_TARGET)
     // Give the user an invoice so the mirror has a data row.
     await app.inject({
       method: 'POST',
@@ -101,6 +107,6 @@ describe('Sheets settings', () => {
     const res = await app.inject({ method: 'POST', url: '/api/invoices/export', payload: {}, headers: { cookie: cookie() } })
     expect(res.statusCode).toBe(200)
     expect(sheets.overwriteRows).toHaveBeenCalled()
-    expect(sheets.overwriteRows.mock.calls[0][0]).toBe('SAVED-TARGET') // targeted the saved id
+    expect(sheets.overwriteRows.mock.calls[0][0]).toBe(ID_TARGET) // targeted the saved id
   })
 })
