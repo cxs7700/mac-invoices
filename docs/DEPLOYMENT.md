@@ -126,29 +126,6 @@ DATABASE_URL="<prisma-postgres-url>" npm run db:deploy
 > and that would correctly fail if a second tenant had by then reused a number that collides globally —
 > which is the intended behavior, not a bug to work around.
 
-## 4. Seed the landlord (one-off, strong password)
-
-The seed upserts the landlord login and **fails closed** if `LANDLORD_PASSWORD` is unset, and
-refuses the `changeme-dev` default when `NODE_ENV=production`. Run it once against the target
-DB with a strong password (this also rotates the password if you reused the dev DB):
-
-> **Live deploy (2026-06-30):** the production Prisma Postgres (`db.prisma.io`) landlord login —
-> `landlord@example.com` — has already been rotated off `changeme-dev` to a strong random password.
-> The value is **not** stored in this repo (it lives only as an argon2 hash in the DB) — keep it in
-> a password manager. Re-run the command below to set your own value; it upserts the landlord and
-> leaves invoices untouched. Requires Node 24 (`.nvmrc`).
-
-```bash
-DATABASE_URL="<target-db-url>" LANDLORD_PASSWORD="<strong-secret>" \
-  LANDLORD_USER_ID=landlord_seed_user LANDLORD_EMAIL=you@example.com \
-  npm run db:seed
-```
-
-> **`LANDLORD_EMAIL` must be lowercase.** Email is normalized to trimmed lowercase at the
-> schema boundary for both login and signup, so an address seeded with uppercase cannot be
-> logged into. If an existing deploy has uppercase in `LANDLORD_EMAIL`, lowercase it and
-> re-run the seed when shipping this change.
-
 ### Contractor → Vendor rename (2026-08-07)
 
 Two migrations, applied in order, ship the `Contractor` → `Vendor` rename (`docs/DECISIONS.md`
@@ -222,6 +199,29 @@ migration from being transactional.
 **Rollback:** `DROP INDEX "users_sheetSpreadsheetId_key";` then
 `prisma migrate resolve --rolled-back 20260809120000_unique_sheet_target`.
 Dropping it reopens the cross-tenant wipe, so treat rollback as a last resort.
+
+## 4. Seed the landlord (one-off, strong password)
+
+The seed upserts the landlord login and **fails closed** if `LANDLORD_PASSWORD` is unset, and
+refuses the `changeme-dev` default when `NODE_ENV=production`. Run it once against the target
+DB with a strong password (this also rotates the password if you reused the dev DB):
+
+> **Live deploy (2026-06-30):** the production Prisma Postgres (`db.prisma.io`) landlord login —
+> `landlord@example.com` — has already been rotated off `changeme-dev` to a strong random password.
+> The value is **not** stored in this repo (it lives only as an argon2 hash in the DB) — keep it in
+> a password manager. Re-run the command below to set your own value; it upserts the landlord and
+> leaves invoices untouched. Requires Node 24 (`.nvmrc`).
+
+```bash
+DATABASE_URL="<target-db-url>" LANDLORD_PASSWORD="<strong-secret>" \
+  LANDLORD_USER_ID=landlord_seed_user LANDLORD_EMAIL=you@example.com \
+  npm run db:seed
+```
+
+> **`LANDLORD_EMAIL` must be lowercase.** Email is normalized to trimmed lowercase at the
+> schema boundary for both login and signup, so an address seeded with uppercase cannot be
+> logged into. If an existing deploy has uppercase in `LANDLORD_EMAIL`, lowercase it and
+> re-run the seed when shipping this change.
 
 ## 5. Set environment variables in Vercel
 
