@@ -1,29 +1,34 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { buildApp } from '../src/app'
 import { hashPassword } from '../src/auth/password'
-import { generateLinkToken, parseLinkToken, validateLinkToken } from '../src/vendors/token'
+import {
+  buildLinkToken,
+  newLookupId,
+  parseLinkToken,
+  validateLinkToken,
+} from '../src/vendors/token'
 
 // U4 link-token module: the bearer-credential primitive. Security-sensitive
 // contract — uniform failure (revoked == never-existed), constant-time compare,
-// hashed-at-rest — is exactly what these tests pin.
+// and (since DEC-033) nothing secret at rest: the secret is derived from
+// VENDOR_LINK_KEY rather than stored, which is what makes it re-displayable.
 const app = buildApp()
 let landlordId: string
 
-// Name varies per call: vendor names are now unique per landlord
+// Name varies per call: vendor names are unique per landlord
 // (case-insensitively — migration 20260807200000), and this file creates
 // several vendors under the one shared `landlordId`.
 async function makeVendor() {
-  const link = generateLinkToken()
+  const lookupId = newLookupId()
   const v = await app.prisma.vendor.create({
     data: {
       landlordId,
       name: `Joe-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       phone: 'x',
-      tokenLookupId: link.lookupId,
-      tokenHash: link.tokenHash,
+      tokenLookupId: lookupId,
     },
   })
-  return { vendor: v, link }
+  return { vendor: v, plaintext: buildLinkToken(lookupId, v.tokenVersion) }
 }
 
 beforeAll(async () => {
@@ -43,24 +48,49 @@ afterAll(async () => {
 })
 
 describe('U4 link token', () => {
-  it('a freshly generated token validates to its vendor + landlord', async () => {
-    const { vendor, link } = await makeVendor()
-    const resolved = await validateLinkToken(app.prisma, link.plaintext)
+  it('a derived token validates to its vendor + landlord', async () => {
+    const { vendor, plaintext } = await makeVendor()
+    const resolved = await validateLinkToken(app.prisma, plaintext)
     expect(resolved).toEqual({ vendorId: vendor.id, landlordId })
   })
 
-  it('stores only the hash, never the plaintext secret (hashed at rest)', async () => {
-    const { vendor, link } = await makeVendor()
+  it('stores no secret at all — only the non-secret lookup handle', async () => {
+    const { vendor, plaintext } = await makeVendor()
     const row = await app.prisma.vendor.findUniqueOrThrow({ where: { id: vendor.id } })
-    expect(row.tokenHash).toBe(link.tokenHash)
-    expect(link.plaintext).toContain(row.tokenLookupId)
-    expect(link.plaintext).not.toContain(row.tokenHash) // the hash is not in the link
+    expect(plaintext).toContain(row.tokenLookupId)
+    // Every persisted column may leak into a dump; none of them may contain the
+    // secret half of the token.
+    const secret = parseLinkToken(plaintext)!.secret
+    expect(JSON.stringify(row)).not.toContain(secret)
+  })
+
+  it('is stable across reads, so the same link can be copied again later', async () => {
+    const { vendor } = await makeVendor()
+    const row = await app.prisma.vendor.findUniqueOrThrow({ where: { id: vendor.id } })
+    const first = buildLinkToken(row.tokenLookupId, row.tokenVersion)
+    const second = buildLinkToken(row.tokenLookupId, row.tokenVersion)
+    expect(second).toBe(first)
+    expect(await validateLinkToken(app.prisma, second)).not.toBeNull()
+  })
+
+  it('bumping tokenVersion retires the previous link', async () => {
+    const { vendor, plaintext } = await makeVendor()
+    const updated = await app.prisma.vendor.update({
+      where: { id: vendor.id },
+      data: { tokenVersion: { increment: 1 } },
+    })
+    expect(await validateLinkToken(app.prisma, plaintext)).toBeNull()
+    const reissued = buildLinkToken(updated.tokenLookupId, updated.tokenVersion)
+    expect(await validateLinkToken(app.prisma, reissued)).toEqual({
+      vendorId: vendor.id,
+      landlordId,
+    })
   })
 
   it('a revoked token fails identically to a never-existing one (uniform null)', async () => {
-    const { vendor, link } = await makeVendor()
+    const { vendor, plaintext } = await makeVendor()
     await app.prisma.vendor.update({ where: { id: vendor.id }, data: { revokedAt: new Date() } })
-    const revoked = await validateLinkToken(app.prisma, link.plaintext)
+    const revoked = await validateLinkToken(app.prisma, plaintext)
     const neverExisted = await validateLinkToken(app.prisma, 'inv_doesnotexist_deadbeefsecret')
     expect(revoked).toBeNull()
     expect(neverExisted).toBeNull()
@@ -74,10 +104,17 @@ describe('U4 link token', () => {
     expect(parseLinkToken('bearer_abc_def')).toBeNull()
   })
 
-  it('a right lookupId with the wrong secret fails the hash compare', async () => {
-    const { link } = await makeVendor()
-    const parsed = parseLinkToken(link.plaintext)!
+  it('a right lookupId with the wrong secret fails the compare', async () => {
+    const { plaintext } = await makeVendor()
+    const parsed = parseLinkToken(plaintext)!
     const tampered = `inv_${parsed.lookupId}_${parsed.secret}TAMPERED`
     expect(await validateLinkToken(app.prisma, tampered)).toBeNull()
+  })
+
+  it("one vendor's token never validates as another's", async () => {
+    const a = await makeVendor()
+    const b = await makeVendor()
+    const crossed = `inv_${parseLinkToken(a.plaintext)!.lookupId}_${parseLinkToken(b.plaintext)!.secret}`
+    expect(await validateLinkToken(app.prisma, crossed)).toBeNull()
   })
 })

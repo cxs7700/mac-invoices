@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { InvoiceImageInputSchema, InvoiceStatus, MAX_INVOICE_IMAGES } from './invoice'
+import { formatPhone } from '../lib/formatPhone'
 
 const DAY_MS = 86_400_000
 
@@ -51,12 +52,18 @@ export type SubmissionStatus = z.infer<typeof SubmissionStatusSchema>
 // Phone and email are both optional columns, but at least one must be present
 // on a landlord-entered vendor. The DB keeps both nullable because the invoice
 // auto-create path deliberately writes a name-only vendor (see the plan's Task 5).
+// Phone is normalized at the schema boundary rather than only on display, so
+// one stored shape reaches every consumer — the list, the PDF, the Sheets
+// mirror — instead of each formatting it for itself. Numbers that aren't
+// 10-digit North-American are stored as typed (see formatPhone).
+const PhoneSchema = z.string().trim().min(1).max(50).transform(formatPhone)
+
 export const CreateVendorSchema = z
   .object({
     // Bounded to Invoice.vendorName (max 100) — the name is defaulted into a
     // submission's vendorName, so an over-long name would otherwise fail submit.
     name: z.string().trim().min(1).max(100),
-    phone: z.string().trim().min(1).max(50).optional(),
+    phone: PhoneSchema.optional(),
     email: z.string().trim().toLowerCase().email().max(200).optional(),
   })
   .refine((v) => v.phone != null || v.email != null, {
@@ -64,25 +71,35 @@ export const CreateVendorSchema = z
     path: ['phone'],
   })
 
+// Every field optional: this is also how a name-only auto-created vendor gets
+// its phone/email filled in after the fact. Explicit null clears a field.
 export const UpdateVendorSchema = z.object({
   name: z.string().trim().min(1).max(100).optional(),
-  phone: z.string().trim().min(1).max(50).optional(),
-  email: z.string().trim().toLowerCase().email().max(200).optional(),
+  phone: PhoneSchema.nullish(),
+  email: z.string().trim().toLowerCase().email().max(200).nullish(),
 })
 
-/** The vendor as the landlord lists/views them — never the token secret. */
+/**
+ * The vendor as the landlord lists/views them. `link` is the vendor's current
+ * submission URL, derived server-side on every read so it can be copied at any
+ * time (DEC-033); it is null once the link is revoked.
+ */
 export const VendorSchema = z.object({
   id: z.string(),
   name: z.string(),
   phone: z.string().nullable(),
   email: z.string().nullable(),
   linkActive: z.boolean(),
+  link: z.string().nullable(),
   lastUsedAt: z.coerce.date().nullable(),
   createdAt: z.coerce.date(),
 })
 
-/** create/regenerate responses carry the one-time plaintext link. */
-export const VendorWithLinkSchema = VendorSchema.extend({ link: z.string() })
+/**
+ * Retained as an alias: every vendor response now carries the link, so there is
+ * no separate "with link" shape.
+ */
+export const VendorWithLinkSchema = VendorSchema
 
 export type CreateVendorInput = z.infer<typeof CreateVendorSchema>
 export type UpdateVendorInput = z.infer<typeof UpdateVendorSchema>

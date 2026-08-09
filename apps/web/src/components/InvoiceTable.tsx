@@ -81,8 +81,21 @@ export function InvoiceTable({
                 </td>
               )}
               <td className={td}>
-                <Link to={`/invoices/${inv.id}`} className="font-medium text-primary">
-                  {inv.invoiceNumber}
+                {/*
+                  Vendor submissions carry no number until the landlord approves
+                  them, and an empty <Link> renders as an invisible, unclickable
+                  cell — which made every pending submission unreachable from
+                  this list. Always render a label so the row can be opened.
+                */}
+                <Link
+                  to={`/invoices/${inv.id}`}
+                  className="font-medium text-primary"
+                  aria-label={t('invoiceTable.openInvoice', {
+                    number: inv.invoiceNumber ?? t('invoiceTable.unnumbered'),
+                    vendor: inv.vendorName,
+                  })}
+                >
+                  {inv.invoiceNumber ?? t('invoiceTable.unnumbered')}
                 </Link>
               </td>
               <td className={`${td} max-w-xs truncate`}>{summarizeItems(inv.items)}</td>
@@ -93,7 +106,9 @@ export function InvoiceTable({
               <td className={td}>
                 <div className="flex items-center gap-2">
                   <StatusBadge status={inv.status} />
-                  {needsPhoto(inv.status, inv.imageCount) && <AddPhotoIndicator invoiceId={inv.id} />}
+                  {needsPhoto(inv.status, inv.imageCount) && (
+                    <AddPhotoIndicator invoiceId={inv.id} />
+                  )}
                 </div>
               </td>
               <td className={td}>

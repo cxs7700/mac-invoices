@@ -189,7 +189,6 @@ describe('vendor vs submittedByVendor response keys (list)', () => {
         name: 'Self Submit Vendor',
         phone: '555-0000',
         tokenLookupId: `lk-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        tokenHash: 'hash',
       },
     })
     const invoice = await app.prisma.invoice.create({

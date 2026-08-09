@@ -19,7 +19,7 @@ async function makeLandlord() {
 }
 async function makeVendor(landlordId: string, name: string) {
   return app.prisma.vendor.create({
-    data: { landlordId, name, phone: 'x', tokenLookupId: `lk-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, tokenHash: 'h' },
+    data: { landlordId, name, phone: 'x', tokenLookupId: `lk-${Date.now()}-${Math.random().toString(36).slice(2, 8)}` },
   })
 }
 const ev = (ownerUserId: string, vendorId: string, type: string, detail: object = {}) =>

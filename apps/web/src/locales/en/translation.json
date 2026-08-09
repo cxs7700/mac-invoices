@@ -151,6 +151,8 @@
   "invoiceTable": {
     "select": "Select",
     "selectInvoice": "Select invoice {{number}} — {{vendor}}",
+    "openInvoice": "Open invoice {{number}} — {{vendor}}",
+    "unnumbered": "Pending",
     "number": "#",
     "job": "Job",
     "partsOrdered": "Parts ordered",
@@ -381,14 +383,15 @@
   "vendorCard": {
     "linkActive": "Link active",
     "linkRevoked": "Link revoked",
-    "copyNow": "Copy this link now — it won't be shown again.",
     "copied": "Copied!",
     "copyLink": "Copy link",
-    "doneCopied": "Done — I copied it",
-    "regenerateLink": "Regenerate link",
-    "reissueLink": "Re-issue link",
-    "revoke": "Revoke",
-    "linkShownHint": "The link is shown only when created or regenerated."
+    "copyLinkFor": "Copy {{name}}'s submission link",
+    "editContact": "Edit {{name}}'s contact details",
+    "noContact": "No phone or email yet",
+    "reusableHint": "Send this same link any time — it doesn't expire.",
+    "revokedHint": "Revoked. Issuing a new link replaces the old one for good.",
+    "reissueLink": "Issue new link",
+    "revoke": "Revoke"
   },
   "notifications": {
     "title": "Notifications",

@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -7,7 +6,13 @@ import { CreateVendorSchema, type CreateVendorInput } from '@mac-invoices/shared
 import { ApiError } from '@/lib/apiClient'
 import { VendorLinkCard } from '@/components/VendorLinkCard'
 import { Button } from '@/components/ui/button'
-import { useVendors, useCreateVendor, useRevokeLink, useRegenerateLink } from '@/hooks/useVendors'
+import {
+  useVendors,
+  useCreateVendor,
+  useRevokeLink,
+  useReissueLink,
+  useUpdateVendor,
+} from '@/hooks/useVendors'
 
 const fieldClass = 'mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm'
 
@@ -18,12 +23,11 @@ export default function Vendors() {
   const { data, isPending, isError } = useVendors()
   const create = useCreateVendor()
   const revoke = useRevokeLink()
-  const regenerate = useRegenerateLink()
-
-  // vendorId -> one-time plaintext link (only right after create/regenerate).
-  const [revealed, setRevealed] = useState<Record<string, string>>({})
+  const reissue = useReissueLink()
+  const update = useUpdateVendor()
 
   const createError = create.error instanceof ApiError ? create.error.message : null
+  const updateError = update.error instanceof ApiError ? update.error.message : null
 
   const {
     register,
@@ -43,24 +47,11 @@ export default function Vendors() {
         phone: values.phone?.trim() || undefined,
         email: values.email?.trim() || undefined,
       },
-      {
-        onSuccess: (v) => {
-          setRevealed((r) => ({ ...r, [v.id]: v.link }))
-          reset()
-        },
-      },
+      { onSuccess: () => reset() },
     )
   })
-  const onRegenerate = (id: string) =>
-    regenerate.mutate(id, { onSuccess: (v) => setRevealed((r) => ({ ...r, [v.id]: v.link })) })
-  const dismiss = (id: string) =>
-    setRevealed((r) => {
-      const next = { ...r }
-      delete next[id]
-      return next
-    })
 
-  const busy = revoke.isPending || regenerate.isPending
+  const busy = revoke.isPending || reissue.isPending
   const vendors = data?.data ?? []
 
   return (
@@ -128,11 +119,12 @@ export default function Vendors() {
             <VendorLinkCard
               key={v.id}
               vendor={v}
-              revealedLink={revealed[v.id] ?? null}
-              onDismissReveal={() => dismiss(v.id)}
-              onRegenerate={() => onRegenerate(v.id)}
+              onSave={(values) => update.mutate({ id: v.id, ...values })}
+              onReissue={() => reissue.mutate(v.id)}
               onRevoke={() => revoke.mutate(v.id)}
               busy={busy}
+              saving={update.isPending && update.variables?.id === v.id}
+              saveError={update.variables?.id === v.id ? updateError : null}
             />
           ))}
         </ul>

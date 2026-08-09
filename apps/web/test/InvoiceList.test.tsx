@@ -348,6 +348,14 @@ describe('InvoiceList — PDF selection mode', () => {
     expect(screen.getByRole('checkbox', { name: 'Select invoice — — Bolt Co' })).toBeDefined()
   })
 
+  it('keeps an unnumbered invoice reachable — the link renders a label, not an empty cell', async () => {
+    renderList(vi.fn().mockResolvedValue(listResponse([{ ...rowB, invoiceNumber: null }])))
+    const link = await screen.findByRole('link', { name: 'Open invoice Pending — Bolt Co' })
+    expect(link.getAttribute('href')).toBe(`/invoices/${rowB.id}`)
+    // The visible cell must not be blank, or there is nothing to click.
+    expect(link.textContent?.trim()).not.toBe('')
+  })
+
   it('selection survives a page change and the counter keeps off-screen selections visible', async () => {
     const listMock = vi
       .fn()

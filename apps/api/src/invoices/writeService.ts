@@ -9,7 +9,8 @@ import type {
 import { MAX_INVOICE_IMAGES } from '@mac-invoices/shared'
 import { AppError } from '../middleware/errorHandler'
 import { isOwnedBy, deleteBlob } from '../integrations/storage'
-import { freshLinkData, isUniqueViolation } from '../vendors/handlers'
+import { isUniqueViolation } from '../vendors/handlers'
+import { newLookupId } from '../vendors/token'
 
 // --- Item totals (KTD: amount is a server-computed sum, Decimal-safe) ------
 // Sum in integer cents, not floats — each item's `total` is already
@@ -296,12 +297,18 @@ export async function resolveVendorId(
   // so the create is wrapped in a SAVEPOINT: on P2002 we roll back to it (not
   // the whole `tx`, which the caller still owns and needs to keep using) and
   // only then issue the re-read on the now-usable transaction.
-  const { columns } = freshLinkData()
   const savepoint = 'resolve_vendor_id_create'
   await tx.$executeRawUnsafe(`SAVEPOINT ${savepoint}`)
   try {
     const created = await tx.vendor.create({
-      data: { landlordId, name, phone: null, email: null, revokedAt: new Date(), ...columns },
+      data: {
+        landlordId,
+        name,
+        phone: null,
+        email: null,
+        revokedAt: new Date(),
+        tokenLookupId: newLookupId(),
+      },
     })
     return created.id
   } catch (err) {

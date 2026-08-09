@@ -151,6 +151,8 @@
   "invoiceTable": {
     "select": "选择",
     "selectInvoice": "选择发票 {{number}} — {{vendor}}",
+    "openInvoice": "打开发票 {{number}} — {{vendor}}",
+    "unnumbered": "待处理",
     "number": "#",
     "job": "项目",
     "partsOrdered": "已订购的零件",
@@ -381,14 +383,15 @@
   "vendorCard": {
     "linkActive": "链接有效",
     "linkRevoked": "链接已撤销",
-    "copyNow": "立即复制此链接 — 它不会再次显示。",
     "copied": "已复制",
     "copyLink": "复制链接",
-    "doneCopied": "完成 — 我已复制",
-    "regenerateLink": "重新生成链接",
-    "reissueLink": "重新签发链接",
-    "revoke": "撤销",
-    "linkShownHint": "链接仅在创建或重新生成时显示。"
+    "copyLinkFor": "复制 {{name}} 的提交链接",
+    "editContact": "编辑 {{name}} 的联系方式",
+    "noContact": "尚无电话或邮箱",
+    "reusableHint": "可随时重复发送此链接 — 它不会过期。",
+    "revokedHint": "已撤销。签发新链接将永久取代旧链接。",
+    "reissueLink": "签发新链接",
+    "revoke": "撤销"
   },
   "notifications": {
     "title": "通知",

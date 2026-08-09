@@ -2,7 +2,7 @@ import type { FastifyRequest, FastifyReply } from 'fastify'
 import { CreateVendorSchema, UpdateVendorSchema } from '@mac-invoices/shared'
 import { AppError } from '../middleware/errorHandler'
 import { parseBody } from '../lib/validate'
-import { generateLinkToken } from './token'
+import { buildLinkToken, newLookupId } from './token'
 import type { PrismaClient } from '../../prisma/generated/client.ts'
 
 type VendorRow = {
@@ -10,19 +10,27 @@ type VendorRow = {
   name: string
   phone: string | null
   email: string | null
+  tokenLookupId: string
+  tokenVersion: number
   revokedAt: Date | null
   lastUsedAt: Date | null
   createdAt: Date
 }
 
-/** Landlord-facing shape — never the token secret/hash, only whether it's live. */
+/**
+ * Landlord-facing shape. `link` is derived on every read so the landlord can
+ * copy it whenever they like (DEC-033); it is null for a revoked vendor, where
+ * handing back a string that no longer works would only mislead.
+ */
 function toVendor(v: VendorRow) {
+  const active = v.revokedAt === null
   return {
     id: v.id,
     name: v.name,
     phone: v.phone,
     email: v.email,
-    linkActive: v.revokedAt === null,
+    linkActive: active,
+    link: active ? linkUrl(buildLinkToken(v.tokenLookupId, v.tokenVersion)) : null,
     lastUsedAt: v.lastUsedAt,
     createdAt: v.createdAt,
   }
@@ -32,15 +40,6 @@ function toVendor(v: VendorRow) {
 function linkUrl(plaintext: string): string {
   const base = process.env.WEB_ORIGIN ?? 'http://localhost:5173'
   return `${base}/submit/${plaintext}`
-}
-
-/** Build a fresh vendor link's stored columns. */
-export function freshLinkData() {
-  const link = generateLinkToken()
-  return {
-    columns: { tokenLookupId: link.lookupId, tokenHash: link.tokenHash },
-    plaintext: link.plaintext,
-  }
 }
 
 type Params = { id: string }
@@ -60,21 +59,33 @@ async function ownVendor(prisma: PrismaClient, id: string, landlordId: string) {
 
 /**
  * POST /api/vendors — add a vendor and mint their link in one step (the
- * row requires a token). Returns the vendor plus the one-time plaintext link.
+ * row requires a lookup handle). The link comes back on the response like any
+ * other read, since it is derived rather than shown once.
  */
 export async function createVendor(request: FastifyRequest, reply: FastifyReply) {
   const input = parseBody(CreateVendorSchema, request.body)
-  const { columns, plaintext } = freshLinkData()
-  const v = await request.server.prisma.vendor.create({
-    data: {
-      landlordId: request.user.id,
-      name: input.name,
-      phone: input.phone ?? null,
-      email: input.email ?? null,
-      ...columns,
-    },
-  })
-  return reply.code(201).send({ ...toVendor(v), link: linkUrl(plaintext) })
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const v = await request.server.prisma.vendor.create({
+        data: {
+          landlordId: request.user.id,
+          name: input.name,
+          phone: input.phone ?? null,
+          email: input.email ?? null,
+          tokenLookupId: newLookupId(),
+        },
+      })
+      return reply.code(201).send(toVendor(v))
+    } catch (err) {
+      // Retry only a lookupId collision; a duplicate vendor name is also P2002
+      // and must surface to the caller rather than spin.
+      const onLookupId =
+        isUniqueViolation(err) &&
+        JSON.stringify((err as { meta?: unknown }).meta ?? '').includes('tokenLookupId')
+      if (onLookupId && attempt < 4) continue
+      throw err
+    }
+  }
 }
 
 /** GET /api/vendors — the landlord's vendors, newest first. */
@@ -125,27 +136,22 @@ export async function revokeLink(request: FastifyRequest<{ Params: Params }>, re
 }
 
 /**
- * POST /api/vendors/:id/regenerate — rotate the link: a new lookupId + hash
- * replace the old (which becomes inert) and any revocation is cleared, in one
- * update. Returns the new one-time plaintext link. Retries the rare lookupId
- * collision.
+ * POST /api/vendors/:id/regenerate — issue a replacement link: bumping
+ * `tokenVersion` changes the derived secret, so the previous URL stops
+ * validating, and any revocation is cleared in the same update.
+ *
+ * This is no longer part of the everyday flow — a vendor keeps one stable link
+ * they can be sent again and again. It exists for the deliberate
+ * revoke-then-reissue path, which is the only way to replace a leaked link.
  */
 export async function regenerateLink(
   request: FastifyRequest<{ Params: Params }>,
   reply: FastifyReply,
 ) {
   await ownVendor(request.server.prisma, request.params.id, request.user.id)
-  for (let attempt = 0; ; attempt++) {
-    const { columns, plaintext } = freshLinkData()
-    try {
-      const v = await request.server.prisma.vendor.update({
-        where: { id: request.params.id },
-        data: { ...columns, revokedAt: null },
-      })
-      return reply.send({ ...toVendor(v), link: linkUrl(plaintext) })
-    } catch (err) {
-      if (isUniqueViolation(err) && attempt < 4) continue
-      throw err
-    }
-  }
+  const v = await request.server.prisma.vendor.update({
+    where: { id: request.params.id },
+    data: { tokenVersion: { increment: 1 }, revokedAt: null },
+  })
+  return reply.send(toVendor(v))
 }
