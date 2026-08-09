@@ -10,6 +10,7 @@ import {
   type CreateInvoiceInput,
 } from '@mac-invoices/shared'
 import { Button } from '@/components/ui/button'
+import { VendorCombobox } from '@/components/VendorCombobox'
 import { useProperties } from '@/hooks/useProperties'
 import { useVendors } from '@/hooks/useVendors'
 import { formatMoney } from '@/lib/format'
@@ -71,6 +72,7 @@ export function InvoiceForm({
     },
   })
   const { fields, append, remove } = useFieldArray({ control, name: 'items' })
+  const watchedVendorName = watch('vendorName')
   const watchedItems = watch('items')
   const computedTotal = (watchedItems ?? []).reduce(
     (sum, item) => sum + (Number(item?.total) || 0),
@@ -87,12 +89,12 @@ export function InvoiceForm({
         <label htmlFor="vendorName" className="block text-sm font-medium mb-1">
           {t('invoiceForm.vendor')}
         </label>
-        <input
+        <VendorCombobox
           id="vendorName"
-          list="vendor-options"
-          autoComplete="off"
+          value={watchedVendorName ?? ''}
+          vendors={vendors}
           className={fieldClass}
-          {...register('vendorName', {
+          field={register('vendorName', {
             // Typing after a pick must drop the stale id, or the invoice would
             // be linked to a vendor whose name no longer matches what was
             // typed. Matched by exact string equality — the server already
@@ -103,12 +105,11 @@ export function InvoiceForm({
               setValue('vendorId', match?.id, { shouldDirty: true })
             },
           })}
+          onPick={(v) => {
+            setValue('vendorName', v.name, { shouldDirty: true, shouldValidate: true })
+            setValue('vendorId', v.id, { shouldDirty: true })
+          }}
         />
-        <datalist id="vendor-options">
-          {vendors.map((v) => (
-            <option key={v.id} value={v.name} />
-          ))}
-        </datalist>
         <input type="hidden" {...register('vendorId')} />
         {errors.vendorName && (
           <p className="mt-1 text-sm text-destructive">{errors.vendorName.message}</p>

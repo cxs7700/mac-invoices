@@ -253,6 +253,10 @@
   },
   "invoiceForm": {
     "vendor": "供应商",
+    "vendorToggle": "显示供应商",
+    "vendorListLabel": "已保存的供应商",
+    "vendorNoneSaved": "尚未保存供应商 — 输入名称即可新建。",
+    "vendorNoMatch": "无匹配项 — 继续输入可新建供应商。",
     "items": {
       "title": "项目",
       "description": "说明",

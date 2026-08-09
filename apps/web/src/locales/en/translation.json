@@ -253,6 +253,10 @@
   },
   "invoiceForm": {
     "vendor": "Vendor",
+    "vendorToggle": "Show vendors",
+    "vendorListLabel": "Saved vendors",
+    "vendorNoneSaved": "No saved vendors yet — type a name to create one.",
+    "vendorNoMatch": "No match — type to create a new vendor.",
     "items": {
       "title": "Items",
       "description": "Description",

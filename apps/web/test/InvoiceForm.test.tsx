@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { InvoiceForm } from '@/components/InvoiceForm'
 
 vi.mock('@/hooks/useProperties', () => ({
@@ -164,19 +164,116 @@ describe('InvoiceForm', () => {
   })
 
   describe('vendor picker', () => {
-    it('suggests saved vendors and sets vendorId when one is picked', async () => {
+    /**
+     * Scoped to the popup: the category and property <select>s also contain
+     * role="option" elements, so an unscoped query would count those too.
+     */
+    function vendorOptionNames() {
+      const list = screen.queryByRole('listbox')
+      return list === null
+        ? null
+        : within(list)
+            .queryAllByRole('option')
+            .map((o) => o.textContent)
+    }
+    const vendorInput = () => screen.getByLabelText('Vendor') as HTMLInputElement
+
+    it('opens a dropdown of every saved vendor on click, before anything is typed', () => {
+      renderInvoiceForm({
+        vendors: [
+          { id: 'v1', name: 'Ace Plumbing' },
+          { id: 'v2', name: 'Best Electric' },
+        ],
+      })
+
+      // Closed until asked for — no stray listbox in the initial render.
+      expect(vendorOptionNames()).toBeNull()
+
+      fireEvent.click(vendorInput())
+
+      expect(vendorOptionNames()).toEqual(['Ace Plumbing', 'Best Electric'])
+    })
+
+    it('sets vendorName and vendorId when an option is clicked', async () => {
       renderInvoiceForm({ vendors: [{ id: 'v1', name: 'Ace Plumbing' }] })
 
-      // The datalist offers the saved vendor as a suggestion.
-      const option = document.querySelector('#vendor-options option[value="Ace Plumbing"]')
-      expect(option).not.toBeNull()
+      fireEvent.click(vendorInput())
+      fireEvent.click(within(screen.getByRole('listbox')).getByText('Ace Plumbing'))
 
-      // Picking a datalist option sets the input's value and fires a change
-      // event, exactly like typing — simulate that directly.
-      fill('Vendor', 'Ace Plumbing')
+      // The list closes and the pick lands in the field itself.
+      expect(vendorOptionNames()).toBeNull()
+      expect(vendorInput().value).toBe('Ace Plumbing')
 
       await submitForm()
       expect(submitted()).toMatchObject({ vendorName: 'Ace Plumbing', vendorId: 'v1' })
+    })
+
+    it('filters the dropdown as the user types', () => {
+      renderInvoiceForm({
+        vendors: [
+          { id: 'v1', name: 'Ace Plumbing' },
+          { id: 'v2', name: 'Best Electric' },
+        ],
+      })
+
+      fill('Vendor', 'elec')
+
+      expect(vendorOptionNames()).toEqual(['Best Electric'])
+    })
+
+    it('reopens with the full list after a pick, not just the matched row', () => {
+      renderInvoiceForm({
+        vendors: [
+          { id: 'v1', name: 'Ace Plumbing' },
+          { id: 'v2', name: 'Best Electric' },
+        ],
+      })
+
+      fireEvent.click(vendorInput())
+      fireEvent.click(within(screen.getByRole('listbox')).getByText('Ace Plumbing'))
+      fireEvent.click(vendorInput())
+
+      expect(vendorOptionNames()).toEqual(['Ace Plumbing', 'Best Electric'])
+    })
+
+    it('picks the highlighted option with the keyboard', async () => {
+      renderInvoiceForm({
+        vendors: [
+          { id: 'v1', name: 'Ace Plumbing' },
+          { id: 'v2', name: 'Best Electric' },
+        ],
+      })
+
+      const input = vendorInput()
+      fireEvent.keyDown(input, { key: 'ArrowDown' }) // opens, highlights first
+      fireEvent.keyDown(input, { key: 'ArrowDown' }) // moves to second
+      fireEvent.keyDown(input, { key: 'Enter' })
+
+      expect(input.value).toBe('Best Electric')
+      await submitForm()
+      expect(submitted()).toMatchObject({ vendorName: 'Best Electric', vendorId: 'v2' })
+    })
+
+    it('closes on Escape without clearing what was typed', () => {
+      renderInvoiceForm({ vendors: [{ id: 'v1', name: 'Ace Plumbing' }] })
+
+      const input = vendorInput()
+      fill('Vendor', 'Ace')
+      expect(vendorOptionNames()).toEqual(['Ace Plumbing'])
+
+      fireEvent.keyDown(input, { key: 'Escape' })
+
+      expect(vendorOptionNames()).toBeNull()
+      expect(input.value).toBe('Ace')
+    })
+
+    it('tells the user how to proceed when there are no saved vendors', () => {
+      renderInvoiceForm({ vendors: [] })
+
+      fireEvent.click(vendorInput())
+
+      expect(vendorOptionNames()).toEqual([])
+      expect(screen.getByText(/no saved vendors yet/i)).not.toBeNull()
     })
 
     it('allows a name that matches no saved vendor and sends no vendorId', async () => {
