@@ -21,11 +21,14 @@ afterAll(async () => {
 const change = (payload: object, c = u.cookie) =>
   app.inject({ method: 'POST', url: '/api/settings/password', payload, headers: { cookie: c } })
 const meOk = async (c: string) =>
-  (await app.inject({ method: 'GET', url: '/api/auth/me', headers: { cookie: c } })).statusCode === 200
+  (await app.inject({ method: 'GET', url: '/api/auth/me', headers: { cookie: c } })).statusCode ===
+  200
 
 describe('POST /api/settings/password', () => {
   it('401s without auth', async () => {
-    expect((await app.inject({ method: 'POST', url: '/api/settings/password', payload: {} })).statusCode).toBe(401)
+    expect(
+      (await app.inject({ method: 'POST', url: '/api/settings/password', payload: {} })).statusCode,
+    ).toBe(401)
   })
 
   it('rejects a wrong current password (401), password unchanged', async () => {
@@ -46,15 +49,34 @@ describe('POST /api/settings/password', () => {
     expect(await meOk(sessionA)).toBe(true)
     expect(await meOk(sessionB)).toBe(true)
 
-    const res = await change({ currentPassword: PASSWORD, newPassword: 'a-brand-new-pw-123' }, sessionA)
+    const res = await change(
+      { currentPassword: PASSWORD, newPassword: 'a-brand-new-pw-123' },
+      sessionA,
+    )
     expect(res.statusCode).toBe(204)
 
     // Current session survives; the other is invalidated.
     expect(await meOk(sessionA)).toBe(true)
     expect(await meOk(sessionB)).toBe(false)
     // The new password authenticates; the old one no longer does.
-    expect((await app.inject({ method: 'POST', url: '/api/auth/login', payload: { email: u.user.email, password: 'a-brand-new-pw-123' } })).statusCode).toBe(200)
-    expect((await app.inject({ method: 'POST', url: '/api/auth/login', payload: { email: u.user.email, password: PASSWORD } })).statusCode).toBe(401)
+    expect(
+      (
+        await app.inject({
+          method: 'POST',
+          url: '/api/auth/login',
+          payload: { email: u.user.email, password: 'a-brand-new-pw-123' },
+        })
+      ).statusCode,
+    ).toBe(200)
+    expect(
+      (
+        await app.inject({
+          method: 'POST',
+          url: '/api/auth/login',
+          payload: { email: u.user.email, password: PASSWORD },
+        })
+      ).statusCode,
+    ).toBe(401)
   })
 
   it('rate-limits repeated attempts (429 within the window)', async () => {

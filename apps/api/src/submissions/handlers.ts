@@ -8,11 +8,7 @@ import { AppError } from '../middleware/errorHandler'
 import { parseBody } from '../lib/validate'
 import { validateLinkToken } from '../vendors/token'
 import { issueUploadToken } from '../integrations/storage'
-import {
-  createSubmission,
-  vendorUpdateSubmission,
-  vendorBlobOwner,
-} from '../invoices/writeService'
+import { createSubmission, vendorUpdateSubmission, vendorBlobOwner } from '../invoices/writeService'
 
 // Public (no-session) endpoints authorized purely by the link token. Every
 // failure to resolve the token returns the SAME opaque 404 ("link no longer

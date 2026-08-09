@@ -38,9 +38,16 @@ function setup(getStatus = 200) {
     const method = init?.method ?? 'GET'
     if (method === 'PATCH') return Promise.resolve(json(200, { ...invoice, status: 'PAID' }))
     if (method === 'DELETE')
-      return Promise.resolve({ ok: true, status: 204, headers: { get: () => null }, text: async () => '' })
+      return Promise.resolve({
+        ok: true,
+        status: 204,
+        headers: { get: () => null },
+        text: async () => '',
+      })
     return Promise.resolve(
-      getStatus === 200 ? json(200, invoice) : json(404, { error: { code: 'NOT_FOUND', message: 'x' } }),
+      getStatus === 200
+        ? json(200, invoice)
+        : json(404, { error: { code: 'NOT_FOUND', message: 'x' } }),
     )
   })
   vi.stubGlobal('fetch', fetchMock)

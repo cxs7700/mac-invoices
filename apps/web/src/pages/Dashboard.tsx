@@ -24,11 +24,21 @@ export default function Dashboard() {
   const catRows = summary.byCategory
     .filter((c) => c.count > 0)
     .sort((a, b) => parseFloat(b.amount) - parseFloat(a.amount))
-    .map((c) => ({ key: c.category, label: t(`category.${c.category}`), amount: c.amount, count: c.count }))
+    .map((c) => ({
+      key: c.category,
+      label: t(`category.${c.category}`),
+      amount: c.amount,
+      count: c.count,
+    }))
 
   const statRows = summary.byStatus
     .filter((s) => s.count > 0)
-    .map((s) => ({ key: s.status, label: t(`status.${s.status}`), amount: s.amount, count: s.count }))
+    .map((s) => ({
+      key: s.status,
+      label: t(`status.${s.status}`),
+      amount: s.amount,
+      count: s.count,
+    }))
 
   return (
     <div className="space-y-6">
@@ -92,7 +102,15 @@ function Stat({ label, value }: { label: string; value: string }) {
   )
 }
 
-function Card({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
+function Card({
+  title,
+  action,
+  children,
+}: {
+  title: string
+  action?: ReactNode
+  children: ReactNode
+}) {
   return (
     <div className="rounded-lg border border-border bg-card p-5">
       <div className="mb-3 flex items-center justify-between">

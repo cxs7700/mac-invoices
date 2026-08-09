@@ -67,7 +67,9 @@ describe('FilterBar', () => {
   it('shows Clear filters only when a filter is active', () => {
     const { rerender } = render(<FilterBar filters={base} onChange={vi.fn()} onClear={vi.fn()} />)
     expect(screen.queryByText('Clear filters')).toBeNull()
-    rerender(<FilterBar filters={{ ...base, status: 'PAID' }} onChange={vi.fn()} onClear={vi.fn()} />)
+    rerender(
+      <FilterBar filters={{ ...base, status: 'PAID' }} onChange={vi.fn()} onClear={vi.fn()} />,
+    )
     expect(screen.getByText('Clear filters')).toBeDefined()
   })
 

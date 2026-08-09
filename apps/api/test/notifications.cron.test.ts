@@ -1,7 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest'
 
 // Mock the flush — this test is about the CRON_SECRET gate, not flush behavior.
-const runDigestFlush = vi.hoisted(() => vi.fn(async () => ({ landlords: 0, events: 0, sent: 0, failed: 0 })))
+const runDigestFlush = vi.hoisted(() =>
+  vi.fn(async () => ({ landlords: 0, events: 0, sent: 0, failed: 0 })),
+)
 vi.mock('../src/notifications/digest', () => ({ runDigestFlush }))
 
 import { buildApp } from '../src/app'
@@ -11,9 +13,17 @@ const SECRET = 'test-cron-secret'
 const post = (headers: Record<string, string> = {}) =>
   app.inject({ method: 'POST', url: '/api/cron/notify-digest', headers })
 
-beforeAll(async () => { await app.ready() })
-beforeEach(() => { vi.clearAllMocks(); process.env.CRON_SECRET = SECRET })
-afterAll(async () => { delete process.env.CRON_SECRET; await app.close() })
+beforeAll(async () => {
+  await app.ready()
+})
+beforeEach(() => {
+  vi.clearAllMocks()
+  process.env.CRON_SECRET = SECRET
+})
+afterAll(async () => {
+  delete process.env.CRON_SECRET
+  await app.close()
+})
 
 describe('POST /api/cron/notify-digest', () => {
   it('401s with no Authorization header and does not run the flush', async () => {

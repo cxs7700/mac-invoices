@@ -29,6 +29,12 @@ const renderPage = () =>
     </MemoryRouter>,
   )
 
+/** The form starts with one blank line item; fill it in. */
+function fillFirstLine(description: string, total: string) {
+  fireEvent.change(screen.getByPlaceholderText('Description'), { target: { value: description } })
+  fireEvent.change(screen.getByPlaceholderText('Total'), { target: { value: total } })
+}
+
 const submitMock = { mutate: vi.fn(), isPending: false, error: null as unknown }
 
 describe('VendorSubmit', () => {
@@ -53,13 +59,13 @@ describe('VendorSubmit', () => {
     })
     renderPage()
     expect(screen.getByText('This link is no longer active')).toBeDefined()
-    expect(screen.queryByLabelText('Amount')).toBeNull()
+    expect(screen.queryByLabelText('Description')).toBeNull()
   })
 
   it('renders the submit form + empty state for a valid token with no submissions', () => {
     useSubmissionStatus.mockReturnValue({ isPending: false, isError: false, data: { data: [] } })
     renderPage()
-    expect(screen.getByLabelText('Amount')).toBeDefined()
+    expect(screen.getByLabelText('Description')).toBeDefined()
     expect(screen.getByText(/no submissions yet/i)).toBeDefined()
     // Submit is disabled with no photo/values.
     expect((screen.getByRole('button', { name: 'Submit' }) as HTMLButtonElement).disabled).toBe(
@@ -108,9 +114,8 @@ describe('VendorSubmit', () => {
     uploadSubmissionPhoto.mockResolvedValue('https://blob.example/owners/c/p.jpg')
     const { container } = renderPage()
 
-    fireEvent.change(screen.getByLabelText('Amount'), { target: { value: '120' } })
+    fillFirstLine('Fixed a leak', '120')
     fireEvent.change(screen.getByLabelText('Date'), { target: { value: '2026-06-01' } })
-    fireEvent.change(screen.getByLabelText('Description'), { target: { value: 'Fixed a leak' } })
 
     // Upload a photo via the hidden file input (the second one — camera, then file).
     const fileInput = container.querySelectorAll('input[type="file"]')[1] as HTMLInputElement
@@ -126,8 +131,7 @@ describe('VendorSubmit', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
     expect(submitMock.mutate).toHaveBeenCalledWith(
       expect.objectContaining({
-        amount: 120,
-        description: 'Fixed a leak',
+        items: [{ description: 'Fixed a leak', quantity: 1, total: 120 }],
         invoiceDate: '2026-06-01',
         images: [{ url: 'https://blob.example/owners/c/p.jpg', type: 'OTHER' }],
       }),
@@ -140,9 +144,8 @@ describe('VendorSubmit', () => {
     uploadSubmissionPhoto.mockResolvedValue('https://blob.example/owners/c/p.jpg')
     const { container } = renderPage()
 
-    fireEvent.change(screen.getByLabelText('Amount'), { target: { value: '120' } })
+    fillFirstLine('Fixed a leak', '120')
     fireEvent.change(screen.getByLabelText('Date'), { target: { value: '2026-06-01' } })
-    fireEvent.change(screen.getByLabelText('Description'), { target: { value: 'Fixed a leak' } })
     const fileInput = container.querySelectorAll('input[type="file"]')[1] as HTMLInputElement
     fireEvent.change(fileInput, {
       target: { files: [new File(['x'], 'p.png', { type: 'image/png' })] },
@@ -157,6 +160,71 @@ describe('VendorSubmit', () => {
       expect.objectContaining({
         images: [{ url: 'https://blob.example/owners/c/p.jpg', type: 'PARTS' }],
       }),
+      expect.anything(),
+    )
+  })
+
+  it('itemizes: adds a line, totals them, and sends every line', async () => {
+    useSubmissionStatus.mockReturnValue({ isPending: false, isError: false, data: { data: [] } })
+    uploadSubmissionPhoto.mockResolvedValue('https://blob.example/owners/c/p.jpg')
+    const { container } = renderPage()
+
+    fillFirstLine('Labour', '150')
+    fireEvent.click(screen.getByRole('button', { name: 'Add line' }))
+    const descriptions = screen.getAllByPlaceholderText('Description')
+    const totals = screen.getAllByPlaceholderText('Total')
+    fireEvent.change(descriptions[1], { target: { value: 'Valve' } })
+    fireEvent.change(totals[1], { target: { value: '25.50' } })
+    fireEvent.change(screen.getByLabelText('Date'), { target: { value: '2026-06-01' } })
+
+    // The running total mirrors the landlord form.
+    expect(screen.getByText('$175.50')).toBeDefined()
+
+    const fileInput = container.querySelectorAll('input[type="file"]')[1] as HTMLInputElement
+    fireEvent.change(fileInput, {
+      target: { files: [new File(['x'], 'p.png', { type: 'image/png' })] },
+    })
+    await waitFor(() =>
+      expect((screen.getByRole('button', { name: 'Submit' }) as HTMLButtonElement).disabled).toBe(
+        false,
+      ),
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
+    expect(submitMock.mutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        items: [
+          { description: 'Labour', quantity: 1, total: 150 },
+          { description: 'Valve', quantity: 1, total: 25.5 },
+        ],
+      }),
+      expect.anything(),
+    )
+  })
+
+  it('sends notes and parts ordered when filled', async () => {
+    useSubmissionStatus.mockReturnValue({ isPending: false, isError: false, data: { data: [] } })
+    uploadSubmissionPhoto.mockResolvedValue('https://blob.example/owners/c/p.jpg')
+    const { container } = renderPage()
+
+    fillFirstLine('Fixed a leak', '120')
+    fireEvent.change(screen.getByLabelText('Date'), { target: { value: '2026-06-01' } })
+    fireEvent.change(screen.getByLabelText('Notes'), { target: { value: 'Gate code 1234' } })
+    fireEvent.change(screen.getByLabelText('Parts ordered'), { target: { value: 'Cartridge' } })
+
+    const fileInput = container.querySelectorAll('input[type="file"]')[1] as HTMLInputElement
+    fireEvent.change(fileInput, {
+      target: { files: [new File(['x'], 'p.png', { type: 'image/png' })] },
+    })
+    await waitFor(() =>
+      expect((screen.getByRole('button', { name: 'Submit' }) as HTMLButtonElement).disabled).toBe(
+        false,
+      ),
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
+    expect(submitMock.mutate).toHaveBeenCalledWith(
+      expect.objectContaining({ notes: 'Gate code 1234', partsOrdered: 'Cartridge' }),
       expect.anything(),
     )
   })

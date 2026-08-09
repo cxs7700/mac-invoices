@@ -8,9 +8,21 @@ const hoursAgo = (h: number) => new Date(NOW - h * 3600_000)
 // A referenced blob (has an InvoiceImage row), a stale orphan (old, no row), and a
 // fresh not-yet-attached upload (no row but within the grace window).
 const blobs: StoredBlob[] = [
-  { url: 'https://blob/owners/u1/referenced.jpg', pathname: 'owners/u1/referenced.jpg', uploadedAt: hoursAgo(48) },
-  { url: 'https://blob/owners/u1/stale-orphan.jpg', pathname: 'owners/u1/stale-orphan.jpg', uploadedAt: hoursAgo(48) },
-  { url: 'https://blob/owners/u1/fresh-upload.jpg', pathname: 'owners/u1/fresh-upload.jpg', uploadedAt: hoursAgo(1) },
+  {
+    url: 'https://blob/owners/u1/referenced.jpg',
+    pathname: 'owners/u1/referenced.jpg',
+    uploadedAt: hoursAgo(48),
+  },
+  {
+    url: 'https://blob/owners/u1/stale-orphan.jpg',
+    pathname: 'owners/u1/stale-orphan.jpg',
+    uploadedAt: hoursAgo(48),
+  },
+  {
+    url: 'https://blob/owners/u1/fresh-upload.jpg',
+    pathname: 'owners/u1/fresh-upload.jpg',
+    uploadedAt: hoursAgo(1),
+  },
 ]
 
 function deps(over: Partial<Parameters<typeof sweepOrphanBlobs>[0]> = {}) {
@@ -48,12 +60,23 @@ describe('sweepOrphanBlobs', () => {
   it('reclaims orphans only with --apply (best-effort across failures)', async () => {
     const d = deps({
       listAllBlobs: vi.fn(async () => [
-        { url: 'https://blob/owners/u1/a.jpg', pathname: 'owners/u1/a.jpg', uploadedAt: hoursAgo(48) },
-        { url: 'https://blob/owners/u1/b.jpg', pathname: 'owners/u1/b.jpg', uploadedAt: hoursAgo(48) },
+        {
+          url: 'https://blob/owners/u1/a.jpg',
+          pathname: 'owners/u1/a.jpg',
+          uploadedAt: hoursAgo(48),
+        },
+        {
+          url: 'https://blob/owners/u1/b.jpg',
+          pathname: 'owners/u1/b.jpg',
+          uploadedAt: hoursAgo(48),
+        },
       ]),
       prisma: { invoiceImage: { findMany: vi.fn(async () => []) } },
       // First delete fails; the sweep must continue to the second.
-      deleteBlob: vi.fn().mockRejectedValueOnce(new Error('storage down')).mockResolvedValue(undefined),
+      deleteBlob: vi
+        .fn()
+        .mockRejectedValueOnce(new Error('storage down'))
+        .mockResolvedValue(undefined),
     } as unknown as Parameters<typeof sweepOrphanBlobs>[0])
 
     const r = await sweepOrphanBlobs(d, { apply: true, now: NOW })
@@ -67,7 +90,11 @@ describe('sweepOrphanBlobs', () => {
   it('treats a blob referenced by a bare-pathname row as referenced (path canonicalization)', async () => {
     const d = deps({
       listAllBlobs: vi.fn(async () => [
-        { url: 'https://blob/owners/u1/x.jpg', pathname: 'owners/u1/x.jpg', uploadedAt: hoursAgo(48) },
+        {
+          url: 'https://blob/owners/u1/x.jpg',
+          pathname: 'owners/u1/x.jpg',
+          uploadedAt: hoursAgo(48),
+        },
       ]),
       // Row stores a bare pathname rather than a full URL — must still match.
       prisma: { invoiceImage: { findMany: vi.fn(async () => [{ url: 'owners/u1/x.jpg' }]) } },

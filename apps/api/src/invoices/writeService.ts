@@ -396,33 +396,35 @@ export async function createInvoice(
 export async function createSubmission(
   prisma: PrismaClient,
   args: { ownerUserId: string; vendorId: string; vendorName: string },
-  input: { amount: number; description: string; invoiceDate: Date; images: InvoiceImageInput[] },
+  input: {
+    items: InvoiceItemInput[]
+    invoiceDate: Date
+    notes?: string
+    partsOrdered?: string
+    images: InvoiceImageInput[]
+  },
 ) {
   const actorId = vendorActorId(args.vendorId)
   const blobOwner = vendorBlobOwner(args.vendorId)
   for (const image of input.images) gateImageRef(image.url, blobOwner)
   return prisma.$transaction(async (tx) => {
-    // R6: the public vendor form stays single amount+description — stored
-    // as one InvoiceItem (quantity 1, total = amount), matching the shape
-    // every pre-items invoice was backfilled into.
+    // The vendor form is itemized like the landlord's, so the amount is summed
+    // from the lines here rather than trusted from the client — the same rule
+    // createInvoice follows.
     const invoice = await tx.invoice.create({
       data: {
         invoiceNumber: null,
         vendorName: args.vendorName,
-        amount: input.amount,
+        amount: sumItemTotals(input.items),
         category: null,
         invoiceDate: input.invoiceDate,
+        notes: input.notes ?? null,
+        partsOrdered: input.partsOrdered ?? null,
         status: 'SUBMITTED',
         user: { connect: { id: args.ownerUserId } },
         submittedByVendor: { connect: { id: args.vendorId } },
         vendor: { connect: { id: args.vendorId } },
-        items: {
-          createMany: {
-            data: [
-              { description: input.description, quantity: 1, total: input.amount, sortOrder: 0 },
-            ],
-          },
-        },
+        items: { createMany: { data: nestedItemRows(input.items) } },
       },
       include: { user: userSelect, items: { orderBy: { sortOrder: 'asc' } } },
     })
@@ -455,7 +457,13 @@ export async function createSubmission(
 export async function vendorUpdateSubmission(
   prisma: PrismaClient,
   args: { vendorId: string; invoiceId: string },
-  input: { amount?: number; description?: string; invoiceDate?: Date; withdraw?: boolean },
+  input: {
+    items?: InvoiceItemInput[]
+    invoiceDate?: Date
+    notes?: string
+    partsOrdered?: string
+    withdraw?: boolean
+  },
 ) {
   const actorId = vendorActorId(args.vendorId)
   const locked = () => new AppError('CONFLICT', 'This submission can no longer be changed', 409)
@@ -480,12 +488,12 @@ export async function vendorUpdateSubmission(
         detail: { from: 'SUBMITTED', to: 'CANCELLED' },
       })
     } else {
-      // `description` is no longer an Invoice column — it's the submission's
-      // one InvoiceItem (synced below), so its old value for diffing comes
-      // from that row, not `before`.
-      const fields: { key: 'amount' | 'invoiceDate'; value: unknown }[] = [
-        { key: 'amount', value: input.amount },
+      // `amount` is derived from the lines, never sent by the client — the
+      // same rule the landlord path follows.
+      const fields: { key: 'invoiceDate' | 'notes' | 'partsOrdered'; value: unknown }[] = [
         { key: 'invoiceDate', value: input.invoiceDate },
+        { key: 'notes', value: input.notes },
+        { key: 'partsOrdered', value: input.partsOrdered },
       ]
       for (const { key, value } of fields) {
         if (value === undefined) continue
@@ -500,15 +508,31 @@ export async function vendorUpdateSubmission(
           })
         }
       }
-      if (input.description !== undefined) {
-        const item = await tx.invoiceItem.findFirst({ where: { invoiceId: args.invoiceId } })
-        const oldValue = normalize('description', item?.description ?? null)
-        const newValue = normalize('description', input.description)
-        if (oldValue !== newValue) {
+      if (input.items !== undefined) {
+        const nextAmount = sumItemTotals(input.items)
+        data.amount = nextAmount
+        const oldAmount = normalize('amount', before.amount)
+        const newAmount = normalize('amount', nextAmount)
+        if (oldAmount !== newAmount) {
           events.push({
             ...base,
             type: 'FIELD_EDITED',
-            detail: { field: 'description', old: oldValue, new: newValue },
+            detail: { field: 'amount', old: oldAmount, new: newAmount },
+          })
+        }
+        // The line list is a set, not a field: summarize rather than diff each
+        // row, so the ledger stays readable when a vendor re-orders lines.
+        const existing = await tx.invoiceItem.findMany({
+          where: { invoiceId: args.invoiceId },
+          orderBy: { sortOrder: 'asc' },
+        })
+        const oldSummary = existing.map((i) => i.description).join('; ')
+        const newSummary = input.items.map((i) => i.description).join('; ')
+        if (oldSummary !== newSummary) {
+          events.push({
+            ...base,
+            type: 'FIELD_EDITED',
+            detail: { field: 'description', old: oldSummary, new: newSummary },
           })
         }
       }
@@ -518,15 +542,12 @@ export async function vendorUpdateSubmission(
     const result = await tx.invoice.updateMany({ where: scope, data })
     if (result.count === 0) throw locked()
     if (events.length > 0) await tx.invoiceEvent.createMany({ data: events })
-    // A submission always has exactly one InvoiceItem (created in
-    // createSubmission) — keep it in sync so `amount` stays the sum of items.
-    if (input.description !== undefined || input.amount !== undefined) {
-      await tx.invoiceItem.updateMany({
-        where: { invoiceId: args.invoiceId },
-        data: {
-          ...(input.description !== undefined && { description: input.description }),
-          ...(input.amount !== undefined && { total: input.amount }),
-        },
+    // Items are replaced wholesale rather than diffed: a vendor may add, remove
+    // or reorder lines, and `amount` (set above) must stay their exact sum.
+    if (input.items !== undefined) {
+      await tx.invoiceItem.deleteMany({ where: { invoiceId: args.invoiceId } })
+      await tx.invoiceItem.createMany({
+        data: nestedItemRows(input.items).map((row) => ({ ...row, invoiceId: args.invoiceId })),
       })
     }
     return tx.invoice.findFirstOrThrow({

@@ -412,6 +412,17 @@
     "amount": "Amount",
     "date": "Date",
     "description": "Description",
+    "notes": "Notes",
+    "partsOrdered": "Parts ordered",
+    "items": {
+      "title": "Work performed",
+      "description": "Description",
+      "quantity": "Qty",
+      "total": "Total",
+      "add": "Add line",
+      "remove": "Remove line {{index}}",
+      "computedTotal": "Invoice total"
+    },
     "photosLabel": "Photos of the invoice",
     "photoN": "Photo {{n}}",
     "photoTypeLabel": "Type for photo {{n}}",

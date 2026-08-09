@@ -51,7 +51,9 @@ beforeAll(async () => {
   await app.ready()
   u = await createSecondUser(app)
   cookie = u.cookie
-  propId = (await app.prisma.property.create({ data: { landlordId: u.user.id, name: 'P', address: 'A' } })).id
+  propId = (
+    await app.prisma.property.create({ data: { landlordId: u.user.id, name: 'P', address: 'A' } })
+  ).id
 })
 afterAll(async () => {
   await app.prisma.invoice.deleteMany({ where: { invoiceNumber: { startsWith: 'T-TRANS-' } } })

@@ -23,7 +23,9 @@ describe('i18n catalogs', () => {
 
   it('no translation value is empty', () => {
     const empties = keyPaths(en).filter((k) => {
-      const val = k.split('.').reduce<unknown>((o, part) => (o as Record<string, unknown>)?.[part], en)
+      const val = k
+        .split('.')
+        .reduce<unknown>((o, part) => (o as Record<string, unknown>)?.[part], en)
       return typeof val === 'string' && val.trim() === ''
     })
     expect(empties).toEqual([])

@@ -22,14 +22,19 @@ describe('email integration', () => {
 
   it('throws EMAIL_NOT_CONFIGURED (503) and never calls the provider when the key is unset', async () => {
     delete process.env.RESEND_API_KEY
-    await expect(sendEmail(MSG)).rejects.toMatchObject({ code: 'EMAIL_NOT_CONFIGURED', statusCode: 503 })
+    await expect(sendEmail(MSG)).rejects.toMatchObject({
+      code: 'EMAIL_NOT_CONFIGURED',
+      statusCode: 503,
+    })
     expect(send).not.toHaveBeenCalled()
   })
 
   it('sends on the happy path', async () => {
     send.mockResolvedValue({ data: { id: '1' }, error: null })
     await expect(sendEmail(MSG)).resolves.toBeUndefined()
-    expect(send).toHaveBeenCalledWith(expect.objectContaining({ from: 'onboarding@resend.dev', to: MSG.to }))
+    expect(send).toHaveBeenCalledWith(
+      expect.objectContaining({ from: 'onboarding@resend.dev', to: MSG.to }),
+    )
   })
 
   it('maps a provider error to a sanitized AppError with no key/raw leak', async () => {
@@ -53,7 +58,10 @@ describe('email integration', () => {
 
   it('surfaces a sanitized error after exhausting retries', async () => {
     send.mockResolvedValue({ data: null, error: { statusCode: 429 } })
-    await expect(sendEmail(MSG)).rejects.toMatchObject({ code: 'EMAIL_RATE_LIMITED', statusCode: 502 })
+    await expect(sendEmail(MSG)).rejects.toMatchObject({
+      code: 'EMAIL_RATE_LIMITED',
+      statusCode: 502,
+    })
     expect(send).toHaveBeenCalledTimes(4) // MAX_ATTEMPTS
   })
 })

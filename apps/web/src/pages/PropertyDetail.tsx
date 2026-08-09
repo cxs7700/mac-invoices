@@ -37,15 +37,22 @@ export default function PropertyDetail() {
       <div className="mt-2 mb-6 flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-foreground">{propertyLabel(property)}</h1>
-          {property.name.trim() && <p className="text-sm text-muted-foreground">{property.address}</p>}
+          {property.name.trim() && (
+            <p className="text-sm text-muted-foreground">{property.address}</p>
+          )}
           {property.notes && <p className="mt-1 text-sm text-muted-foreground">{property.notes}</p>}
         </div>
         <div className="shrink-0 text-right">
-          <div className="text-xs uppercase tracking-wide text-muted-foreground">{t('propertyDetail.totalSpend')}</div>
+          <div className="text-xs uppercase tracking-wide text-muted-foreground">
+            {t('propertyDetail.totalSpend')}
+          </div>
           <div className="text-2xl font-bold tabular-nums text-foreground">
             {formatMoney(property.totalSpend)}
           </div>
-          <Link to={`/properties/${property.id}/edit`} className="text-sm text-muted-foreground hover:text-foreground">
+          <Link
+            to={`/properties/${property.id}/edit`}
+            className="text-sm text-muted-foreground hover:text-foreground"
+          >
             {t('propertyDetail.edit')}
           </Link>
         </div>

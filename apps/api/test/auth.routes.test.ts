@@ -15,7 +15,10 @@ afterAll(() => app.close())
 function sessionCookie(res: { headers: Record<string, unknown> }): string {
   const raw = res.headers['set-cookie']
   const header = Array.isArray(raw) ? raw.join(';') : String(raw)
-  return header.split(';').find((p) => p.trim().startsWith('session='))!.trim()
+  return header
+    .split(';')
+    .find((p) => p.trim().startsWith('session='))!
+    .trim()
 }
 
 describe('POST /api/auth/login', () => {
@@ -80,7 +83,11 @@ describe('GET /api/auth/me + logout', () => {
     expect(me.statusCode).toBe(200)
     expect(me.json().email).toBe(EMAIL)
 
-    const logout = await app.inject({ method: 'POST', url: '/api/auth/logout', headers: { cookie } })
+    const logout = await app.inject({
+      method: 'POST',
+      url: '/api/auth/logout',
+      headers: { cookie },
+    })
     expect(logout.statusCode).toBe(204)
 
     const after = await app.inject({ method: 'GET', url: '/api/auth/me', headers: { cookie } })

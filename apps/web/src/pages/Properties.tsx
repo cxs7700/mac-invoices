@@ -110,13 +110,21 @@ export default function Properties() {
             <li key={p.id} className="rounded-lg border border-border bg-card p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <Link to={`/properties/${p.id}`} className="font-medium text-foreground hover:underline">
+                  <Link
+                    to={`/properties/${p.id}`}
+                    className="font-medium text-foreground hover:underline"
+                  >
                     {propertyLabel(p)}
                   </Link>
-                  {p.name.trim() && <p className="truncate text-sm text-muted-foreground">{p.address}</p>}
+                  {p.name.trim() && (
+                    <p className="truncate text-sm text-muted-foreground">{p.address}</p>
+                  )}
                 </div>
                 <div className="flex shrink-0 items-center gap-3 text-sm">
-                  <Link to={`/properties/${p.id}/edit`} className="text-muted-foreground hover:text-foreground">
+                  <Link
+                    to={`/properties/${p.id}/edit`}
+                    className="text-muted-foreground hover:text-foreground"
+                  >
                     {t('properties.edit')}
                   </Link>
                   <button

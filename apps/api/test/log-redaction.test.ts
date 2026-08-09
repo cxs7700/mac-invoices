@@ -15,7 +15,9 @@ describe('logger redaction (loggerOptions)', () => {
   it('redacts the vendor link-token secret from the request URL', () => {
     const { logger, lines } = capture()
     logger.info(
-      { req: { method: 'POST', url: '/api/submissions/inv_ab12cd34_THE-SECRET_part/upload-token' } },
+      {
+        req: { method: 'POST', url: '/api/submissions/inv_ab12cd34_THE-SECRET_part/upload-token' },
+      },
       'incoming',
     )
     const out = lines.join('')
@@ -34,7 +36,10 @@ describe('logger redaction (loggerOptions)', () => {
 
   it('redacts top-level cookie + authorization headers', () => {
     const { logger, lines } = capture()
-    logger.info({ headers: { cookie: 'session=SECRET-COOKIE', authorization: 'Bearer SECRET-TOKEN' } }, 'x')
+    logger.info(
+      { headers: { cookie: 'session=SECRET-COOKIE', authorization: 'Bearer SECRET-TOKEN' } },
+      'x',
+    )
     const out = lines.join('')
     expect(out).not.toContain('SECRET-COOKIE')
     expect(out).not.toContain('SECRET-TOKEN')
@@ -52,7 +57,10 @@ describe('logger redaction (loggerOptions)', () => {
 
   it('redacts bare top-level headers.cookie / headers.authorization', () => {
     const { logger, lines } = capture()
-    logger.info({ headers: { cookie: 'session=SECRET-BARE', authorization: 'Bearer SECRET-BARE' } }, 'raw')
+    logger.info(
+      { headers: { cookie: 'session=SECRET-BARE', authorization: 'Bearer SECRET-BARE' } },
+      'raw',
+    )
     const out = lines.join('')
     expect(out).not.toContain('SECRET-BARE')
     expect(out).toContain('[Redacted]')

@@ -31,7 +31,15 @@ export function AppShell({ children }: { children: ReactNode }) {
               onClick={() => setDrawerOpen(true)}
               className="rounded-md p-1 text-foreground hover:bg-accent"
             >
-              <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden fill="none" stroke="currentColor" strokeWidth="2">
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 20 20"
+                aria-hidden
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
                 <path d="M3 5h14M3 10h14M3 15h14" strokeLinecap="round" />
               </svg>
             </button>
@@ -52,8 +60,17 @@ export function AppShell({ children }: { children: ReactNode }) {
         </header>
 
         {drawerOpen && (
-          <div className="md:hidden fixed inset-0 z-50" role="dialog" aria-modal="true" aria-label={t('common.menu')}>
-            <div className="absolute inset-0 bg-overlay" onClick={() => setDrawerOpen(false)} aria-hidden />
+          <div
+            className="md:hidden fixed inset-0 z-50"
+            role="dialog"
+            aria-modal="true"
+            aria-label={t('common.menu')}
+          >
+            <div
+              className="absolute inset-0 bg-overlay"
+              onClick={() => setDrawerOpen(false)}
+              aria-hidden
+            />
             <div className="absolute inset-y-0 left-0 flex w-64 flex-col bg-sidebar border-r border-sidebar-border">
               <div className="flex items-center justify-between px-4 py-4">
                 <span className="text-lg font-bold text-foreground">{t('app.name')}</span>

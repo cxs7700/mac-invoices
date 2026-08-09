@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useParams } from 'react-router'
 import { useTranslation } from 'react-i18next'
+import { X } from 'lucide-react'
 import { ApiError } from '@/lib/apiClient'
 import { StatusBadge } from '@/components/StatusBadge'
 import { PhotoAttach } from '@/components/PhotoAttach'
@@ -15,6 +16,23 @@ import {
 } from '@/hooks/useSubmission'
 import { MAX_INVOICE_IMAGES, ImageType } from '@mac-invoices/shared'
 import type { SubmissionStatus, ImageType as ImageTypeT } from '@mac-invoices/shared'
+
+const itemFieldClass = 'w-full rounded-md border border-input bg-background px-2 py-2 text-sm'
+
+/**
+ * A line-item row while it is being typed. Quantity and total stay strings so a
+ * half-typed value ("1.") is not coerced to NaN under the user's cursor; they
+ * are converted once, on submit.
+ */
+type ItemRow = { id: string; description: string; quantity: string; total: string }
+
+// A stable per-row key. Rows are added and removed, so the array index would
+// re-key surviving rows and lose focus mid-edit.
+let itemRowSeq = 0
+function blankItem(): ItemRow {
+  itemRowSeq += 1
+  return { id: `row-${itemRowSeq}`, description: '', quantity: '1', total: '' }
+}
 
 function Shell({ children }: { children: React.ReactNode }) {
   const { t } = useTranslation()
@@ -39,9 +57,10 @@ export default function VendorSubmit() {
   const submit = useSubmit(token!)
   const withdraw = useWithdraw(token!)
 
-  const [amount, setAmount] = useState('')
+  const [items, setItems] = useState<ItemRow[]>([blankItem()])
   const [invoiceDate, setInvoiceDate] = useState('')
-  const [description, setDescription] = useState('')
+  const [notes, setNotes] = useState('')
+  const [partsOrdered, setPartsOrdered] = useState('')
   const [photos, setPhotos] = useState<{ url: string; type: ImageTypeT }[]>([])
   const [justSubmitted, setJustSubmitted] = useState(false)
 
@@ -66,8 +85,9 @@ export default function VendorSubmit() {
 
   const submissions = status.data.data
   const atCap = photos.length >= MAX_INVOICE_IMAGES
-  const canSubmit =
-    photos.length > 0 && Number(amount) > 0 && !!invoiceDate && description.trim().length > 0
+  const filledItems = items.filter((i) => i.description.trim() && Number(i.total) > 0)
+  const computedTotal = filledItems.reduce((sum, i) => sum + Number(i.total), 0)
+  const canSubmit = photos.length > 0 && !!invoiceDate && filledItems.length > 0
 
   const submitError =
     submit.error instanceof ApiError
@@ -79,11 +99,18 @@ export default function VendorSubmit() {
         : null
 
   const resetForm = () => {
-    setAmount('')
+    setItems([blankItem()])
     setInvoiceDate('')
-    setDescription('')
+    setNotes('')
+    setPartsOrdered('')
     setPhotos([])
   }
+
+  const updateItem = (id: string, patch: Partial<ItemRow>) =>
+    setItems((prev) => prev.map((row) => (row.id === id ? { ...row, ...patch } : row)))
+  const addItem = () => setItems((prev) => [...prev, blankItem()])
+  const removeItem = (id: string) =>
+    setItems((prev) => (prev.length === 1 ? prev : prev.filter((row) => row.id !== id)))
 
   const addPhoto = (url: string) =>
     setPhotos((prev) =>
@@ -98,9 +125,14 @@ export default function VendorSubmit() {
     if (!canSubmit) return
     submit.mutate(
       {
-        amount: Number(amount),
-        description: description.trim(),
+        items: filledItems.map((i) => ({
+          description: i.description.trim(),
+          quantity: Number(i.quantity) || 1,
+          total: Number(i.total),
+        })),
         invoiceDate,
+        notes: notes.trim() || undefined,
+        partsOrdered: partsOrdered.trim() || undefined,
         images: photos,
       },
       {
@@ -130,19 +162,81 @@ export default function VendorSubmit() {
       ) : (
         <form onSubmit={onSubmit} className="space-y-4 rounded-lg border border-border bg-card p-5">
           <div>
-            <label htmlFor="amount" className="text-sm font-medium text-foreground">
-              {t('vendorSubmit.amount')}
-            </label>
-            <input
-              id="amount"
-              type="number"
-              inputMode="decimal"
-              step="0.01"
-              min="0"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            />
+            <div className="mb-1 flex items-center justify-between">
+              <span className="text-sm font-medium text-foreground">
+                {t('vendorSubmit.items.title')}
+              </span>
+              <Button type="button" size="sm" variant="outline" onClick={addItem}>
+                {t('vendorSubmit.items.add')}
+              </Button>
+            </div>
+            <div className="space-y-2">
+              {items.map((row, index) => (
+                <div key={row.id} className="grid grid-cols-12 gap-2">
+                  <div className="col-span-6">
+                    <label htmlFor={`item-desc-${row.id}`} className="sr-only">
+                      {t('vendorSubmit.items.description')}
+                    </label>
+                    <input
+                      id={`item-desc-${row.id}`}
+                      placeholder={t('vendorSubmit.items.description')}
+                      value={row.description}
+                      onChange={(e) => updateItem(row.id, { description: e.target.value })}
+                      className={itemFieldClass}
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <label htmlFor={`item-qty-${row.id}`} className="sr-only">
+                      {t('vendorSubmit.items.quantity')}
+                    </label>
+                    <input
+                      id={`item-qty-${row.id}`}
+                      type="number"
+                      inputMode="numeric"
+                      min="1"
+                      placeholder={t('vendorSubmit.items.quantity')}
+                      value={row.quantity}
+                      onChange={(e) => updateItem(row.id, { quantity: e.target.value })}
+                      className={itemFieldClass}
+                    />
+                  </div>
+                  <div className="col-span-3">
+                    <label htmlFor={`item-total-${row.id}`} className="sr-only">
+                      {t('vendorSubmit.items.total')}
+                    </label>
+                    <input
+                      id={`item-total-${row.id}`}
+                      type="number"
+                      inputMode="decimal"
+                      step="0.01"
+                      min="0"
+                      placeholder={t('vendorSubmit.items.total')}
+                      value={row.total}
+                      onChange={(e) => updateItem(row.id, { total: e.target.value })}
+                      className={itemFieldClass}
+                    />
+                  </div>
+                  <div className="col-span-1 flex items-center">
+                    {items.length > 1 && (
+                      <button
+                        type="button"
+                        aria-label={t('vendorSubmit.items.remove', { index: index + 1 })}
+                        onClick={() => removeItem(row.id)}
+                        className="rounded p-1 text-muted-foreground hover:bg-accent"
+                      >
+                        <X className="h-4 w-4" aria-hidden="true" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="mt-2 text-right text-sm text-muted-foreground">
+              {t('vendorSubmit.items.computedTotal')}:{' '}
+              <span className="font-medium text-foreground tabular-nums">
+                {formatMoney(computedTotal)}
+              </span>
+            </p>
           </div>
           <div>
             <label htmlFor="invoiceDate" className="text-sm font-medium text-foreground">
@@ -157,14 +251,25 @@ export default function VendorSubmit() {
             />
           </div>
           <div>
-            <label htmlFor="description" className="text-sm font-medium text-foreground">
-              {t('vendorSubmit.description')}
+            <label htmlFor="partsOrdered" className="text-sm font-medium text-foreground">
+              {t('vendorSubmit.partsOrdered')}
+            </label>
+            <input
+              id="partsOrdered"
+              value={partsOrdered}
+              onChange={(e) => setPartsOrdered(e.target.value)}
+              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label htmlFor="notes" className="text-sm font-medium text-foreground">
+              {t('vendorSubmit.notes')}
             </label>
             <textarea
-              id="description"
+              id="notes"
               rows={2}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
               className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
             />
           </div>

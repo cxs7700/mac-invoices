@@ -1,5 +1,11 @@
 import { z } from 'zod'
-import { InvoiceImageInputSchema, InvoiceStatus, MAX_INVOICE_IMAGES } from './invoice'
+import {
+  InvoiceImageInputSchema,
+  InvoiceItemInputSchema,
+  InvoiceStatus,
+  MAX_INVOICE_IMAGES,
+  MAX_INVOICE_ITEMS,
+} from './invoice'
 import { formatPhone } from '../lib/formatPhone'
 
 const DAY_MS = 86_400_000
@@ -11,23 +17,27 @@ const DAY_MS = 86_400_000
 // timezone slack), not older than ~12 months — a vendor fat-fingering 2099
 // or 1999 is rejected.
 export const SubmissionSchema = z.object({
-  amount: z.number().positive().multipleOf(0.01).lte(99_999_999.99),
-  description: z.string().trim().min(1).max(500),
+  // Itemized like the landlord form: the vendor lists the work line by line and
+  // the total is summed server-side, so the two paths produce the same shape of
+  // invoice rather than the vendor's arriving as a single opaque line.
+  items: z.array(InvoiceItemInputSchema).min(1).max(MAX_INVOICE_ITEMS),
   invoiceDate: z.coerce
     .date()
     .refine((d) => d.getTime() <= Date.now() + DAY_MS, 'Invoice date cannot be in the future')
     .refine((d) => d.getTime() >= Date.now() - 366 * DAY_MS, 'Invoice date is too far in the past'),
+  notes: z.string().trim().max(2000).optional(),
+  partsOrdered: z.string().trim().max(500).optional(),
   images: z.array(InvoiceImageInputSchema).min(1).max(MAX_INVOICE_IMAGES),
 })
 export type SubmissionInput = z.infer<typeof SubmissionSchema>
 
-// What a vendor may change while a submission is still SUBMITTED (amount,
-// description, date — same validators as submit, all optional). The photo is not
-// edited here in v1.
+// What a vendor may change while a submission is still SUBMITTED (same
+// validators as submit, all optional). The photo is not edited here in v1.
 export const EditSubmissionSchema = z.object({
-  amount: SubmissionSchema.shape.amount.optional(),
-  description: SubmissionSchema.shape.description.optional(),
+  items: SubmissionSchema.shape.items.optional(),
   invoiceDate: SubmissionSchema.shape.invoiceDate.optional(),
+  notes: SubmissionSchema.shape.notes,
+  partsOrdered: SubmissionSchema.shape.partsOrdered,
 })
 export type EditSubmissionInput = z.infer<typeof EditSubmissionSchema>
 

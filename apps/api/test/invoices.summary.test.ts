@@ -19,7 +19,12 @@ const body = (n: string, amount: number, category: string) => ({
 })
 
 async function create(n: string, amount: number, category: string, c = cookie) {
-  const res = await app.inject({ method: 'POST', url: '/api/invoices', payload: body(n, amount, category), headers: { cookie: c } })
+  const res = await app.inject({
+    method: 'POST',
+    url: '/api/invoices',
+    payload: body(n, amount, category),
+    headers: { cookie: c },
+  })
   expect(res.statusCode).toBe(201)
 }
 
@@ -43,12 +48,18 @@ describe('GET /api/invoices/summary', () => {
   })
 
   it('returns total + per-category + per-status spend (zero-filled, Decimal-safe)', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/invoices/summary', headers: { cookie } })
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/invoices/summary',
+      headers: { cookie },
+    })
     expect(res.statusCode).toBe(200)
     const data = res.json()
     expect(data.total).toEqual({ count: 3, amount: '350.00' })
 
-    const cat = Object.fromEntries(data.byCategory.map((r: { category: string }) => [r.category, r]))
+    const cat = Object.fromEntries(
+      data.byCategory.map((r: { category: string }) => [r.category, r]),
+    )
     expect(cat.REPAIRS).toEqual({ category: 'REPAIRS', count: 2, amount: '150.00' })
     expect(cat.UTILITIES).toEqual({ category: 'UTILITIES', count: 1, amount: '200.00' })
     expect(cat.LABOR).toEqual({ category: 'LABOR', count: 0, amount: '0.00' }) // zero-filled
@@ -66,21 +77,34 @@ describe('GET /api/invoices/summary', () => {
     // byCategory — so the per-category breakdown still reconciles to the total.
     const submitted = await app.prisma.invoice.create({
       data: {
-        vendorName: 'Acme Plumbing', amount: '999.00',
-        invoiceDate: new Date('2026-03-01'), status: 'SUBMITTED', userId: user.user.id, invoiceNumber: `${PREFIX}sub`,
+        vendorName: 'Acme Plumbing',
+        amount: '999.00',
+        invoiceDate: new Date('2026-03-01'),
+        status: 'SUBMITTED',
+        userId: user.user.id,
+        invoiceNumber: `${PREFIX}sub`,
       },
     })
     const cancelled = await app.prisma.invoice.create({
       data: {
-        vendorName: 'Acme Plumbing', amount: '777.00',
-        invoiceDate: new Date('2026-03-01'), status: 'CANCELLED', userId: user.user.id, invoiceNumber: `${PREFIX}wd`,
+        vendorName: 'Acme Plumbing',
+        amount: '777.00',
+        invoiceDate: new Date('2026-03-01'),
+        status: 'CANCELLED',
+        userId: user.user.id,
+        invoiceNumber: `${PREFIX}wd`,
       },
     })
-    const data = (await app.inject({ method: 'GET', url: '/api/invoices/summary', headers: { cookie } })).json()
+    const data = (
+      await app.inject({ method: 'GET', url: '/api/invoices/summary', headers: { cookie } })
+    ).json()
     // total unchanged (still the 3 PENDING = 350); the 999 + 777 are excluded.
     expect(data.total).toEqual({ count: 3, amount: '350.00' })
     // byCategory reconciles to the total — no stray null-category bucket.
-    const catSum = data.byCategory.reduce((s: number, r: { amount: string }) => s + Number(r.amount), 0)
+    const catSum = data.byCategory.reduce(
+      (s: number, r: { amount: string }) => s + Number(r.amount),
+      0,
+    )
     expect(catSum.toFixed(2)).toBe('350.00')
     // byStatus still surfaces the SUBMITTED count (the "to review" signal).
     const stat = Object.fromEntries(data.byStatus.map((r: { status: string }) => [r.status, r]))
@@ -91,8 +115,16 @@ describe('GET /api/invoices/summary', () => {
   it("excludes another user's invoices", async () => {
     const landlord = await loginCookie(app)
     // The landlord's all-time total is whatever it is; the throwaway user's stays 350.
-    const mine = await app.inject({ method: 'GET', url: '/api/invoices/summary', headers: { cookie } })
-    const theirs = await app.inject({ method: 'GET', url: '/api/invoices/summary', headers: { cookie: landlord } })
+    const mine = await app.inject({
+      method: 'GET',
+      url: '/api/invoices/summary',
+      headers: { cookie },
+    })
+    const theirs = await app.inject({
+      method: 'GET',
+      url: '/api/invoices/summary',
+      headers: { cookie: landlord },
+    })
     expect(mine.json().total.amount).toBe('350.00')
     expect(theirs.json().total.amount).not.toBe('350.00')
   })

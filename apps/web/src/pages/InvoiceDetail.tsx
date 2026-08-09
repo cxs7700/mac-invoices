@@ -78,7 +78,11 @@ export default function InvoiceDetail() {
             <Field label={t('invoiceDetail.vendor')} value={invoice.vendorName} />
             <Field
               label={t('invoiceDetail.category')}
-              value={invoice.category ? t(`category.${invoice.category}`) : t('invoiceDetail.uncategorized')}
+              value={
+                invoice.category
+                  ? t(`category.${invoice.category}`)
+                  : t('invoiceDetail.uncategorized')
+              }
             />
             {invoice.submitterName && (
               <Field label={t('invoiceDetail.submittedBy')} value={invoice.submitterName} />
@@ -104,7 +108,9 @@ export default function InvoiceDetail() {
               <thead className="border-b border-border text-left text-muted-foreground">
                 <tr>
                   <th className="py-1 font-medium">{t('invoiceDetail.items.description')}</th>
-                  <th className="py-1 font-medium text-right">{t('invoiceDetail.items.quantity')}</th>
+                  <th className="py-1 font-medium text-right">
+                    {t('invoiceDetail.items.quantity')}
+                  </th>
                   <th className="py-1 font-medium text-right">{t('invoiceDetail.items.total')}</th>
                 </tr>
               </thead>
@@ -131,15 +137,23 @@ export default function InvoiceDetail() {
         {/* Action rail */}
         <div className="space-y-6">
           <div className="rounded-lg border border-border bg-card p-5">
-            <h2 className="mb-3 text-sm font-semibold text-foreground">{t('invoiceDetail.actions')}</h2>
+            <h2 className="mb-3 text-sm font-semibold text-foreground">
+              {t('invoiceDetail.actions')}
+            </h2>
             <div className="space-y-2">
               {invoice.status === 'SUBMITTED' ? (
                 <ReviewActions
                   isPending={update.isPending}
                   onApprove={(category, propertyId) =>
-                    update.mutate({ status: 'APPROVED', category: category as InvoiceCategory, propertyId })
+                    update.mutate({
+                      status: 'APPROVED',
+                      category: category as InvoiceCategory,
+                      propertyId,
+                    })
                   }
-                  onReject={(reason) => update.mutate({ status: 'REJECTED', rejectionReason: reason })}
+                  onReject={(reason) =>
+                    update.mutate({ status: 'REJECTED', rejectionReason: reason })
+                  }
                 />
               ) : (
                 <Button
@@ -172,7 +186,9 @@ export default function InvoiceDetail() {
           <InvoiceImageGallery invoiceId={invoice.id} />
 
           <div className="rounded-lg border border-border bg-card p-5">
-            <h2 className="mb-3 text-sm font-semibold text-foreground">{t('invoiceDetail.timeline')}</h2>
+            <h2 className="mb-3 text-sm font-semibold text-foreground">
+              {t('invoiceDetail.timeline')}
+            </h2>
             <InvoiceTimeline events={events ?? []} isLoading={eventsPending} />
           </div>
         </div>
@@ -197,7 +213,9 @@ export default function InvoiceDetail() {
               <Button
                 variant="destructive"
                 onClick={() =>
-                  del.mutate(invoice.id, { onSuccess: () => navigate('/invoices', { replace: true }) })
+                  del.mutate(invoice.id, {
+                    onSuccess: () => navigate('/invoices', { replace: true }),
+                  })
                 }
               >
                 {t('invoiceDetail.delete')}

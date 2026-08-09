@@ -77,7 +77,10 @@ describe('useInvoices querystring assembly', () => {
 
 describe('useInvoiceStats', () => {
   it('fetches the stats endpoint and surfaces counts/total', async () => {
-    const body = { counts: { PENDING: 2, APPROVED: 0, PAID: 1, REJECTED: 0, CANCELLED: 0 }, total: 3 }
+    const body = {
+      counts: { PENDING: 2, APPROVED: 0, PAID: 1, REJECTED: 0, CANCELLED: 0 },
+      total: 3,
+    }
     const fetchMock = vi.fn().mockResolvedValue(ok(body))
     vi.stubGlobal('fetch', fetchMock)
 

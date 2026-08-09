@@ -412,6 +412,17 @@
     "amount": "金额",
     "date": "日期",
     "description": "说明",
+    "notes": "备注",
+    "partsOrdered": "已订购的零件",
+    "items": {
+      "title": "已完成的工作",
+      "description": "说明",
+      "quantity": "数量",
+      "total": "小计",
+      "add": "添加行",
+      "remove": "删除第 {{index}} 行",
+      "computedTotal": "发票总额"
+    },
     "photosLabel": "发票照片",
     "photoN": "照片 {{n}}",
     "photoTypeLabel": "照片 {{n}} 的类型",

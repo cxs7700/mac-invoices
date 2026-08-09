@@ -5,7 +5,13 @@ import { apiClient } from '@/lib/apiClient'
 // (or the 60s API function): apiClient only fetches a short-lived upload token,
 // then the file is PUT straight to storage with that token.
 
-export const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/heic', 'image/heif', 'image/webp']
+export const ACCEPTED_IMAGE_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/heic',
+  'image/heif',
+  'image/webp',
+]
 export const MAX_IMAGE_BYTES = 10 * 1024 * 1024 // 10 MB
 
 /** Client-side guard before any upload — returns an error message, or null if ok. */

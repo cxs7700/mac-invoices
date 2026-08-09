@@ -29,7 +29,9 @@ export function Sidebar() {
           <LanguageSwitcher persist />
           <ThemeSwitcher />
         </div>
-        <div className="mt-2 truncate text-sm text-foreground">{me.data?.name ?? me.data?.email}</div>
+        <div className="mt-2 truncate text-sm text-foreground">
+          {me.data?.name ?? me.data?.email}
+        </div>
         <button
           type="button"
           onClick={() =>

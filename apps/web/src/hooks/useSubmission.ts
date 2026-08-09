@@ -42,9 +42,11 @@ export function useSubmissionStatus(token: string) {
 }
 
 export type SubmitBody = {
-  amount: number
-  description: string
+  // Itemized like the landlord form; the server sums the totals into `amount`.
+  items: { description: string; quantity: number; total: number }[]
   invoiceDate: string
+  notes?: string
+  partsOrdered?: string
   images: { url: string; type: ImageType }[]
 }
 

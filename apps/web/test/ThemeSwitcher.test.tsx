@@ -14,8 +14,7 @@ vi.stubGlobal('matchMedia', (query: string) => ({
 }))
 
 const root = () => document.documentElement
-const pressed = (name: string) =>
-  screen.getByRole('button', { name }).getAttribute('aria-pressed')
+const pressed = (name: string) => screen.getByRole('button', { name }).getAttribute('aria-pressed')
 
 beforeEach(() => {
   localStorage.clear()

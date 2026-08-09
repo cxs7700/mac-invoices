@@ -37,10 +37,7 @@ const DRIFT_TOLERANCE_MS = 2000
  * (edited after the last export, so the sheet is now stale). Read-only — the app
  * never re-pushes (export is one-way); "drifted" prompts a manual re-export.
  */
-export function syncState(
-  sheetsSyncedAt: string | null | undefined,
-  updatedAt: string,
-): SyncState {
+export function syncState(sheetsSyncedAt: string | null | undefined, updatedAt: string): SyncState {
   if (!sheetsSyncedAt) return 'not-exported'
   const drift = new Date(updatedAt).getTime() - new Date(sheetsSyncedAt).getTime()
   return drift > DRIFT_TOLERANCE_MS ? 'drifted' : 'exported'

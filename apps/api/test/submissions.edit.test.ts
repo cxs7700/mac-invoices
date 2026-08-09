@@ -37,8 +37,7 @@ async function submit(vendorId: string, token: string, over: Record<string, unkn
     method: 'POST',
     url: `/api/submissions/${token}`,
     payload: {
-      amount: 100,
-      description: 'work',
+      items: [{ description: 'work', quantity: 1, total: 100 }],
       invoiceDate: '2026-06-01',
       images: [{ url: `https://blob/owners/c_${vendorId}/p.jpg`, type: 'OTHER' }],
       ...over,
@@ -77,7 +76,7 @@ describe('vendor edit (U7)', () => {
     const edited = await app.inject({
       method: 'PATCH',
       url: `/api/submissions/${c.token}/${id}`,
-      payload: { amount: 250 },
+      payload: { items: [{ description: 'work', quantity: 1, total: 250 }] },
     })
     expect(edited.statusCode).toBe(200)
     const row = await app.prisma.invoice.findUniqueOrThrow({ where: { id } })
@@ -94,9 +93,47 @@ describe('vendor edit (U7)', () => {
     const afterReview = await app.inject({
       method: 'PATCH',
       url: `/api/submissions/${c.token}/${id}`,
-      payload: { amount: 999 },
+      payload: { items: [{ description: 'work', quantity: 1, total: 999 }] },
     })
     expect(afterReview.statusCode).toBe(409)
+  })
+
+  it('replaces the whole line list, re-deriving the amount from it', async () => {
+    const c = await makeVendor()
+    const id = await submit(c.id, c.token)
+    const edited = await app.inject({
+      method: 'PATCH',
+      url: `/api/submissions/${c.token}/${id}`,
+      payload: {
+        items: [
+          { description: 'Labour', quantity: 2, total: 150 },
+          { description: 'Parts', quantity: 1, total: 25.5 },
+        ],
+      },
+    })
+    expect(edited.statusCode).toBe(200)
+
+    const row = await app.prisma.invoice.findUniqueOrThrow({
+      where: { id },
+      include: { items: { orderBy: { sortOrder: 'asc' } } },
+    })
+    // The original single line is gone, not merged with the new ones.
+    expect(row.items.map((i) => i.description)).toEqual(['Labour', 'Parts'])
+    expect(row.amount.toString()).toBe('175.5')
+  })
+
+  it('accepts notes and parts ordered on edit', async () => {
+    const c = await makeVendor()
+    const id = await submit(c.id, c.token)
+    const edited = await app.inject({
+      method: 'PATCH',
+      url: `/api/submissions/${c.token}/${id}`,
+      payload: { notes: 'Back door', partsOrdered: 'Washer kit' },
+    })
+    expect(edited.statusCode).toBe(200)
+    const row = await app.prisma.invoice.findUniqueOrThrow({ where: { id } })
+    expect(row.notes).toBe('Back door')
+    expect(row.partsOrdered).toBe('Washer kit')
   })
 
   it('editing only the description records a FIELD_EDITED event and updates the item', async () => {
@@ -105,7 +142,7 @@ describe('vendor edit (U7)', () => {
     const edited = await app.inject({
       method: 'PATCH',
       url: `/api/submissions/${c.token}/${id}`,
-      payload: { description: 'Replaced the whole panel' },
+      payload: { items: [{ description: 'Replaced the whole panel', quantity: 1, total: 100 }] },
     })
     expect(edited.statusCode).toBe(200)
 
@@ -127,7 +164,7 @@ describe('vendor edit (U7)', () => {
     await app.inject({
       method: 'PATCH',
       url: `/api/submissions/${c.token}/${id}`,
-      payload: { description: 'Replaced the whole panel' },
+      payload: { items: [{ description: 'Replaced the whole panel', quantity: 1, total: 100 }] },
     })
     expect(await app.prisma.invoiceEvent.count({ where: { invoiceId: id } })).toBe(before)
   })
@@ -161,12 +198,12 @@ describe('vendor edit (U7)', () => {
       app.inject({
         method: 'PATCH',
         url: `/api/submissions/${c.token}/${id}`,
-        payload: { amount: 200 },
+        payload: { items: [{ description: 'work', quantity: 1, total: 200 }] },
       }),
       app.inject({
         method: 'PATCH',
         url: `/api/submissions/${c.token}/${id}`,
-        payload: { amount: 300 },
+        payload: { items: [{ description: 'work', quantity: 1, total: 300 }] },
       }),
     ])
     expect(a.statusCode).toBe(200)

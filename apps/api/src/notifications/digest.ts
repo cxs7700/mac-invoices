@@ -107,8 +107,10 @@ async function buildDigest(prisma: PrismaClient, landlordId: string, group: Elig
   const reviewUrl = `${base}/invoices?status=SUBMITTED`
 
   const parts: string[] = []
-  if (submissions.length) parts.push(`${submissions.length} new submission${submissions.length > 1 ? 's' : ''}`)
-  if (withdrawals.length) parts.push(`${withdrawals.length} withdrawal${withdrawals.length > 1 ? 's' : ''}`)
+  if (submissions.length)
+    parts.push(`${submissions.length} new submission${submissions.length > 1 ? 's' : ''}`)
+  if (withdrawals.length)
+    parts.push(`${withdrawals.length} withdrawal${withdrawals.length > 1 ? 's' : ''}`)
   const subject = `Mac Invoices — ${parts.join(' and ')}`
 
   const lines = [

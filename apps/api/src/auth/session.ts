@@ -53,7 +53,15 @@ export async function validateSessionToken(token: string): Promise<SessionUser |
     where: { id },
     include: {
       user: {
-        select: { id: true, email: true, name: true, firstName: true, lastName: true, role: true, locale: true },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          firstName: true,
+          lastName: true,
+          role: true,
+          locale: true,
+        },
       },
     },
   })
