@@ -162,7 +162,12 @@ function SheetsSection() {
           {test.isSuccess && <p className="text-sm text-status-paid-foreground">Connection works.</p>}
           {errOf(test.error) && <p className="text-sm text-destructive" role="alert">{errOf(test.error)}</p>}
           <div className="flex gap-2">
-            <Button disabled={save.isPending || !value.trim()} onClick={() => save.mutate({ spreadsheetId: value.trim() })}>
+            <Button
+              disabled={save.isPending || !value.trim()}
+              onClick={() =>
+                save.mutate({ spreadsheetId: value.trim() }, { onSuccess: () => setSheetId(null) })
+              }
+            >
               {save.isPending ? 'Saving…' : 'Save target'}
             </Button>
             <Button variant="outline" disabled={test.isPending} onClick={() => test.mutate()}>

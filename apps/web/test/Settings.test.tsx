@@ -145,4 +145,35 @@ describe('Settings page', () => {
     // only a bare id works.
     expect(await screen.findByLabelText('Target spreadsheet ID or URL')).toBeTruthy()
   })
+
+  it('shows the normalized bare id (not the pasted URL) after a successful save', () => {
+    // Mimic the real hook: a successful save writes the server's normalized
+    // status into the query cache (reflected here by updating what
+    // useSheetsStatus returns) and then fires onSuccess.
+    const mutate = vi.fn((_payload: unknown, opts?: { onSuccess?: () => void }) => {
+      h.useSheetsStatus.mockReturnValue({
+        data: {
+          configured: true,
+          serviceAccountEmail: 'svc@project.iam.gserviceaccount.com',
+          targetSpreadsheetId: 'BareIdFromServer0000000000000000000000000',
+          reachable: true,
+        },
+        isPending: false,
+      })
+      opts?.onSuccess?.()
+    })
+    h.useSaveSheet.mockReturnValue(idle({ mutate }))
+    render(<Settings />)
+    const input = screen.getByLabelText('Target spreadsheet ID or URL') as HTMLInputElement
+    fireEvent.change(input, {
+      target: {
+        value:
+          'https://docs.google.com/spreadsheets/d/BareIdFromServer0000000000000000000000000/edit',
+      },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save target' }))
+    // The local override is cleared on success, so the field now falls back
+    // to the fresh cached status rather than the pasted URL still in state.
+    expect(input.value).toBe('BareIdFromServer0000000000000000000000000')
+  })
 })
