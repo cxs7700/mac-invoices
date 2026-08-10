@@ -43,6 +43,9 @@ export type PdfLandlord = { firstName: string | null; lastName: string | null; e
  * continuation page (autotable paginates; no data is truncated). */
 export type InvoicePdfPage = {
   heading: string
+  /** Just the number, for the template's large numeral. `heading` keeps the
+   * full "Invoice 123" string for callers that want one line. */
+  number: string
   date: string
   status: string
   location: string
@@ -154,6 +157,7 @@ export function buildInvoicePdfModel(
   const billTo = { name: landlordName(landlord), email: landlord.email }
   return [...invoices].sort(compareInvoiceOrder).map((inv) => ({
     heading: `${PDF_LABELS.invoice} ${inv.invoiceNumber ?? EMPTY}`,
+    number: inv.invoiceNumber ?? EMPTY,
     date: formatPdfDate(inv.invoiceDate),
     status: statusLabel(inv.status),
     location: (inv.propertyId && addressByPropertyId.get(inv.propertyId)) || EMPTY,
@@ -170,10 +174,37 @@ export function buildInvoicePdfModel(
   }))
 }
 
-const MARGIN = 40
-// Balance-due highlight: a light green fill behind the right-aligned amount.
-const BALANCE_FILL: [number, number, number] = [220, 237, 200]
-const BALANCE_TEXT: [number, number, number] = [20, 90, 50]
+const MARGIN = 44
+
+type Rgb = [number, number, number]
+
+/**
+ * A small, fixed palette. Exported artifacts are always light (DEC-025e), so
+ * these are literals rather than anything theme-derived — a PDF handed to a
+ * third party must not change appearance with the landlord's dark-mode setting.
+ */
+const ACCENT: Rgb = [37, 99, 175] // headings, rules, table header
+const ACCENT_TINT: Rgb = [237, 243, 252] // balance panel, zebra rows
+const INK: Rgb = [17, 24, 33] // primary text
+const MUTED: Rgb = [110, 122, 138] // field labels, secondary lines
+const RULE: Rgb = [226, 232, 240] // hairlines
+
+/**
+ * Status chips. Only the three states with real meaning to a reader of the
+ * printed document get their own color; everything else stays neutral so the
+ * page never turns into a color chart.
+ */
+const STATUS_COLORS: Record<string, { fill: Rgb; text: Rgb }> = {
+  Paid: { fill: [223, 242, 228], text: [22, 101, 52] },
+  Rejected: { fill: [253, 226, 226], text: [153, 27, 27] },
+  Cancelled: { fill: [253, 226, 226], text: [153, 27, 27] },
+}
+const STATUS_NEUTRAL = { fill: [237, 240, 244] as Rgb, text: [55, 65, 81] as Rgb }
+
+// Vertical rhythm for a stacked label/value pair: the label sits above its
+// value rather than sharing a line, so each field reads as its own unit.
+const LABEL_TO_VALUE = 15
+const FIELD_BLOCK = 46
 
 /**
  * Render and download the PDF. jsPDF and the autotable plugin load here, at
@@ -193,46 +224,113 @@ export async function generateInvoicesPdf(
 
   const doc = new jsPDF({ unit: 'pt', format: 'letter' })
   const pageWidth = doc.internal.pageSize.getWidth()
+  const contentWidth = pageWidth - MARGIN * 2
+
+  /** A small caps-ish field label — the top half of a stacked label/value pair. */
+  const drawLabel = (text: string, x: number, y: number) => {
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(7.5)
+    doc.setTextColor(...MUTED)
+    doc.setCharSpace(1.1) // letterspacing is what makes small caps read as a label
+    doc.text(text.toUpperCase(), x, y)
+    doc.setCharSpace(0)
+  }
+
+  const drawValue = (text: string, x: number, y: number, opts: { bold?: boolean } = {}) => {
+    doc.setFont('helvetica', opts.bold ? 'bold' : 'normal')
+    doc.setFontSize(10.5)
+    doc.setTextColor(...INK)
+    doc.text(text, x, y)
+  }
+
   pages.forEach((page, i) => {
     if (i > 0) doc.addPage()
-    doc.setFontSize(16)
-    doc.text(page.heading, MARGIN, 50)
-    doc.setFontSize(10)
-    doc.text(`${PDF_LABELS.date}: ${page.date}`, MARGIN, 70)
-    doc.text(`${PDF_LABELS.status}: ${page.status}`, MARGIN, 84)
-    doc.text(`${PDF_LABELS.location}: ${page.location}`, MARGIN, 98)
 
-    // Sender (left) / Bill To (right) header blocks.
-    const senderY = 122
-    doc.setFontSize(9)
+    // ---- Masthead: wordmark left, invoice number right, accent rule under.
     doc.setFont('helvetica', 'bold')
-    doc.text(PDF_LABELS.sender, MARGIN, senderY)
-    doc.text(PDF_LABELS.billTo, pageWidth / 2, senderY)
+    doc.setFontSize(26)
+    doc.setTextColor(...ACCENT)
+    doc.setCharSpace(2)
+    doc.text(PDF_LABELS.invoice.toUpperCase(), MARGIN, 68)
+    doc.setCharSpace(0)
+
+    doc.setFontSize(15)
+    doc.setTextColor(...INK)
+    doc.text(`#${page.number}`, pageWidth - MARGIN, 68, { align: 'right' })
+
+    doc.setFillColor(...ACCENT)
+    doc.rect(MARGIN, 80, contentWidth, 2.5, 'F')
+
+    // ---- Meta fields, each label stacked above its value.
+    const metaY = 112
+    const colWidth = contentWidth / 3
+    drawLabel(PDF_LABELS.date, MARGIN, metaY)
+    drawValue(page.date, MARGIN, metaY + LABEL_TO_VALUE)
+
+    drawLabel(PDF_LABELS.status, MARGIN + colWidth, metaY)
+    const chip = STATUS_COLORS[page.status] ?? STATUS_NEUTRAL
+    const chipWidth = doc.getTextWidth(page.status) + 18
+    doc.setFillColor(...chip.fill)
+    doc.roundedRect(MARGIN + colWidth, metaY + LABEL_TO_VALUE - 9, chipWidth, 16, 8, 8, 'F')
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(9.5)
+    doc.setTextColor(...chip.text)
+    doc.text(page.status, MARGIN + colWidth + 9, metaY + LABEL_TO_VALUE + 2)
+
+    drawLabel(PDF_LABELS.location, MARGIN + colWidth * 2, metaY)
+    drawValue(page.location, MARGIN + colWidth * 2, metaY + LABEL_TO_VALUE)
+
+    // ---- Parties, same stacked treatment, separated by a hairline.
+    const partiesY = metaY + FIELD_BLOCK
+    doc.setDrawColor(...RULE)
+    doc.setLineWidth(0.75)
+    doc.line(MARGIN, partiesY - 16, pageWidth - MARGIN, partiesY - 16)
+
+    drawLabel(PDF_LABELS.sender, MARGIN, partiesY)
+    drawValue(page.sender.name, MARGIN, partiesY + LABEL_TO_VALUE, { bold: true })
     doc.setFont('helvetica', 'normal')
-    doc.text(page.sender.name, MARGIN, senderY + 14)
+    doc.setFontSize(9.5)
+    doc.setTextColor(...MUTED)
     page.sender.lines.forEach((line, li) => {
-      doc.text(line, MARGIN, senderY + 28 + li * 14)
+      doc.text(line, MARGIN, partiesY + LABEL_TO_VALUE + 14 + li * 13)
     })
-    doc.text(page.billTo.name, pageWidth / 2, senderY + 14)
-    doc.text(page.billTo.email, pageWidth / 2, senderY + 28)
+
+    const billToX = MARGIN + contentWidth / 2
+    drawLabel(PDF_LABELS.billTo, billToX, partiesY)
+    drawValue(page.billTo.name, billToX, partiesY + LABEL_TO_VALUE, { bold: true })
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(9.5)
+    doc.setTextColor(...MUTED)
+    doc.text(page.billTo.email, billToX, partiesY + LABEL_TO_VALUE + 14)
 
     // The sender block grows with its contact lines while Bill-To is always
-    // two lines; start the table below whichever ran longer, or a
-    // three-line sender would collide with it.
-    const senderBottom = senderY + 14 + (1 + page.sender.lines.length) * 14
-    const billToBottom = senderY + 42
-    const tableStartY = Math.max(senderBottom, billToBottom) + 20
+    // one; start the table below whichever ran longer, or a three-line sender
+    // would collide with it.
+    const senderBottom = partiesY + LABEL_TO_VALUE + 14 + page.sender.lines.length * 13
+    const billToBottom = partiesY + LABEL_TO_VALUE + 14
+    const tableStartY = Math.max(senderBottom, billToBottom) + 28
 
     autoTable(doc, {
       startY: tableStartY,
       margin: { left: MARGIN, right: MARGIN },
       head: [PDF_ITEMS_COLUMNS.map((c) => c.label)],
       body: page.items.map((item) => [item.description, item.quantity, item.total]),
-      theme: 'grid',
-      styles: { fontSize: 10, cellPadding: 6 },
-      // Explicit light colors: exported artifacts are always light (DEC-025e).
-      headStyles: { fillColor: [240, 240, 240], textColor: 20 },
-      columnStyles: { 1: { halign: 'right' }, 2: { halign: 'right' } },
+      // 'grid' boxes every cell; the lighter treatment lets the type carry the
+      // structure and keeps the page from reading as a spreadsheet.
+      theme: 'striped',
+      styles: { fontSize: 10, cellPadding: 8, textColor: INK, lineColor: RULE, lineWidth: 0.5 },
+      headStyles: {
+        fillColor: ACCENT,
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+        fontSize: 8.5,
+        cellPadding: { top: 7, bottom: 7, left: 8, right: 8 },
+      },
+      alternateRowStyles: { fillColor: ACCENT_TINT },
+      columnStyles: {
+        1: { halign: 'right', cellWidth: 55 },
+        2: { halign: 'right', cellWidth: 95 },
+      },
     })
     // autotable leaves the cursor on the table's last (possibly continuation)
     // page and records where it ended.
@@ -240,18 +338,23 @@ export async function generateInvoicesPdf(
       (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ??
       tableStartY + 40
 
-    // Balance due: right-aligned, highlighted in green.
-    const boxWidth = 180
-    const boxHeight = 26
+    // ---- Balance due: the one figure a reader is looking for.
+    const boxWidth = 220
+    const boxHeight = 40
     const boxX = pageWidth - MARGIN - boxWidth
-    const boxY = finalY + 16
-    doc.setFillColor(...BALANCE_FILL)
+    const boxY = finalY + 20
+    doc.setFillColor(...ACCENT_TINT)
     doc.rect(boxX, boxY, boxWidth, boxHeight, 'F')
-    doc.setFontSize(11)
+    doc.setFillColor(...ACCENT)
+    doc.rect(boxX, boxY, 3, boxHeight, 'F') // accent spine
+
+    drawLabel(PDF_LABELS.balanceDue, boxX + 14, boxY + 15)
     doc.setFont('helvetica', 'bold')
-    doc.setTextColor(...BALANCE_TEXT)
-    doc.text(PDF_LABELS.balanceDue, boxX + 10, boxY + boxHeight / 2 + 4)
-    doc.text(page.balanceDue, pageWidth - MARGIN - 10, boxY + boxHeight / 2 + 4, { align: 'right' })
+    doc.setFontSize(15)
+    doc.setTextColor(...ACCENT)
+    doc.text(page.balanceDue, pageWidth - MARGIN - 14, boxY + 31, { align: 'right' })
+
+    // Leave the graphics state neutral for the next page.
     doc.setTextColor(0, 0, 0)
     doc.setFont('helvetica', 'normal')
   })

@@ -28,7 +28,10 @@ async function invoiceRoutes(fastify: FastifyInstance) {
   const exportMax = Number(process.env.EXPORT_RATE_LIMIT_MAX ?? 5)
   fastify.post(
     '/api/invoices/export',
-    { preHandler: requireAuth, config: { rateLimit: { max: exportMax, timeWindow: '15 minutes' } } },
+    {
+      preHandler: requireAuth,
+      config: { rateLimit: { max: exportMax, timeWindow: '15 minutes' } },
+    },
     handlers.exportInvoices,
   )
   // Continuous Sheets sync flush. PUBLIC + CRON_SECRET-gated (an external
@@ -36,12 +39,32 @@ async function invoiceRoutes(fastify: FastifyInstance) {
   fastify.post('/api/cron/sync-sheets', handlers.cronSyncSheets)
   fastify.post('/api/invoices/image-upload-token', auth, handlers.createImageUploadToken)
   fastify.get<{ Params: GetInvoiceParams }>('/api/invoices/:id', auth, handlers.getInvoice)
-  fastify.get<{ Params: GetInvoiceParams }>('/api/invoices/:id/events', auth, handlers.listInvoiceEvents)
+  fastify.get<{ Params: GetInvoiceParams }>(
+    '/api/invoices/:id/events',
+    auth,
+    handlers.listInvoiceEvents,
+  )
   // Image gallery collection (landlord-only, own-invoice scoped — a vendor 404s).
-  fastify.get<{ Params: GetInvoiceParams }>('/api/invoices/:id/images', auth, handlers.listInvoiceImages)
-  fastify.post<{ Params: GetInvoiceParams }>('/api/invoices/:id/images', auth, handlers.addInvoiceImage)
-  fastify.delete<{ Params: ImageParams }>('/api/invoices/:id/images/:imageId', auth, handlers.removeInvoiceImage)
-  fastify.patch<{ Params: ImageParams }>('/api/invoices/:id/images/:imageId', auth, handlers.setInvoiceImageType)
+  fastify.get<{ Params: GetInvoiceParams }>(
+    '/api/invoices/:id/images',
+    auth,
+    handlers.listInvoiceImages,
+  )
+  fastify.post<{ Params: GetInvoiceParams }>(
+    '/api/invoices/:id/images',
+    auth,
+    handlers.addInvoiceImage,
+  )
+  fastify.delete<{ Params: ImageParams }>(
+    '/api/invoices/:id/images/:imageId',
+    auth,
+    handlers.removeInvoiceImage,
+  )
+  fastify.patch<{ Params: ImageParams }>(
+    '/api/invoices/:id/images/:imageId',
+    auth,
+    handlers.setInvoiceImageType,
+  )
   fastify.patch<{ Params: GetInvoiceParams }>('/api/invoices/:id', auth, handlers.updateInvoice)
   fastify.delete<{ Params: GetInvoiceParams }>('/api/invoices/:id', auth, handlers.deleteInvoice)
 }

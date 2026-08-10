@@ -44,7 +44,9 @@ describe('storage not configured', () => {
   })
 
   it('deleteBlob throws 503 when the token is unset', async () => {
-    await expect(deleteBlob('owners/u1/x')).rejects.toMatchObject({ code: 'STORAGE_NOT_CONFIGURED' })
+    await expect(deleteBlob('owners/u1/x')).rejects.toMatchObject({
+      code: 'STORAGE_NOT_CONFIGURED',
+    })
   })
 
   it('signedReadUrl throws 503 when the token is unset', async () => {

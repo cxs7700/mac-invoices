@@ -42,28 +42,31 @@ export function AddressAutocomplete({
 
     const tooShort = value.trim().length < 3
     const controller = new AbortController()
-    const handle = setTimeout(() => {
-      if (tooShort) {
-        setResults([])
-        setLoading(false)
-        return
-      }
-      setLoading(true)
-      searchAddresses(value, controller.signal)
-        .then((found) => {
-          // Drop a response whose request was superseded (value already moved on).
-          if (controller.signal.aborted) return
-          setResults(found)
-          setActive(-1)
-          setOpen(true)
-        })
-        .catch(() => {
-          if (!controller.signal.aborted) setResults([])
-        })
-        .finally(() => {
-          if (!controller.signal.aborted) setLoading(false)
-        })
-    }, tooShort ? 0 : 300)
+    const handle = setTimeout(
+      () => {
+        if (tooShort) {
+          setResults([])
+          setLoading(false)
+          return
+        }
+        setLoading(true)
+        searchAddresses(value, controller.signal)
+          .then((found) => {
+            // Drop a response whose request was superseded (value already moved on).
+            if (controller.signal.aborted) return
+            setResults(found)
+            setActive(-1)
+            setOpen(true)
+          })
+          .catch(() => {
+            if (!controller.signal.aborted) setResults([])
+          })
+          .finally(() => {
+            if (!controller.signal.aborted) setLoading(false)
+          })
+      },
+      tooShort ? 0 : 300,
+    )
 
     return () => {
       controller.abort()

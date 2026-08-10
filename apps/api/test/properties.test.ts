@@ -24,8 +24,12 @@ const del = (id: string, cookie: string) =>
 const invoice = (userId: string, propertyId: string, status: string, amount: number) =>
   app.prisma.invoice.create({
     data: {
-      vendorName: 'V', amount, propertyId, userId,
-      status: status as never, invoiceDate: new Date(),
+      vendorName: 'V',
+      amount,
+      propertyId,
+      userId,
+      status: status as never,
+      invoiceDate: new Date(),
     },
   })
 
@@ -87,7 +91,10 @@ describe('delete guard + spend rollup', () => {
     expect(blocked.json().error.message).toMatch(/2 invoices/)
 
     // Reassign both away, then delete succeeds.
-    await app.prisma.invoice.updateMany({ where: { id: { in: [i1.id, i2.id] } }, data: { propertyId: null } })
+    await app.prisma.invoice.updateMany({
+      where: { id: { in: [i1.id, i2.id] } },
+      data: { propertyId: null },
+    })
     expect((await del(id, a.cookie)).statusCode).toBe(204)
   })
 

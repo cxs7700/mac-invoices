@@ -1,12 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { propertyLabel, type InvoiceSortField } from '@mac-invoices/shared'
-import {
-  STATUS_OPTIONS,
-  SORT_OPTIONS,
-  hasActiveFilters,
-  type ListFilters,
-} from '@/lib/listParams'
+import { STATUS_OPTIONS, SORT_OPTIONS, hasActiveFilters, type ListFilters } from '@/lib/listParams'
 import { useProperties } from '@/hooks/useProperties'
 
 const field =
@@ -179,7 +174,9 @@ export function FilterBar({ filters, onChange, onClear }: Props) {
 
       <button
         type="button"
-        aria-label={filters.order === 'asc' ? t('filterBar.sortAscending') : t('filterBar.sortDescending')}
+        aria-label={
+          filters.order === 'asc' ? t('filterBar.sortAscending') : t('filterBar.sortDescending')
+        }
         title={filters.order === 'asc' ? t('filterBar.ascending') : t('filterBar.descending')}
         className={`${field} md:self-stretch`}
         onClick={() => onChange({ order: filters.order === 'asc' ? 'desc' : 'asc' })}
@@ -188,7 +185,11 @@ export function FilterBar({ filters, onChange, onClear }: Props) {
       </button>
 
       {hasActiveFilters(filters) && (
-        <button type="button" onClick={onClear} className="text-sm text-primary md:self-end md:pb-2">
+        <button
+          type="button"
+          onClick={onClear}
+          className="text-sm text-primary md:self-end md:pb-2"
+        >
           {t('filterBar.clearFilters')}
         </button>
       )}

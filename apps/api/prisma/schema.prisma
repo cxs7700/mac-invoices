@@ -80,7 +80,10 @@ model Vendor {
   phone         String?
   email         String?
   tokenLookupId String    @unique
-  tokenHash     String
+  // The link secret is derived, never stored: HMAC(VENDOR_LINK_KEY,
+  // tokenLookupId:tokenVersion). Bumping the version rotates the link; see
+  // src/vendors/token.ts and DECISIONS.md DEC-034.
+  tokenVersion  Int       @default(0)
   revokedAt     DateTime?
   lastUsedAt    DateTime?
   createdAt     DateTime  @default(now())

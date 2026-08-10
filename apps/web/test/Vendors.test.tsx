@@ -2,50 +2,68 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import Vendors from '@/pages/Vendors'
 
-const { useVendors, useCreateVendor, useRevokeLink, useRegenerateLink } = vi.hoisted(() => ({
-  useVendors: vi.fn(),
-  useCreateVendor: vi.fn(),
-  useRevokeLink: vi.fn(),
-  useRegenerateLink: vi.fn(),
-}))
+const { useVendors, useCreateVendor, useRevokeLink, useReissueLink, useUpdateVendor } = vi.hoisted(
+  () => ({
+    useVendors: vi.fn(),
+    useCreateVendor: vi.fn(),
+    useRevokeLink: vi.fn(),
+    useReissueLink: vi.fn(),
+    useUpdateVendor: vi.fn(),
+  }),
+)
 vi.mock('@/hooks/useVendors', () => ({
   useVendors,
   useCreateVendor,
   useRevokeLink,
-  useRegenerateLink,
+  useReissueLink,
+  useUpdateVendor,
 }))
+
+const LINK = 'http://app/submit/inv_abc_secret'
 
 const vendor = (over = {}) => ({
   id: 'c1',
   name: 'Joe Plumber',
-  phone: '555-1234',
+  phone: '5551234567',
   email: null,
   linkActive: true,
+  link: LINK,
   lastUsedAt: null,
   createdAt: '2026-06-01',
   ...over,
 })
 
 const createMutate = vi.fn()
-const regenerateMutate = vi.fn()
+const reissueMutate = vi.fn()
 const revokeMutate = vi.fn()
+const updateMutate = vi.fn()
+
+function listing(vendors: unknown[]) {
+  useVendors.mockReturnValue({ data: { data: vendors }, isPending: false, isError: false })
+}
 
 describe('Vendors page', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     useCreateVendor.mockReturnValue({ mutate: createMutate, isPending: false, error: null })
     useRevokeLink.mockReturnValue({ mutate: revokeMutate, isPending: false })
-    useRegenerateLink.mockReturnValue({ mutate: regenerateMutate, isPending: false })
+    useReissueLink.mockReturnValue({ mutate: reissueMutate, isPending: false })
+    useUpdateVendor.mockReturnValue({
+      mutate: updateMutate,
+      isPending: false,
+      error: null,
+      variables: undefined,
+    })
   })
 
   it('shows the empty state before any vendor is added', () => {
-    useVendors.mockReturnValue({ data: { data: [] }, isPending: false, isError: false })
+    listing([])
     render(<Vendors />)
     expect(screen.getByText(/no vendors yet/i)).toBeDefined()
   })
 
   it('submits a new vendor with separate phone and email', async () => {
-    useVendors.mockReturnValue({ data: { data: [] }, isPending: false, isError: false })
+    listing([])
     render(<Vendors />)
 
     fireEvent.change(screen.getByLabelText(/name/i), { target: { value: 'Ace Plumbing' } })
@@ -62,7 +80,7 @@ describe('Vendors page', () => {
   })
 
   it('blocks submit when both phone and email are empty', async () => {
-    useVendors.mockReturnValue({ data: { data: [] }, isPending: false, isError: false })
+    listing([])
     render(<Vendors />)
 
     fireEvent.change(screen.getByLabelText(/name/i), { target: { value: 'No Contact' } })
@@ -72,27 +90,58 @@ describe('Vendors page', () => {
     expect(createMutate).not.toHaveBeenCalled()
   })
 
-  it('reveals the link once on regenerate, then hides it on "Done"', () => {
-    useVendors.mockReturnValue({ data: { data: [vendor()] }, isPending: false, isError: false })
-    // Regenerate fires its onSuccess with the new link.
-    regenerateMutate.mockImplementation((_id, opts) =>
-      opts.onSuccess({ ...vendor(), link: 'http://app/submit/inv_new_secret' }),
-    )
+  it('shows the link on every row and copies it on demand', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.assign(navigator, { clipboard: { writeText } })
+    listing([vendor()])
     render(<Vendors />)
-    fireEvent.click(screen.getByRole('button', { name: /regenerate link/i }))
-    expect(screen.getByText('http://app/submit/inv_new_secret')).toBeDefined()
 
-    fireEvent.click(screen.getByRole('button', { name: /copy link/i }))
-    expect(screen.getByRole('button', { name: 'Copied!' })).toBeDefined()
+    // The link is present without any prior create/regenerate step.
+    expect(screen.getByText(LINK)).toBeDefined()
 
-    fireEvent.click(screen.getByRole('button', { name: /done — i copied it/i }))
-    expect(screen.queryByText('http://app/submit/inv_new_secret')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: "Copy Joe Plumber's submission link" }))
+    expect(writeText).toHaveBeenCalledWith(LINK)
   })
 
-  it('offers revoke on an active link', () => {
-    useVendors.mockReturnValue({ data: { data: [vendor()] }, isPending: false, isError: false })
+  it('displays the phone in (123)456-7890 form', () => {
+    listing([vendor()])
     render(<Vendors />)
+    expect(screen.getByText(/\(555\)123-4567/)).toBeDefined()
+  })
+
+  it('edits a vendor’s contact details in place', () => {
+    listing([vendor({ phone: null, email: null })])
+    render(<Vendors />)
+
+    // An auto-created vendor starts with neither field.
+    expect(screen.getByText(/no phone or email yet/i)).toBeDefined()
+
+    fireEvent.click(screen.getByRole('button', { name: "Edit Joe Plumber's contact details" }))
+    fireEvent.change(screen.getByLabelText(/phone/i, { selector: '#phone-c1' }), {
+      target: { value: '5551234567' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /save changes/i }))
+
+    expect(updateMutate).toHaveBeenCalledWith({ id: 'c1', phone: '5551234567', email: null })
+  })
+
+  it('offers revoke on an active link and no regenerate button', () => {
+    listing([vendor()])
+    render(<Vendors />)
+
+    // Regenerating is no longer part of the everyday flow.
+    expect(screen.queryByRole('button', { name: /regenerate/i })).toBeNull()
+
     fireEvent.click(screen.getByRole('button', { name: 'Revoke' }))
     expect(revokeMutate).toHaveBeenCalledWith('c1')
+  })
+
+  it('offers a replacement link only once revoked, and hides the dead link', () => {
+    listing([vendor({ linkActive: false, link: null })])
+    render(<Vendors />)
+
+    expect(screen.queryByText(LINK)).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /issue new link/i }))
+    expect(reissueMutate).toHaveBeenCalledWith('c1')
   })
 })

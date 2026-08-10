@@ -60,17 +60,36 @@ describe('GET /api/invoices — auth + bounds', () => {
   })
 
   it('400s on out-of-bounds / non-numeric pagination + bad date (strict API, KTD-7)', async () => {
-    for (const q of ['limit=1000000', 'limit=abc', 'limit=0', 'offset=-5', 'offset=100001', 'from=not-a-date']) {
-      const res = await app.inject({ method: 'GET', url: `/api/invoices?${q}`, headers: { cookie } })
+    for (const q of [
+      'limit=1000000',
+      'limit=abc',
+      'limit=0',
+      'offset=-5',
+      'offset=100001',
+      'from=not-a-date',
+    ]) {
+      const res = await app.inject({
+        method: 'GET',
+        url: `/api/invoices?${q}`,
+        headers: { cookie },
+      })
       expect(res.statusCode, q).toBe(400)
       expect(res.json().error.code).toBe('VALIDATION_ERROR')
     }
   })
 
   it('rejects an out-of-enum status with 400 and accepts a valid one', async () => {
-    const bad = await app.inject({ method: 'GET', url: '/api/invoices?status=BOGUS', headers: { cookie } })
+    const bad = await app.inject({
+      method: 'GET',
+      url: '/api/invoices?status=BOGUS',
+      headers: { cookie },
+    })
     expect(bad.statusCode).toBe(400)
-    const ok = await app.inject({ method: 'GET', url: '/api/invoices?status=PAID', headers: { cookie } })
+    const ok = await app.inject({
+      method: 'GET',
+      url: '/api/invoices?status=PAID',
+      headers: { cookie },
+    })
     expect(ok.statusCode).toBe(200)
   })
 })
@@ -198,7 +217,10 @@ describe('GET /api/invoices — filter + sort', () => {
   it("never returns a second user's matching invoice", async () => {
     const second = await createSecondUser(app)
     try {
-      await create({ n: 'OTHER', vendor: `${NONCE}Other`, date: '2026-02-10', amount: 999 }, second.cookie)
+      await create(
+        { n: 'OTHER', vendor: `${NONCE}Other`, date: '2026-02-10', amount: 999 },
+        second.cookie,
+      )
       const res = await listMine()
       const nums = res.json().data.map((i: { invoiceNumber: string }) => i.invoiceNumber)
       expect(nums).not.toContain(`${NONCE}OTHER`)
@@ -212,7 +234,9 @@ describe('GET /api/invoices — imageCount (U4)', () => {
   it('reports imageCount on the list and the detail (0 and many)', async () => {
     // Resolve the landlord id from an existing invoice's detail (no /me dependency).
     const anyId = (await listMine()).json().data[0].id
-    const uid = (await app.inject({ method: 'GET', url: `/api/invoices/${anyId}`, headers: { cookie } })).json().user.id
+    const uid = (
+      await app.inject({ method: 'GET', url: `/api/invoices/${anyId}`, headers: { cookie } })
+    ).json().user.id
     const ownUrl = (n: string) => `https://blob.test/owners/${uid}/${n}`
 
     const withImgs = await app.inject({
@@ -231,9 +255,13 @@ describe('GET /api/invoices — imageCount (U4)', () => {
     expect(withImgs.statusCode).toBe(201)
     const imgId = withImgs.json().id as string
 
-    const detail = (await app.inject({ method: 'GET', url: `/api/invoices/${imgId}`, headers: { cookie } })).json()
+    const detail = (
+      await app.inject({ method: 'GET', url: `/api/invoices/${imgId}`, headers: { cookie } })
+    ).json()
     expect(detail.imageCount).toBe(2)
-    const zeroDetail = (await app.inject({ method: 'GET', url: `/api/invoices/${anyId}`, headers: { cookie } })).json()
+    const zeroDetail = (
+      await app.inject({ method: 'GET', url: `/api/invoices/${anyId}`, headers: { cookie } })
+    ).json()
     expect(zeroDetail.imageCount).toBe(0)
 
     const list = (await listMine()).json().data as { id: string; imageCount: number }[]

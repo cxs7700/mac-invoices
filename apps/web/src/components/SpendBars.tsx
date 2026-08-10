@@ -30,7 +30,11 @@ export function SpendBars({ rows }: { rows: SpendBarRow[] }) {
               </span>
             </div>
             <div className="mt-1 h-2 overflow-hidden rounded-full bg-muted">
-              <div className="h-2 rounded-full bg-primary" style={{ width: `${pct}%` }} aria-hidden />
+              <div
+                className="h-2 rounded-full bg-primary"
+                style={{ width: `${pct}%` }}
+                aria-hidden
+              />
             </div>
           </li>
         )

@@ -131,7 +131,9 @@ export async function getSheets(request: FastifyRequest, reply: FastifyReply) {
   const targetSpreadsheetId = await effectiveTarget(request)
   let reachable = false
   if (configured && targetSpreadsheetId) {
-    reachable = await checkAccess(targetSpreadsheetId).then(() => true).catch(() => false)
+    reachable = await checkAccess(targetSpreadsheetId)
+      .then(() => true)
+      .catch(() => false)
   }
   return reply.send({ configured, serviceAccountEmail: email, targetSpreadsheetId, reachable })
 }

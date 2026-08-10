@@ -24,7 +24,9 @@ export default function PropertyEdit() {
       </div>
     )
 
-  return <EditForm id={id!} initial={property} onSaved={() => navigate('/properties')} update={update} />
+  return (
+    <EditForm id={id!} initial={property} onSaved={() => navigate('/properties')} update={update} />
+  )
 }
 
 function EditForm({

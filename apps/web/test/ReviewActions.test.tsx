@@ -5,7 +5,9 @@ import { ReviewActions } from '@/components/ReviewActions'
 
 vi.mock('@/hooks/useProperties', () => ({
   useProperties: () => ({
-    data: { data: [{ id: 'p1', name: 'Maple', address: 'A', notes: null, createdAt: '2026-06-01' }] },
+    data: {
+      data: [{ id: 'p1', name: 'Maple', address: 'A', notes: null, createdAt: '2026-06-01' }],
+    },
     isPending: false,
     isError: false,
   }),

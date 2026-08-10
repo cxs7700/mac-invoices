@@ -56,7 +56,13 @@ function statusOf(err: unknown): number | undefined {
 }
 
 // gaxios surfaces transport failures with a STRING code and no HTTP status.
-const TRANSPORT_CODES = new Set(['ECONNRESET', 'ETIMEDOUT', 'ENOTFOUND', 'EAI_AGAIN', 'ERR_NETWORK'])
+const TRANSPORT_CODES = new Set([
+  'ECONNRESET',
+  'ETIMEDOUT',
+  'ENOTFOUND',
+  'EAI_AGAIN',
+  'ERR_NETWORK',
+])
 function isTransportError(err: unknown): boolean {
   const code = (err as { code?: unknown })?.code
   return typeof code === 'string' && TRANSPORT_CODES.has(code)
@@ -91,7 +97,11 @@ function sanitize(err: unknown): AppError {
     case 404:
       return new AppError('SHEET_NOT_FOUND', 'The target spreadsheet was not found', 502)
     case 429:
-      return new AppError('SHEET_RATE_LIMITED', 'Google Sheets rate limit exceeded; try again later', 502)
+      return new AppError(
+        'SHEET_RATE_LIMITED',
+        'Google Sheets rate limit exceeded; try again later',
+        502,
+      )
     default:
       return new AppError('SHEET_ERROR', 'Failed to write to Google Sheets', 502)
   }
@@ -183,9 +193,7 @@ export async function resolveSheetTab(spreadsheetId: string): Promise<SheetTab> 
   }
   // The API omits columnIndex for column 0 (proto3 default) — hence the ?? 0.
   const typedColumnIndexes = (match?.tables ?? []).flatMap((t) =>
-    (t.columnProperties ?? [])
-      .filter((c) => c.columnType != null)
-      .map((c) => c.columnIndex ?? 0),
+    (t.columnProperties ?? []).filter((c) => c.columnType != null).map((c) => c.columnIndex ?? 0),
   )
   return { sheetId, typedColumnIndexes }
 }

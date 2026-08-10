@@ -43,7 +43,6 @@ describe('U1 schema: vendor + nullable invoice columns', () => {
         name: 'Joe',
         phone: '555-1234',
         tokenLookupId: `lk-${Date.now()}-a`,
-        tokenHash: 'h',
       },
     })
     const inv = await app.prisma.invoice.create({
@@ -67,11 +66,11 @@ describe('U1 schema: vendor + nullable invoice columns', () => {
   it('enforces tokenLookupId uniqueness', async () => {
     const lk = `lk-dup-${Date.now()}`
     await app.prisma.vendor.create({
-      data: { landlordId, name: 'A', phone: 'a', tokenLookupId: lk, tokenHash: 'h' },
+      data: { landlordId, name: 'A', phone: 'a', tokenLookupId: lk },
     })
     await expect(
       app.prisma.vendor.create({
-        data: { landlordId, name: 'B', phone: 'b', tokenLookupId: lk, tokenHash: 'h' },
+        data: { landlordId, name: 'B', phone: 'b', tokenLookupId: lk },
       }),
     ).rejects.toMatchObject({ code: 'P2002' })
   })
@@ -83,7 +82,6 @@ describe('U1 schema: vendor + nullable invoice columns', () => {
         name: 'Temp',
         phone: 't',
         tokenLookupId: `lk-${Date.now()}-b`,
-        tokenHash: 'h',
       },
     })
     const inv = await app.prisma.invoice.create({
@@ -111,7 +109,6 @@ describe('U1 schema: vendor + nullable invoice columns', () => {
         name: 'C',
         phone: 'c',
         tokenLookupId: `lk-${Date.now()}-c`,
-        tokenHash: 'h',
       },
     })
     await app.prisma.user.delete({ where: { id: tempLandlord.id } })

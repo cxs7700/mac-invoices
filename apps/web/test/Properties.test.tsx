@@ -14,7 +14,14 @@ vi.mock('@/hooks/useProperties', () => ({ useProperties, useCreateProperty, useD
 const createMutate = vi.fn()
 const deleteMutate = vi.fn()
 
-const property = (over = {}) => ({ id: 'p1', name: 'Maple Duplex', address: '1 Maple Ave', notes: null, createdAt: '2026-06-01', ...over })
+const property = (over = {}) => ({
+  id: 'p1',
+  name: 'Maple Duplex',
+  address: '1 Maple Ave',
+  notes: null,
+  createdAt: '2026-06-01',
+  ...over,
+})
 
 function renderPage() {
   return render(
@@ -70,25 +77,47 @@ describe('Properties page', () => {
       isError: false,
     })
     renderPage()
-    expect(screen.getByRole('link', { name: '742 Evergreen Terrace' }).getAttribute('href')).toBe('/properties/p1')
+    expect(screen.getByRole('link', { name: '742 Evergreen Terrace' }).getAttribute('href')).toBe(
+      '/properties/p1',
+    )
   })
 
   it('lists properties with view/edit links', () => {
-    useProperties.mockReturnValue({ data: { data: [property()] }, isPending: false, isError: false })
+    useProperties.mockReturnValue({
+      data: { data: [property()] },
+      isPending: false,
+      isError: false,
+    })
     renderPage()
-    expect(screen.getByRole('link', { name: 'Maple Duplex' }).getAttribute('href')).toBe('/properties/p1')
-    expect(screen.getByRole('link', { name: 'Edit' }).getAttribute('href')).toBe('/properties/p1/edit')
+    expect(screen.getByRole('link', { name: 'Maple Duplex' }).getAttribute('href')).toBe(
+      '/properties/p1',
+    )
+    expect(screen.getByRole('link', { name: 'Edit' }).getAttribute('href')).toBe(
+      '/properties/p1/edit',
+    )
   })
 
   it('surfaces the delete-guard error inline with a reassign link', () => {
-    useProperties.mockReturnValue({ data: { data: [property()] }, isPending: false, isError: false })
+    useProperties.mockReturnValue({
+      data: { data: [property()] },
+      isPending: false,
+      isError: false,
+    })
     // Simulate the API 422 by firing the mutation's onError.
     deleteMutate.mockImplementation((_id, opts) =>
-      opts.onError(new ApiError('PROPERTY_HAS_INVOICES', "Can't delete: 3 invoices assigned. Reassign them first.", 422)),
+      opts.onError(
+        new ApiError(
+          'PROPERTY_HAS_INVOICES',
+          "Can't delete: 3 invoices assigned. Reassign them first.",
+          422,
+        ),
+      ),
     )
     renderPage()
     fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
     expect(screen.getByText(/3 invoices assigned/i)).toBeDefined()
-    expect(screen.getByRole('link', { name: /view its invoices/i }).getAttribute('href')).toBe('/invoices?propertyId=p1')
+    expect(screen.getByRole('link', { name: /view its invoices/i }).getAttribute('href')).toBe(
+      '/invoices?propertyId=p1',
+    )
   })
 })

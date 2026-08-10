@@ -60,7 +60,7 @@ describe('sheets.appendRows', () => {
     appendMock.mockResolvedValue({})
     await appendRows('S', [['=IMPORTXML("http://evil")', '+1', 'safe', 42, '-bad', '@x']])
     expect(appendMock.mock.calls[0][0].requestBody.values[0]).toEqual([
-      "'=IMPORTXML(\"http://evil\")",
+      '\'=IMPORTXML("http://evil")',
       "'+1",
       'safe',
       42,
@@ -171,7 +171,7 @@ describe('sheets.overwriteRows (full mirror)', () => {
   it('neutralizes formula-injection in mirrored cells', async () => {
     await overwriteRows('S', [['=HYPERLINK("http://evil")', 'safe']])
     expect(updateMock.mock.calls[0][0].requestBody.values[0]).toEqual([
-      "'=HYPERLINK(\"http://evil\")",
+      '\'=HYPERLINK("http://evil")',
       'safe',
     ])
   })
@@ -184,7 +184,9 @@ describe('sheets.overwriteRows (full mirror)', () => {
   })
 
   it('sanitizes an update-step error and does not leak credentials', async () => {
-    updateMock.mockReset().mockRejectedValue({ code: 403, message: 'no access to PRIVATE-SECRET-123' })
+    updateMock
+      .mockReset()
+      .mockRejectedValue({ code: 403, message: 'no access to PRIVATE-SECRET-123' })
     const err = await overwriteRows('S', [['x']]).catch((e) => e)
     expect(err).toMatchObject({ code: 'SHEET_PERMISSION_DENIED', statusCode: 502 })
     expect(JSON.stringify(err, Object.getOwnPropertyNames(err))).not.toContain('PRIVATE-SECRET-123')

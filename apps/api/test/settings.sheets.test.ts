@@ -37,10 +37,17 @@ afterAll(async () => {
 })
 
 const cookie = () => u.cookie
-const get = () => app.inject({ method: 'GET', url: '/api/settings/sheets', headers: { cookie: cookie() } })
+const get = () =>
+  app.inject({ method: 'GET', url: '/api/settings/sheets', headers: { cookie: cookie() } })
 const save = (spreadsheetId: string) =>
-  app.inject({ method: 'PATCH', url: '/api/settings/sheets', payload: { spreadsheetId }, headers: { cookie: cookie() } })
-const test = () => app.inject({ method: 'POST', url: '/api/settings/sheets/test', headers: { cookie: cookie() } })
+  app.inject({
+    method: 'PATCH',
+    url: '/api/settings/sheets',
+    payload: { spreadsheetId },
+    headers: { cookie: cookie() },
+  })
+const test = () =>
+  app.inject({ method: 'POST', url: '/api/settings/sheets/test', headers: { cookie: cookie() } })
 
 describe('Sheets settings', () => {
   it('GET status returns null targetSpreadsheetId for a user with no saved sheet — no server-side fallback of any kind', async () => {
@@ -76,13 +83,19 @@ describe('Sheets settings', () => {
     const res = await save(ID_SAVED)
     expect(res.statusCode).toBe(200)
     expect(res.json().targetSpreadsheetId).toBe(ID_SAVED)
-    expect((await app.prisma.user.findUniqueOrThrow({ where: { id: u.user.id } })).sheetSpreadsheetId).toBe(ID_SAVED)
+    expect(
+      (await app.prisma.user.findUniqueOrThrow({ where: { id: u.user.id } })).sheetSpreadsheetId,
+    ).toBe(ID_SAVED)
   })
 
   it('test connection surfaces the share-as-Editor error, not a raw error (AE3)', async () => {
     await save(ID_UNREACHABLE)
     sheets.checkAccess.mockRejectedValueOnce(
-      new AppError('SHEET_PERMISSION_DENIED', 'share it as Editor with the service-account email', 502),
+      new AppError(
+        'SHEET_PERMISSION_DENIED',
+        'share it as Editor with the service-account email',
+        502,
+      ),
     )
     const res = await test()
     expect(res.statusCode).toBe(502)
@@ -104,7 +117,12 @@ describe('Sheets settings', () => {
       headers: { cookie: cookie() },
     })
     sheets.overwriteRows.mockClear()
-    const res = await app.inject({ method: 'POST', url: '/api/invoices/export', payload: {}, headers: { cookie: cookie() } })
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/invoices/export',
+      payload: {},
+      headers: { cookie: cookie() },
+    })
     expect(res.statusCode).toBe(200)
     expect(sheets.overwriteRows).toHaveBeenCalled()
     expect(sheets.overwriteRows.mock.calls[0][0]).toBe(ID_TARGET) // targeted the saved id

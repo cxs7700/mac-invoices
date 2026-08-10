@@ -228,6 +228,34 @@ index surfaces as a generic `409 CONFLICT` from the central error handler
 (the old code has no P2002 → `SHEET_ALREADY_CONNECTED` translation) rather
 than crashing. That makes the code deploy independently reversible.
 
+### Vendor link tokens become derived (2026-08-09)
+
+`20260809120000_vendor_derived_link_token` adds `vendors.tokenVersion` and **drops
+`vendors.tokenHash`**, because the link secret is now derived from `VENDOR_LINK_KEY`
+rather than stored (DEC-034).
+
+**Set `VENDOR_LINK_KEY` in Vercel BEFORE deploying this** (see §5). Without it the vendor
+routes and every `/submit/:token` request throw — the code refuses to fall back to a default,
+since a shared default would give every deployment predictable link secrets.
+
+**This is a destructive migration, so it inverts the usual order — deploy the code FIRST,
+confirm it is serving, and only then run `db:deploy`.** The currently-deployed Prisma client
+still `SELECT`s `tokenHash` by name; dropping the column while that code is live throws
+`column "tokenHash" does not exist` on every vendor read. This is the same rule
+`drop_invoice_description` follows.
+
+The new code does not read `tokenHash`, so the window between deploying and migrating is
+safe: the column simply sits unused.
+
+> **Every outstanding submission link stops working — this is expected and unavoidable.**
+> The old plaintext cannot be re-derived under the new scheme, which is the cost of making
+> links re-displayable at all. After migrating, open **/vendors**, copy each vendor's link
+> (the copy icon on the row), and re-send it. As of this writing production has one vendor,
+> so this is one message.
+
+No pre-deploy audit query is needed: the migration rewrites no rows and the dropped column
+feeds nothing downstream.
+
 ## 4. Seed the landlord (one-off, strong password)
 
 The seed upserts the landlord login and **fails closed** if `LANDLORD_PASSWORD` is unset, and
@@ -264,6 +292,7 @@ previews hit a DB). Mark secrets **Sensitive**.
 | `LANDLORD_USER_ID` | `landlord_seed_user` | must match what was seeded |
 | `LANDLORD_EMAIL` | the seeded email | |
 | `COOKIE_SECURE` | `true` | sends the session cookie only over HTTPS — **set for Preview too** |
+| `VENDOR_LINK_KEY` | a random string ≥32 chars | **REQUIRED** — every vendor submission link is derived from it (DEC-034). Sensitive: it is the only thing between a database dump and a working link. **Unset ⇒ the vendors page and every `/submit/:token` request throw.** Changing it invalidates every outstanding link. Generate with `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"` |
 | `NODE_ENV` | *(do **not** set)* | Vercel sets `production` in the function runtime automatically; adding it as a project env var makes the build's `npm install` skip devDependencies → the web build fails with exit 2 |
 | `VITE_API_URL` | *(empty / unset)* | same-origin; baked into the SPA at build |
 

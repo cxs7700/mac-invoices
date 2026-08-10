@@ -29,7 +29,13 @@ afterAll(async () => {
   await app.prisma.user
     .update({
       where: { id: landlordId },
-      data: { name: 'Landlord', firstName: 'Landlord', lastName: null, locale: 'en', email: landlordEmail },
+      data: {
+        name: 'Landlord',
+        firstName: 'Landlord',
+        lastName: null,
+        locale: 'en',
+        email: landlordEmail,
+      },
     })
     .catch(() => {})
   await other.cleanup()
@@ -42,8 +48,13 @@ const patch = (payload: object, c = cookie) =>
 describe('PATCH /api/settings/profile', () => {
   it('401s without auth', async () => {
     expect(
-      (await app.inject({ method: 'PATCH', url: '/api/settings/profile', payload: { firstName: 'X' } }))
-        .statusCode,
+      (
+        await app.inject({
+          method: 'PATCH',
+          url: '/api/settings/profile',
+          payload: { firstName: 'X' },
+        })
+      ).statusCode,
     ).toBe(401)
   })
 
@@ -57,7 +68,9 @@ describe('PATCH /api/settings/profile', () => {
     expect(body.email).toBeTruthy()
     expect(JSON.stringify(body)).not.toMatch(/passwordHash/)
     // /me reflects it on the next request.
-    const me = (await app.inject({ method: 'GET', url: '/api/auth/me', headers: { cookie } })).json()
+    const me = (
+      await app.inject({ method: 'GET', url: '/api/auth/me', headers: { cookie } })
+    ).json()
     expect(me.firstName).toBe('New')
     expect(me.name).toBe('New Name')
   })
@@ -67,7 +80,9 @@ describe('PATCH /api/settings/profile', () => {
     const res = await patch({ email })
     expect(res.statusCode).toBe(200)
     expect(res.json().email).toBe(email)
-    const me = (await app.inject({ method: 'GET', url: '/api/auth/me', headers: { cookie } })).json()
+    const me = (
+      await app.inject({ method: 'GET', url: '/api/auth/me', headers: { cookie } })
+    ).json()
     expect(me.email).toBe(email)
   })
 
@@ -126,7 +141,9 @@ describe('PATCH /api/settings/profile', () => {
       await app.inject({ method: 'GET', url: '/api/auth/me', headers: { cookie: other.cookie } })
     ).json()
     expect(theirs.name).toBe('Second Name')
-    const mine = (await app.inject({ method: 'GET', url: '/api/auth/me', headers: { cookie } })).json()
+    const mine = (
+      await app.inject({ method: 'GET', url: '/api/auth/me', headers: { cookie } })
+    ).json()
     expect(mine.name).not.toBe('Second Name') // unaffected by the other user's edit
   })
 
@@ -144,7 +161,9 @@ describe('PATCH /api/settings/profile', () => {
     expect(res.statusCode).toBe(200)
     expect(res.json().locale).toBe('zh')
     const before = res.json().name
-    const me = (await app.inject({ method: 'GET', url: '/api/auth/me', headers: { cookie: other.cookie } })).json()
+    const me = (
+      await app.inject({ method: 'GET', url: '/api/auth/me', headers: { cookie: other.cookie } })
+    ).json()
     expect(me.locale).toBe('zh')
     expect(me.name).toBe(before) // locale-only update left the name intact
   })

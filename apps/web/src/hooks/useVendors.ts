@@ -1,9 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { Vendor, VendorWithLink, CreateVendorInput } from '@mac-invoices/shared'
+import type {
+  Vendor,
+  VendorWithLink,
+  CreateVendorInput,
+  UpdateVendorInput,
+} from '@mac-invoices/shared'
 import { apiClient } from '@/lib/apiClient'
 
-// Landlord-side vendor management. The plaintext link is present only on the
-// create/regenerate responses (VendorWithLink) — the list never carries it.
+// Landlord-side vendor management. Every vendor response carries the current
+// submission link, derived server-side (DEC-034), so the list can offer copy
+// on any row rather than only right after creation.
 
 export function useVendors() {
   return useQuery<{ data: Vendor[] }>({
@@ -30,11 +36,21 @@ export function useRevokeLink() {
   })
 }
 
-export function useRegenerateLink() {
+/** Replace a revoked vendor's link (bumps the server-side token version). */
+export function useReissueLink() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: string) =>
       apiClient<VendorWithLink>(`/api/vendors/${id}/regenerate`, { method: 'POST' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['vendors'] }),
+  })
+}
+
+export function useUpdateVendor() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...body }: UpdateVendorInput & { id: string }) =>
+      apiClient<Vendor>(`/api/vendors/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['vendors'] }),
   })
 }

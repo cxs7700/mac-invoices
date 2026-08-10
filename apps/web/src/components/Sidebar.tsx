@@ -1,12 +1,13 @@
 import { useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
+import { PanelLeftClose } from 'lucide-react'
 import { NavLinks } from './NavLinks'
 import { NotificationsBell } from './NotificationsBell'
 import { LanguageSwitcher } from './LanguageSwitcher'
 import { ThemeSwitcher } from './ThemeSwitcher'
 import { useMe, useLogout } from '@/hooks/useAuth'
 
-export function Sidebar() {
+export function Sidebar({ onHide }: { onHide?: () => void }) {
   const me = useMe()
   const logout = useLogout()
   const navigate = useNavigate()
@@ -19,7 +20,20 @@ export function Sidebar() {
     >
       <div className="flex items-center justify-between px-4 py-4">
         <span className="text-lg font-bold text-foreground">{t('app.name')}</span>
-        <NotificationsBell />
+        <div className="flex items-center gap-1">
+          <NotificationsBell />
+          {onHide && (
+            <button
+              type="button"
+              aria-label={t('common.hideSidebar')}
+              aria-expanded
+              onClick={onHide}
+              className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+            >
+              <PanelLeftClose className="h-5 w-5" aria-hidden="true" />
+            </button>
+          )}
+        </div>
       </div>
 
       <NavLinks />
@@ -29,7 +43,9 @@ export function Sidebar() {
           <LanguageSwitcher persist />
           <ThemeSwitcher />
         </div>
-        <div className="mt-2 truncate text-sm text-foreground">{me.data?.name ?? me.data?.email}</div>
+        <div className="mt-2 truncate text-sm text-foreground">
+          {me.data?.name ?? me.data?.email}
+        </div>
         <button
           type="button"
           onClick={() =>

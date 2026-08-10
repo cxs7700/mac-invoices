@@ -41,8 +41,7 @@ async function submit(vendorId: string, token: string) {
     method: 'POST',
     url: `/api/submissions/${token}`,
     payload: {
-      amount: 100,
-      description: 'work',
+      items: [{ description: 'work', quantity: 1, total: 100 }],
       invoiceDate: '2026-06-01',
       images: [{ url: `https://blob/owners/c_${vendorId}/p.jpg`, type: 'OTHER' }],
     },
@@ -91,7 +90,11 @@ describe('U9 landlord review', () => {
     const created = await app.inject({
       method: 'POST',
       url: `/api/submissions/${c.token}`,
-      payload: { amount: 100, description: 'work', invoiceDate: '2026-06-01', images },
+      payload: {
+        items: [{ description: 'work', quantity: 1, total: 100 }],
+        invoiceDate: '2026-06-01',
+        images,
+      },
     })
     const id = created.json().id as string
     expect(await app.prisma.invoiceImage.count({ where: { invoiceId: id } })).toBe(3)

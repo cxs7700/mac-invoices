@@ -56,7 +56,9 @@ describe('InvoiceTimeline', () => {
   })
 
   it('labels image attach/remove events', () => {
-    render(<InvoiceTimeline events={[ev({ type: 'IMAGE_ATTACHED' }), ev({ type: 'IMAGE_REMOVED' })]} />)
+    render(
+      <InvoiceTimeline events={[ev({ type: 'IMAGE_ATTACHED' }), ev({ type: 'IMAGE_REMOVED' })]} />,
+    )
     expect(screen.getByText('Photo attached')).toBeDefined()
     expect(screen.getByText('Photo removed')).toBeDefined()
   })

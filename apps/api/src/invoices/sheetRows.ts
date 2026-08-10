@@ -2,7 +2,12 @@
 // "Sync now" handler and the continuous-sync cron mirror so the two can never
 // drift. Pure (no DB / no Google client) and trivially unit-testable.
 
-import { compareInvoiceOrder, summarizeItems, InvoiceCategory, InvoiceStatus } from '@mac-invoices/shared'
+import {
+  compareInvoiceOrder,
+  summarizeItems,
+  InvoiceCategory,
+  InvoiceStatus,
+} from '@mac-invoices/shared'
 import { SheetFormula, type ColumnDropdownSpec, type SheetCell } from '../integrations/sheetCells'
 
 // The operator's ledger layout (DEC-026). `id` and `vendorName` are

@@ -11,7 +11,6 @@ async function vendor(landlordId: string, name: string) {
       name,
       phone: 'x',
       tokenLookupId: `fk-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      tokenHash: 'h',
     },
   })
 }
@@ -31,8 +30,12 @@ const get = (cookie: string) =>
 const seen = (cookie: string) =>
   app.inject({ method: 'POST', url: '/api/notifications/seen', headers: { cookie } })
 
-beforeAll(async () => { await app.ready() })
-afterAll(async () => { await app.close() })
+beforeAll(async () => {
+  await app.ready()
+})
+afterAll(async () => {
+  await app.close()
+})
 
 describe('GET /api/notifications', () => {
   it('401s without a session', async () => {
@@ -66,7 +69,9 @@ describe('GET /api/notifications', () => {
       expect(summaries).toContain('edited a submission')
       expect(summaries).toContain('withdrew a submission')
     } finally {
-      await app.prisma.invoiceEvent.deleteMany({ where: { ownerUserId: { in: [user.id, other.user.id] } } })
+      await app.prisma.invoiceEvent.deleteMany({
+        where: { ownerUserId: { in: [user.id, other.user.id] } },
+      })
       await cleanup()
       await other.cleanup()
     }
@@ -96,7 +101,9 @@ describe('GET /api/notifications', () => {
       await ev(user.id, c.id, 'STATUS_CHANGED', { to: 'CANCELLED' })
       body = (await get(cookie)).json()
       expect(body.unreadCount).toBe(1)
-      expect(body.data.find((i: { unread: boolean }) => i.unread)?.summary).toBe('withdrew a submission')
+      expect(body.data.find((i: { unread: boolean }) => i.unread)?.summary).toBe(
+        'withdrew a submission',
+      )
     } finally {
       await app.prisma.invoiceEvent.deleteMany({ where: { ownerUserId: user.id } })
       await cleanup()

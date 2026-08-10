@@ -31,7 +31,9 @@ describe('Login', () => {
   it('submits valid credentials to /api/auth/login', async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValue(jsonResponse(200, { id: 'u', email: 'a@b.com', name: null, role: 'LANDLORD' }))
+      .mockResolvedValue(
+        jsonResponse(200, { id: 'u', email: 'a@b.com', name: null, role: 'LANDLORD' }),
+      )
     vi.stubGlobal('fetch', fetchMock)
     renderLogin()
 
@@ -57,7 +59,9 @@ describe('Login', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue(
-        jsonResponse(401, { error: { code: 'UNAUTHORIZED', message: 'Invalid email or password' } }),
+        jsonResponse(401, {
+          error: { code: 'UNAUTHORIZED', message: 'Invalid email or password' },
+        }),
       ),
     )
     renderLogin()

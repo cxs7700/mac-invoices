@@ -26,15 +26,26 @@ const base = {
 // A SUBMITTED row (vendor-style: no category, no property) created directly.
 const submitted = (n: string) =>
   app.prisma.invoice.create({
-    data: { vendorName: 'C', amount: '100.00', invoiceDate: new Date(), status: 'SUBMITTED', userId: a.user.id, invoiceNumber: `P-${n}` },
+    data: {
+      vendorName: 'C',
+      amount: '100.00',
+      invoiceDate: new Date(),
+      status: 'SUBMITTED',
+      userId: a.user.id,
+      invoiceNumber: `P-${n}`,
+    },
   })
 
 beforeAll(async () => {
   await app.ready()
   a = await createSecondUser(app)
   b = await createSecondUser(app)
-  propA = (await app.prisma.property.create({ data: { landlordId: a.user.id, name: 'PA', address: 'A' } })).id
-  propB = (await app.prisma.property.create({ data: { landlordId: b.user.id, name: 'PB', address: 'B' } })).id
+  propA = (
+    await app.prisma.property.create({ data: { landlordId: a.user.id, name: 'PA', address: 'A' } })
+  ).id
+  propB = (
+    await app.prisma.property.create({ data: { landlordId: b.user.id, name: 'PB', address: 'B' } })
+  ).id
 })
 afterAll(async () => {
   await app.prisma.invoice.deleteMany({ where: { userId: { in: [a.user.id, b.user.id] } } })
@@ -49,7 +60,11 @@ describe('required-on-approval (AE1)', () => {
     const blocked = await patch(inv.id, { status: 'APPROVED', category: 'LABOR' }, a.cookie)
     expect(blocked.statusCode).toBe(422)
     expect(blocked.json().error.code).toBe('PROPERTY_REQUIRED')
-    const ok = await patch(inv.id, { status: 'APPROVED', category: 'LABOR', propertyId: propA }, a.cookie)
+    const ok = await patch(
+      inv.id,
+      { status: 'APPROVED', category: 'LABOR', propertyId: propA },
+      a.cookie,
+    )
     expect(ok.statusCode).toBe(200)
     expect(ok.json().status).toBe('APPROVED')
   })
@@ -59,7 +74,9 @@ describe('required-on-approval (AE1)', () => {
     const blocked = await patch(id, { status: 'APPROVED' }, a.cookie)
     expect(blocked.statusCode).toBe(422)
     expect(blocked.json().error.code).toBe('PROPERTY_REQUIRED')
-    expect((await patch(id, { status: 'APPROVED', propertyId: propA }, a.cookie)).statusCode).toBe(200)
+    expect((await patch(id, { status: 'APPROVED', propertyId: propA }, a.cookie)).statusCode).toBe(
+      200,
+    )
   })
 
   it('checks category before property when both are missing', async () => {
@@ -72,8 +89,12 @@ describe('required-on-approval (AE1)', () => {
 
 describe('assignment ownership (404, no leak)', () => {
   it('rejects assigning another landlord’s property on create, accepts own', async () => {
-    expect((await post({ ...base, category: 'REPAIRS', propertyId: propB }, a.cookie)).statusCode).toBe(404)
-    expect((await post({ ...base, category: 'REPAIRS', propertyId: propA }, a.cookie)).statusCode).toBe(201)
+    expect(
+      (await post({ ...base, category: 'REPAIRS', propertyId: propB }, a.cookie)).statusCode,
+    ).toBe(404)
+    expect(
+      (await post({ ...base, category: 'REPAIRS', propertyId: propA }, a.cookie)).statusCode,
+    ).toBe(201)
   })
 
   it('rejects assigning another landlord’s property on update, accepts own', async () => {
@@ -85,7 +106,10 @@ describe('assignment ownership (404, no leak)', () => {
 
 describe('list filter (AE4)', () => {
   it('filters by property id and by the "none" unassigned bucket', async () => {
-    await post({ ...base, category: 'REPAIRS', propertyId: propA, invoiceNumber: 'PF-assigned' }, a.cookie)
+    await post(
+      { ...base, category: 'REPAIRS', propertyId: propA, invoiceNumber: 'PF-assigned' },
+      a.cookie,
+    )
     await post({ ...base, category: 'REPAIRS', invoiceNumber: 'PF-unassigned' }, a.cookie)
 
     const byProp = (await listBy(`propertyId=${propA}`, a.cookie)).json().data

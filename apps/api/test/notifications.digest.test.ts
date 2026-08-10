@@ -12,25 +12,45 @@ const created: string[] = [] // landlord user ids to clean up
 
 async function makeLandlord() {
   const u = await app.prisma.user.create({
-    data: { email: `dg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@example.com`, role: 'LANDLORD', passwordHash: await hashPassword('x') },
+    data: {
+      email: `dg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@example.com`,
+      role: 'LANDLORD',
+      passwordHash: await hashPassword('x'),
+    },
   })
   created.push(u.id)
   return u
 }
 async function makeVendor(landlordId: string, name: string) {
   return app.prisma.vendor.create({
-    data: { landlordId, name, phone: 'x', tokenLookupId: `lk-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, tokenHash: 'h' },
+    data: {
+      landlordId,
+      name,
+      phone: 'x',
+      tokenLookupId: `lk-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    },
   })
 }
 const ev = (ownerUserId: string, vendorId: string, type: string, detail: object = {}) =>
   app.prisma.invoiceEvent.create({
-    data: { invoiceId: `inv-${Math.random().toString(36).slice(2)}`, actorId: `vendor:${vendorId}`, ownerUserId, type: type as never, detail },
+    data: {
+      invoiceId: `inv-${Math.random().toString(36).slice(2)}`,
+      actorId: `vendor:${vendorId}`,
+      ownerUserId,
+      type: type as never,
+      detail,
+    },
   })
 const notifiedCount = (ownerUserId: string) =>
   app.prisma.invoiceEvent.count({ where: { ownerUserId, notifiedAt: { not: null } } })
 
-beforeAll(async () => { await app.ready() })
-beforeEach(() => { vi.clearAllMocks(); sendEmail.mockResolvedValue(undefined) })
+beforeAll(async () => {
+  await app.ready()
+})
+beforeEach(() => {
+  vi.clearAllMocks()
+  sendEmail.mockResolvedValue(undefined)
+})
 afterAll(async () => {
   for (const id of created) {
     await app.prisma.invoiceEvent.deleteMany({ where: { ownerUserId: id } })
@@ -67,14 +87,22 @@ describe('digest flush', () => {
     const edit = await ev(l.id, c.id, 'FIELD_EDITED', { field: 'amount', old: '1', new: '2' })
     await runDigestFlush(app.prisma)
     expect(sendEmail.mock.calls.every((c) => c[0].to !== l.email)).toBe(true)
-    expect((await app.prisma.invoiceEvent.findUniqueOrThrow({ where: { id: edit.id } })).notifiedAt).toBeNull()
+    expect(
+      (await app.prisma.invoiceEvent.findUniqueOrThrow({ where: { id: edit.id } })).notifiedAt,
+    ).toBeNull()
   })
 
   it('excludes landlord-authored events (only vendor activity notifies)', async () => {
     const l = await makeLandlord()
     // A landlord-authored status change (actorId is the landlord user id, not vendor:).
     await app.prisma.invoiceEvent.create({
-      data: { invoiceId: 'inv-x', actorId: l.id, ownerUserId: l.id, type: 'STATUS_CHANGED', detail: { from: 'SUBMITTED', to: 'APPROVED' } },
+      data: {
+        invoiceId: 'inv-x',
+        actorId: l.id,
+        ownerUserId: l.id,
+        type: 'STATUS_CHANGED',
+        detail: { from: 'SUBMITTED', to: 'APPROVED' },
+      },
     })
     await runDigestFlush(app.prisma)
     expect(sendEmail.mock.calls.every((c) => c[0].to !== l.email)).toBe(true)
@@ -105,7 +133,9 @@ describe('digest flush', () => {
     await ev(b.id, (await makeVendor(b.id, 'Bob')).id, 'CREATED')
 
     await runDigestFlush(app.prisma)
-    const calls = Object.fromEntries(sendEmail.mock.calls.map((c) => [c[0].to, c[0].html as string]))
+    const calls = Object.fromEntries(
+      sendEmail.mock.calls.map((c) => [c[0].to, c[0].html as string]),
+    )
     expect(calls[a.email]).toMatch(/Alice/)
     expect(calls[a.email]).not.toMatch(/Bob/)
     expect(calls[b.email]).toMatch(/Bob/)

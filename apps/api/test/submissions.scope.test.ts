@@ -1,8 +1,10 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 
 const storage = vi.hoisted(() => ({
-  ownerOf: (url: string) => /^owners\/([^/]+)\//.exec(url.replace(/^https?:\/\/[^/]+\//, ''))?.[1] ?? null,
-  isOwnedBy: (url: string, owner: string) => url.replace(/^https?:\/\/[^/]+\//, '').startsWith(`owners/${owner}/`),
+  ownerOf: (url: string) =>
+    /^owners\/([^/]+)\//.exec(url.replace(/^https?:\/\/[^/]+\//, ''))?.[1] ?? null,
+  isOwnedBy: (url: string, owner: string) =>
+    url.replace(/^https?:\/\/[^/]+\//, '').startsWith(`owners/${owner}/`),
   deleteBlob: vi.fn(async () => {}),
   issueUploadToken: vi.fn(async (o: string) => ({ token: 't', pathname: `owners/${o}/p` })),
   signedReadUrl: vi.fn(() => 'https://signed/url'),
@@ -33,8 +35,7 @@ async function submit(vendorId: string, token: string) {
     method: 'POST',
     url: `/api/submissions/${token}`,
     payload: {
-      amount: 100,
-      description: 'work',
+      items: [{ description: 'work', quantity: 1, total: 100 }],
       invoiceDate: '2026-06-01',
       images: [{ url: `https://blob/owners/c_${vendorId}/p.jpg`, type: 'OTHER' }],
     },
@@ -77,7 +78,8 @@ afterAll(async () => {
 
 describe('vendor read/act scope (AE4)', () => {
   it('A’s status list shows only A’s submissions', async () => {
-    const list = (await app.inject({ method: 'GET', url: `/api/submissions/${A.token}` })).json().data
+    const list = (await app.inject({ method: 'GET', url: `/api/submissions/${A.token}` })).json()
+      .data
     const ids = list.map((r: { id: string }) => r.id)
     expect(ids).toContain(aInvoice)
     expect(ids).not.toContain(bInvoice)
@@ -86,7 +88,11 @@ describe('vendor read/act scope (AE4)', () => {
 
   it('A cannot edit B’s submission, the landlord’s invoice, or a guessed id — all uniform 409', async () => {
     const edit = (id: string) =>
-      app.inject({ method: 'PATCH', url: `/api/submissions/${A.token}/${id}`, payload: { amount: 1 } })
+      app.inject({
+        method: 'PATCH',
+        url: `/api/submissions/${A.token}/${id}`,
+        payload: { items: [{ description: 'x', quantity: 1, total: 1 }] },
+      })
     const onB = await edit(bInvoice)
     const onLandlord = await edit(landlordInvoice)
     const onGuess = await edit('does-not-exist-id')
@@ -97,7 +103,9 @@ describe('vendor read/act scope (AE4)', () => {
     expect(onB.json().error.message).toBe(onLandlord.json().error.message)
     expect(onB.json().error.message).toBe(onGuess.json().error.message)
     // B's submission is untouched.
-    expect(Number((await app.prisma.invoice.findUniqueOrThrow({ where: { id: bInvoice } })).amount)).toBe(100)
+    expect(
+      Number((await app.prisma.invoice.findUniqueOrThrow({ where: { id: bInvoice } })).amount),
+    ).toBe(100)
   })
 
   it('a link holder cannot read an invoice merely ATTRIBUTED to them', async () => {
@@ -116,7 +124,9 @@ describe('vendor read/act scope (AE4)', () => {
         userId: landlord.user.id,
         vendorId: A.id,
         submittedByVendorId: null,
-        items: { createMany: { data: [{ description: 'x', quantity: 1, total: 100, sortOrder: 0 }] } },
+        items: {
+          createMany: { data: [{ description: 'x', quantity: 1, total: 100, sortOrder: 0 }] },
+        },
       },
     })
 
@@ -127,7 +137,7 @@ describe('vendor read/act scope (AE4)', () => {
     const edit = await app.inject({
       method: 'PATCH',
       url: `/api/submissions/${A.token}/${invoice.id}`,
-      payload: { amount: 5 },
+      payload: { items: [{ description: 'x', quantity: 1, total: 5 }] },
     })
     expect(edit.statusCode).toBe(409)
   })

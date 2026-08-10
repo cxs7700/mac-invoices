@@ -36,7 +36,10 @@ export function useSaveSheet() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (body: SaveSheetInput) =>
-      apiClient<SheetsStatus>('/api/settings/sheets', { method: 'PATCH', body: JSON.stringify(body) }),
+      apiClient<SheetsStatus>('/api/settings/sheets', {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      }),
     onSuccess: (status) => qc.setQueryData(['sheets-status'], status),
   })
 }

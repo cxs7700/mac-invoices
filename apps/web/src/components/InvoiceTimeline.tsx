@@ -15,7 +15,8 @@ function describe(e: TimelineEvent, t: TFn): { label: string; detail?: string; t
       return { label: t('timeline.created'), tone: 'done' }
     case 'STATUS_CHANGED': {
       const { from, to } = e.detail as { from?: unknown; to?: unknown }
-      const tone: Tone = to === 'PAID' ? 'done' : to === 'REJECTED' || to === 'CANCELLED' ? 'terminal' : 'current'
+      const tone: Tone =
+        to === 'PAID' ? 'done' : to === 'REJECTED' || to === 'CANCELLED' ? 'terminal' : 'current'
       return {
         label: from
           ? `${statusLabel(t, from)} → ${statusLabel(t, to)}`
@@ -24,7 +25,11 @@ function describe(e: TimelineEvent, t: TFn): { label: string; detail?: string; t
       }
     }
     case 'FIELD_EDITED': {
-      const { field, old: oldV, new: newV } = e.detail as { field?: unknown; old?: unknown; new?: unknown }
+      const {
+        field,
+        old: oldV,
+        new: newV,
+      } = e.detail as { field?: unknown; old?: unknown; new?: unknown }
       const fmt = (v: unknown) => (v == null || v === '' ? '—' : String(v))
       return {
         label: `${t('timeline.edited')} ${String(field ?? t('timeline.field'))}`,
@@ -63,7 +68,8 @@ export function InvoiceTimeline({
   isLoading?: boolean
 }) {
   const { t } = useTranslation()
-  if (isLoading) return <p className="text-sm text-muted-foreground">{t('timeline.loadingHistory')}</p>
+  if (isLoading)
+    return <p className="text-sm text-muted-foreground">{t('timeline.loadingHistory')}</p>
   if (events.length === 0)
     return <p className="text-sm text-muted-foreground">{t('timeline.noHistory')}</p>
 
@@ -73,7 +79,10 @@ export function InvoiceTimeline({
         const { label, detail, tone } = describe(e, t)
         return (
           <li key={e.id} className="flex items-start gap-3">
-            <span className={`mt-1 inline-block h-2.5 w-2.5 shrink-0 rounded-full ${dot[tone]}`} aria-hidden />
+            <span
+              className={`mt-1 inline-block h-2.5 w-2.5 shrink-0 rounded-full ${dot[tone]}`}
+              aria-hidden
+            />
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                 <span className="text-sm text-foreground">{label}</span>

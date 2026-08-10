@@ -172,9 +172,7 @@ describe('dropdownSpecs', () => {
   })
 
   it('category spec offers the six categories at the category column index', () => {
-    const spec = dropdownSpecs([]).find(
-      (s) => s.columnIndex === EXPORT_COLUMNS.indexOf('category'),
-    )
+    const spec = dropdownSpecs([]).find((s) => s.columnIndex === EXPORT_COLUMNS.indexOf('category'))
     expect(spec?.values).toEqual([
       'MAINTENANCE',
       'REPAIRS',

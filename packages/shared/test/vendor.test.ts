@@ -3,8 +3,7 @@ import { CreateVendorSchema, UpdateVendorSchema, SubmissionSchema } from '../src
 import { MAX_INVOICE_IMAGES } from '../src/schemas/invoice'
 
 const baseSubmission = {
-  amount: 100,
-  description: 'Fixed a leak',
+  items: [{ description: 'Fixed a leak', quantity: 1, total: 100 }],
   invoiceDate: new Date().toISOString(),
 }
 const img = (url: string) => ({ url })
@@ -24,6 +23,28 @@ describe('SubmissionSchema images', () => {
       img(`https://b.example/${i}.jpg`),
     )
     expect(SubmissionSchema.safeParse({ ...baseSubmission, images: five }).success).toBe(true)
+  })
+
+  it('requires at least one line item', () => {
+    const images = [img('https://b.example/1.jpg')]
+    expect(SubmissionSchema.safeParse({ ...baseSubmission, items: [], images }).success).toBe(false)
+  })
+
+  it('accepts optional notes and partsOrdered', () => {
+    const images = [img('https://b.example/1.jpg')]
+    const parsed = SubmissionSchema.safeParse({
+      ...baseSubmission,
+      images,
+      notes: 'Gate code 1234',
+      partsOrdered: 'Moen cartridge',
+    })
+    expect(parsed.success).toBe(true)
+    if (parsed.success) {
+      expect(parsed.data.notes).toBe('Gate code 1234')
+      expect(parsed.data.partsOrdered).toBe('Moen cartridge')
+    }
+    // Both are optional — a submission without them still parses.
+    expect(SubmissionSchema.safeParse({ ...baseSubmission, images }).success).toBe(true)
   })
 
   it('rejects more than the cap', () => {

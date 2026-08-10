@@ -40,7 +40,9 @@ export function StatusCounts({ activeStatus, onSelect }: Props) {
 
   return (
     <div className="mb-4 flex flex-wrap items-center gap-2">
-      <span className="text-xs text-muted-foreground">{t('statusCounts.total', { count: data.total })}</span>
+      <span className="text-xs text-muted-foreground">
+        {t('statusCounts.total', { count: data.total })}
+      </span>
       {STATUS_OPTIONS.map((s) => {
         const active = activeStatus === s
         return (

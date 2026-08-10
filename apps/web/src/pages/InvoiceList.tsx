@@ -45,8 +45,7 @@ export default function InvoiceList() {
   // Filter changes reset to page 1; pagination keeps the current filters.
   const applyFilter = (patch: Partial<ListFilters>) =>
     setSearchParams(toSearchParams({ ...filters, ...patch, page: 1 }))
-  const goToPage = (page: number) =>
-    setSearchParams(toSearchParams({ ...filters, page }))
+  const goToPage = (page: number) => setSearchParams(toSearchParams({ ...filters, page }))
   const clearAll = () => setSearchParams(new URLSearchParams())
 
   const total = data?.pagination.total ?? 0
@@ -230,10 +229,7 @@ export default function InvoiceList() {
         )}
       </div>
 
-      <StatusCounts
-        activeStatus={filters.status}
-        onSelect={(status) => applyFilter({ status })}
-      />
+      <StatusCounts activeStatus={filters.status} onSelect={(status) => applyFilter({ status })} />
 
       <FilterBar filters={filters} onChange={applyFilter} onClear={clearAll} />
 

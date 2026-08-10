@@ -3,15 +3,21 @@ import { describe, it, expect, beforeAll, afterAll, afterEach, beforeEach, vi } 
 // Mock the Sheets seam — no live Google calls (DoD). "Sync now" full-mirrors via
 // overwriteRows; the other exports are stubbed so the app's settings routes still
 // import cleanly.
-const { overwriteRows, appendRows, checkAccess, serviceAccountEmail, resolveSheetTab, applyColumnDropdowns } =
-  vi.hoisted(() => ({
-    overwriteRows: vi.fn(async () => {}),
-    appendRows: vi.fn(async () => {}),
-    checkAccess: vi.fn(async () => {}),
-    serviceAccountEmail: vi.fn(() => 'svc@x.iam.gserviceaccount.com'),
-    resolveSheetTab: vi.fn(async () => ({ sheetId: 123, typedColumnIndexes: [] })),
-    applyColumnDropdowns: vi.fn(async () => {}),
-  }))
+const {
+  overwriteRows,
+  appendRows,
+  checkAccess,
+  serviceAccountEmail,
+  resolveSheetTab,
+  applyColumnDropdowns,
+} = vi.hoisted(() => ({
+  overwriteRows: vi.fn(async () => {}),
+  appendRows: vi.fn(async () => {}),
+  checkAccess: vi.fn(async () => {}),
+  serviceAccountEmail: vi.fn(() => 'svc@x.iam.gserviceaccount.com'),
+  resolveSheetTab: vi.fn(async () => ({ sheetId: 123, typedColumnIndexes: [] })),
+  applyColumnDropdowns: vi.fn(async () => {}),
+}))
 vi.mock('../src/integrations/sheets', () => ({
   overwriteRows,
   appendRows,
@@ -45,7 +51,12 @@ const body = (n: string, extra: Record<string, unknown> = {}) => ({
 })
 
 async function create(n: string, cookie: string, extra: Record<string, unknown> = {}) {
-  const res = await app.inject({ method: 'POST', url: '/api/invoices', headers: { cookie }, payload: body(n, extra) })
+  const res = await app.inject({
+    method: 'POST',
+    url: '/api/invoices',
+    headers: { cookie },
+    payload: body(n, extra),
+  })
   expect(res.statusCode).toBe(201)
   return res.json().id as string
 }
@@ -101,7 +112,9 @@ describe('POST /api/invoices/export — "Sync now" full mirror', () => {
     await create('2', user.cookie)
     await create('3', user.cookie)
 
-    const eventsBefore = await app.prisma.invoiceEvent.count({ where: { ownerUserId: user.user.id } })
+    const eventsBefore = await app.prisma.invoiceEvent.count({
+      where: { ownerUserId: user.user.id },
+    })
     const res = await exportAs(user.cookie)
     expect(res.statusCode).toBe(200)
     expect(res.json()).toEqual({ exported: 3 })
@@ -112,7 +125,9 @@ describe('POST /api/invoices/export — "Sync now" full mirror', () => {
     expect(rows[0]).toContain('Invoice #') // header row
     expect(rows[0]).toContain('Amount')
     // Mirror emits no ledger events.
-    expect(await app.prisma.invoiceEvent.count({ where: { ownerUserId: user.user.id } })).toBe(eventsBefore)
+    expect(await app.prisma.invoiceEvent.count({ where: { ownerUserId: user.user.id } })).toBe(
+      eventsBefore,
+    )
 
     // A second sync re-mirrors everything (full mirror, not incremental).
     const again = await exportAs(user.cookie)
@@ -189,7 +204,9 @@ describe('POST /api/invoices/export — "Sync now" full mirror', () => {
 
   it('propagates the 503 when Sheets is unconfigured', async () => {
     await create('x', user.cookie)
-    overwriteRows.mockRejectedValueOnce(new AppError('EXPORT_NOT_CONFIGURED', 'not configured', 503))
+    overwriteRows.mockRejectedValueOnce(
+      new AppError('EXPORT_NOT_CONFIGURED', 'not configured', 503),
+    )
     const res = await exportAs(user.cookie)
     expect(res.statusCode).toBe(503)
   })
@@ -252,7 +269,12 @@ describe('POST /api/invoices/export — rate limit', () => {
   it('429s with TOO_MANY_REQUESTS after the cap', async () => {
     overwriteRows.mockResolvedValue(undefined)
     const ex = () =>
-      rlApp.inject({ method: 'POST', url: '/api/invoices/export', headers: { cookie: rlCookie }, payload: {} })
+      rlApp.inject({
+        method: 'POST',
+        url: '/api/invoices/export',
+        headers: { cookie: rlCookie },
+        payload: {},
+      })
     // The rlUser owns no invoices → each sync is 200 { exported: 0 } until the cap trips.
     expect((await ex()).statusCode).toBe(200)
     expect((await ex()).statusCode).toBe(200)

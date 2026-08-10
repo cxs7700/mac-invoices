@@ -47,8 +47,7 @@ async function makeVendor(name = `Joe-${Date.now()}-${Math.random().toString(36)
 }
 
 const submitBody = (over: Record<string, unknown> = {}, blobOwner = 'c_x') => ({
-  amount: 120.5,
-  description: 'Fixed a leak',
+  items: [{ description: 'Fixed a leak', quantity: 1, total: 120.5 }],
   invoiceDate: '2026-06-01',
   images: [{ url: `https://blob.example/owners/${blobOwner}/photo.jpg`, type: 'OTHER' }],
   ...over,
@@ -89,6 +88,45 @@ describe('POST /api/submissions/:token', () => {
     expect(created.ownerUserId).toBe(landlord.user.id) // landlord-owned event
   })
 
+  it('stores every line item and sums the amount server-side', async () => {
+    const c = await makeVendor('Itemizer')
+    const res = await submit(
+      c.token,
+      submitBody(
+        {
+          items: [
+            { description: 'Labour', quantity: 3, total: 300 },
+            { description: 'Valve', quantity: 1, total: 45.25 },
+          ],
+        },
+        c.blobOwner,
+      ),
+    )
+    expect(res.statusCode).toBe(201)
+
+    const inv = await app.prisma.invoice.findUniqueOrThrow({
+      where: { id: res.json().id },
+      include: { items: { orderBy: { sortOrder: 'asc' } } },
+    })
+    expect(inv.items.map((i) => i.description)).toEqual(['Labour', 'Valve'])
+    expect(inv.items.map((i) => i.quantity)).toEqual([3, 1])
+    // The client never sends a total — it is derived from the lines.
+    expect(inv.amount.toString()).toBe('345.25')
+  })
+
+  it('accepts notes and parts ordered from the vendor', async () => {
+    const c = await makeVendor('Noter')
+    const res = await submit(
+      c.token,
+      submitBody({ notes: 'Gate code 1234', partsOrdered: 'Moen cartridge' }, c.blobOwner),
+    )
+    expect(res.statusCode).toBe(201)
+
+    const inv = await app.prisma.invoice.findUniqueOrThrow({ where: { id: res.json().id } })
+    expect(inv.notes).toBe('Gate code 1234')
+    expect(inv.partsOrdered).toBe('Moen cartridge')
+  })
+
   it('rejects a photo outside the vendor’s own prefix (blob gate, not conflated with actorId)', async () => {
     const c = await makeVendor()
     // A blob under the landlord's prefix, or another vendor's, must be refused.
@@ -98,7 +136,10 @@ describe('POST /api/submissions/:token', () => {
 
   it('requires at least one photo (400 with none / empty array) — AE2', async () => {
     const c = await makeVendor()
-    const none = await submit(c.token, { amount: 10, description: 'x', invoiceDate: '2026-06-01' })
+    const none = await submit(c.token, {
+      items: [{ description: 'x', quantity: 1, total: 10 }],
+      invoiceDate: '2026-06-01',
+    })
     expect(none.statusCode).toBe(400) // schema: images required
     const empty = await submit(c.token, submitBody({ images: [] }, c.blobOwner))
     expect(empty.statusCode).toBe(400) // schema: images.min(1)

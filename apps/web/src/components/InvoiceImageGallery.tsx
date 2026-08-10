@@ -98,7 +98,9 @@ export function InvoiceImageGallery({ invoiceId }: { invoiceId: string }) {
                         size="sm"
                         className="flex-1 text-xs"
                         disabled={remove.isPending}
-                        onClick={() => remove.mutate(img.id, { onSettled: () => setConfirmId(null) })}
+                        onClick={() =>
+                          remove.mutate(img.id, { onSettled: () => setConfirmId(null) })
+                        }
                       >
                         {t('invoiceGallery.confirmRemoveYes')}
                       </Button>
@@ -156,7 +158,11 @@ export function InvoiceImageGallery({ invoiceId }: { invoiceId: string }) {
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
           onClick={() => setLightbox(null)}
         >
-          <img src={lightbox} alt={t('invoiceGallery.fullSize')} className="max-h-full max-w-full rounded-md" />
+          <img
+            src={lightbox}
+            alt={t('invoiceGallery.fullSize')}
+            className="max-h-full max-w-full rounded-md"
+          />
         </div>
       )}
     </div>
