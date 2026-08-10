@@ -812,7 +812,11 @@ connected sheet."
 
 Do **not** run this without the user's explicit go-ahead — it touches the production database.
 
-1. Run the §3 pre-check above against production. Expect 0 rows (one user currently has a non-null target).
+1. Run both §3 pre-checks above against production: the exact-duplicate scan, and the
+   non-normalized-value scan (`!~ '^[A-Za-z0-9_-]{20,200}$'`) — the first alone cannot catch a
+   row already holding a full URL, which would pass the first check with 0 rows and then collide
+   silently with a freshly-normalized bare id after migration. Expect 0 rows from both (one user
+   currently has a non-null target).
 2. Fingerprint the landlord's invoices before and after, as in the DEC-030 migration, and confirm the two match.
 3. `prisma migrate deploy` against the direct (non-pooled) URL.
 4. Verify: `SELECT indexdef FROM pg_indexes WHERE indexname = 'users_sheetSpreadsheetId_key';` returns one row.

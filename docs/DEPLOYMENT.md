@@ -191,6 +191,28 @@ them has been having its ledger overwritten. Resolve by hand — decide which
 account keeps the sheet and null the other's target — before migrating. Do not
 work around the constraint.
 
+**Second pre-check — non-normalized values, must also return 0 rows:**
+
+Exact-duplicate detection above is not sufficient by itself. The old schema
+accepted any 1–200 character string, so a row can already hold a full URL (or
+other un-normalized value) rather than a bare id. Two such rows would not
+match each other in the first pre-check (they'd return 0 rows there too) and
+the migration would succeed — but afterwards another account could save the
+*bare* id for that same spreadsheet with no P2002, because the stored value
+and the freshly-normalized one are different strings to the index. That is
+the exact hole this change exists to close, already sitting in the table.
+
+```sql
+SELECT id, "sheetSpreadsheetId" FROM users
+ WHERE "sheetSpreadsheetId" IS NOT NULL
+   AND "sheetSpreadsheetId" !~ '^[A-Za-z0-9_-]{20,200}$';
+```
+
+Any row returned here is a value `normalizeSpreadsheetId` would never
+produce (it fails the same `BARE_ID` shape the normalizer enforces going
+forward) — it must be canonicalized by hand to the bare id before the
+migration runs. Both pre-checks must return 0 rows.
+
 The index builds instantly at current scale (a single-digit number of
 connected users), so a plain `CREATE UNIQUE INDEX` inside the migration
 transaction is correct; `CONCURRENTLY` is not needed and would prevent the
@@ -199,6 +221,12 @@ migration from being transactional.
 **Rollback:** `DROP INDEX "users_sheetSpreadsheetId_key";` then
 `prisma migrate resolve --rolled-back 20260809120000_unique_sheet_target`.
 Dropping it reopens the cross-tenant wipe, so treat rollback as a last resort.
+Rolling back the *code* while the index stays applied is safe, though, and
+worth distinguishing from rolling back the migration: the old handler writes
+the same `sheetSpreadsheetId` column, so a collision under the still-applied
+index surfaces as a generic `409 CONFLICT` from the central error handler
+(the old code has no P2002 → `SHEET_ALREADY_CONNECTED` translation) rather
+than crashing. That makes the code deploy independently reversible.
 
 ## 4. Seed the landlord (one-off, strong password)
 
