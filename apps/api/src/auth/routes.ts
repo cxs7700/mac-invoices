@@ -123,10 +123,11 @@ async function authRoutes(app: FastifyInstance) {
    * which emails have accounts — the same reasoning as `validateLinkToken`
    * returning null for any failure.
    */
-  // Env-overridable exactly like `pwMax` above, and for the same reason: the
-  // tests in `auth.reset-password.test.ts` make well over ten reset calls from
-  // one IP, so a hard-coded cap would 429 the suite partway through and look
-  // like a broken endpoint. Production leaves it at 10.
+  // Env-overridable exactly like `pwMax` in settings/routes.ts, and for the
+  // same reason: the tests in `auth.reset-password.test.ts` make well over
+  // ten reset calls from one IP, so a hard-coded cap would 429 the suite
+  // partway through and look like a broken endpoint. Production leaves it at
+  // 10.
   const resetMax = Number(process.env.RESET_RATE_LIMIT_MAX ?? 10)
 
   app.post(
@@ -149,8 +150,12 @@ async function authRoutes(app: FastifyInstance) {
         where: { id: parsed.userId },
         select: { id: true, passwordHash: true },
       })
-      if (!user) throw invalid()
-      if (!resetTokenMatches(parsed, user.passwordHash)) throw invalid()
+      // Compare even when the account is unknown, against a dummy hash, so
+      // "no such user" is not measurably faster than "wrong signature" —
+      // the same constant-time reasoning as login's DUMMY_HASH verify
+      // (DEC-018). Both outcomes then fall into the identical `invalid()`.
+      const matches = resetTokenMatches(parsed, user?.passwordHash ?? DUMMY_HASH)
+      if (!user || !matches) throw invalid()
 
       const passwordHash = await hashPassword(newPassword)
       await request.server.prisma.$transaction([

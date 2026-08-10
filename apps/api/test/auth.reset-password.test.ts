@@ -148,4 +148,28 @@ describe('POST /api/auth/reset-password', () => {
       await u.cleanup()
     }
   })
+
+  // Deliberately NOT INVALID_RESET_LINK. The identical-response rule covers
+  // token and account failures — that is what stops the endpoint being an
+  // account-existence oracle. A malformed body describes the caller's own
+  // request and reveals nothing, and telling someone with a valid link that
+  // their LINK is broken because their password was too short would send them
+  // back for a new link that fails the same way.
+  it('tells the caller what is wrong with their own input, rather than blaming the link', async () => {
+    const u = await userWithLink()
+    try {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/auth/reset-password',
+        payload: { token: u.token, newPassword: 'short' },
+      })
+      expect(res.statusCode).toBe(400)
+      expect(res.json().error.code).toBe('VALIDATION_ERROR')
+      expect(res.json().error.code).not.toBe('INVALID_RESET_LINK')
+      // And the link is untouched — it still works with a valid password.
+      expect((await reset(u.token, 'a-long-enough-password')).statusCode).toBe(204)
+    } finally {
+      await u.cleanup()
+    }
+  })
 })

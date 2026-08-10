@@ -23,7 +23,7 @@
 - Definition of Done: `npm run lint && npm run typecheck` green, plus the api, web, and shared suites.
 - `npm run format:check` fails on ~70 files for pre-existing reasons and CI gates only lint/typecheck/test — do **not** sweep those. Files you create, or that were clean before you touched them, must stay clean (`npx prettier --check <file>`).
 - **Known pre-existing test noise, not yours to fix:** `backfill-invoice-items.test.ts` fails in most full-suite runs and passes in isolation; there is also a shared-landlord login race. If a file fails, re-run it alone before investigating.
-- **Error code and message, exactly:** `INVALID_RESET_LINK`, status **400**, message `That reset link is invalid or has expired. Ask for a new one.` — used for **every** failure mode without exception.
+- **Error code and message, exactly:** `INVALID_RESET_LINK`, status **400**, message `That reset link is invalid or has expired. Ask for a new one.` — used for every failure that depends on the TOKEN or the ACCOUNT (bad shape, unknown account, tampered, expired, already consumed), which is what stops the endpoint being an account-existence oracle. Body-shape validation failures deliberately keep their own `VALIDATION_ERROR`: they describe the caller's own request, reveal nothing about accounts, and telling someone their link is broken because their password was too short would send them back for a new link that fails identically.
 - **Misconfiguration code, exactly:** `RESET_LINK_KEY_INVALID`, status **500**.
 - **Token format, exactly:** `rst_<userId>.<expiresAtMs>.<base64url-mac>`.
 - **TTL:** one hour.
