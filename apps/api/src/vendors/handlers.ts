@@ -19,7 +19,7 @@ type VendorRow = {
 
 /**
  * Landlord-facing shape. `link` is derived on every read so the landlord can
- * copy it whenever they like (DEC-033); it is null for a revoked vendor, where
+ * copy it whenever they like (DEC-034); it is null for a revoked vendor, where
  * handing back a string that no longer works would only mislead.
  */
 function toVendor(v: VendorRow) {

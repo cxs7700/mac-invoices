@@ -8,7 +8,7 @@ import type {
 import { apiClient } from '@/lib/apiClient'
 
 // Landlord-side vendor management. Every vendor response carries the current
-// submission link, derived server-side (DEC-033), so the list can offer copy
+// submission link, derived server-side (DEC-034), so the list can offer copy
 // on any row rather than only right after creation.
 
 export function useVendors() {

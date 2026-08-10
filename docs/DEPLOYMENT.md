@@ -153,7 +153,7 @@ DATABASE_URL="<target-db-url>" LANDLORD_PASSWORD="<strong-secret>" \
 
 `20260809120000_vendor_derived_link_token` adds `vendors.tokenVersion` and **drops
 `vendors.tokenHash`**, because the link secret is now derived from `VENDOR_LINK_KEY`
-rather than stored (DEC-033).
+rather than stored (DEC-034).
 
 **Set `VENDOR_LINK_KEY` in Vercel BEFORE deploying this** (see §5). Without it the vendor
 routes and every `/submit/:token` request throw — the code refuses to fall back to a default,
@@ -237,7 +237,7 @@ previews hit a DB). Mark secrets **Sensitive**.
 | `LANDLORD_USER_ID` | `landlord_seed_user` | must match what was seeded |
 | `LANDLORD_EMAIL` | the seeded email | |
 | `COOKIE_SECURE` | `true` | sends the session cookie only over HTTPS — **set for Preview too** |
-| `VENDOR_LINK_KEY` | a random string ≥32 chars | **REQUIRED** — every vendor submission link is derived from it (DEC-033). Sensitive: it is the only thing between a database dump and a working link. **Unset ⇒ the vendors page and every `/submit/:token` request throw.** Changing it invalidates every outstanding link. Generate with `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"` |
+| `VENDOR_LINK_KEY` | a random string ≥32 chars | **REQUIRED** — every vendor submission link is derived from it (DEC-034). Sensitive: it is the only thing between a database dump and a working link. **Unset ⇒ the vendors page and every `/submit/:token` request throw.** Changing it invalidates every outstanding link. Generate with `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"` |
 | `NODE_ENV` | *(do **not** set)* | Vercel sets `production` in the function runtime automatically; adding it as a project env var makes the build's `npm install` skip devDependencies → the web build fails with exit 2 |
 | `VITE_API_URL` | *(empty / unset)* | same-origin; baked into the SPA at build |
 

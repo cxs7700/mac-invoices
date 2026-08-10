@@ -92,7 +92,7 @@ export const UpdateVendorSchema = z.object({
 /**
  * The vendor as the landlord lists/views them. `link` is the vendor's current
  * submission URL, derived server-side on every read so it can be copied at any
- * time (DEC-033); it is null once the link is revoked.
+ * time (DEC-034); it is null once the link is revoked.
  */
 export const VendorSchema = z.object({
   id: z.string(),

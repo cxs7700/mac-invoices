@@ -1,7 +1,7 @@
 -- Vendor submission links move from a stored SHA-256 of a random secret to a
 -- secret DERIVED on demand as HMAC(VENDOR_LINK_KEY, tokenLookupId:tokenVersion),
 -- so the landlord can copy a vendor's link at any time rather than only in the
--- moments after it is minted (DEC-033).
+-- moments after it is minted (DEC-034).
 --
 -- Consequence, deliberate and not recoverable: the plaintext of an
 -- already-issued link cannot be re-derived under the new scheme, and the old

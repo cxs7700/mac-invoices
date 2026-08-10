@@ -20,7 +20,7 @@ const fieldClass = 'mt-1 w-full rounded-md border border-input bg-background px-
  * A vendor row: contact details (editable in place) and their submission link.
  *
  * The link is stable and always copyable — it is derived server-side rather
- * than shown once at creation (DEC-033), so there is no "regenerate" step in
+ * than shown once at creation (DEC-034), so there is no "regenerate" step in
  * the normal flow. Replacing a link is deliberately a two-step revoke →
  * re-issue, which is why the re-issue button only appears once revoked.
  */

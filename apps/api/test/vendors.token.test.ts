@@ -10,7 +10,7 @@ import {
 
 // U4 link-token module: the bearer-credential primitive. Security-sensitive
 // contract — uniform failure (revoked == never-existed), constant-time compare,
-// and (since DEC-033) nothing secret at rest: the secret is derived from
+// and (since DEC-034) nothing secret at rest: the secret is derived from
 // VENDOR_LINK_KEY rather than stored, which is what makes it re-displayable.
 const app = buildApp()
 let landlordId: string
