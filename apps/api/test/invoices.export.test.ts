@@ -27,6 +27,11 @@ import { AppError } from '../src/middleware/errorHandler'
 
 const app = buildApp()
 const NONCE = 'ZZTEST-EXPORT-'
+// Randomized per run (following apps/api/test/sheets.sync.test.ts) rather than
+// a fixed literal: `sheetSpreadsheetId` is UNIQUE, so a fixed id left behind
+// by an aborted run would make every later run's beforeAll throw P2002.
+const uniq = () => Math.random().toString(36).slice(2, 10)
+const SHEET_TEST_ID = `SHEET-TEST-${uniq()}`
 let landlord: string
 let user: Awaited<ReturnType<typeof createSecondUser>>
 
@@ -64,7 +69,7 @@ beforeAll(async () => {
   // exercise a successful export.
   await app.prisma.user.update({
     where: { id: user.user.id },
-    data: { sheetSpreadsheetId: 'SHEET-TEST' },
+    data: { sheetSpreadsheetId: SHEET_TEST_ID },
   })
 })
 afterAll(async () => {
@@ -101,7 +106,7 @@ describe('POST /api/invoices/export — "Sync now" full mirror', () => {
     expect(res.statusCode).toBe(200)
     expect(res.json()).toEqual({ exported: 3 })
     expect(overwriteRows).toHaveBeenCalledTimes(1)
-    expect(overwriteRows.mock.calls[0][0]).toBe('SHEET-TEST')
+    expect(overwriteRows.mock.calls[0][0]).toBe(SHEET_TEST_ID)
     const rows = overwriteRows.mock.calls[0][1] as unknown[][]
     expect(rows).toHaveLength(4) // header + 3 data rows
     expect(rows[0]).toContain('Invoice #') // header row
@@ -235,7 +240,7 @@ describe('POST /api/invoices/export — rate limit', () => {
     // successful export.
     await rlApp.prisma.user.update({
       where: { id: u.user.id },
-      data: { sheetSpreadsheetId: 'SHEET-RL' },
+      data: { sheetSpreadsheetId: `SHEET-RL-${uniq()}` },
     })
   })
   afterAll(async () => {

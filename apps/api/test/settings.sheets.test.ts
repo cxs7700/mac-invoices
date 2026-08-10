@@ -222,12 +222,25 @@ describe('Sheets settings', () => {
   it('frees the spreadsheet when the holding account is deleted (AE8)', async () => {
     const contested = '1FreedOnDeleteHHHHHHHHHHHHHHHHHHHHHHHHHHHH'
     const other = await createSecondUser(app)
-    await app.prisma.user.update({
-      where: { id: other.user.id },
-      data: { sheetSpreadsheetId: contested },
-    })
-    expect((await save(contested)).statusCode).toBe(409)
-    await other.cleanup()
+    try {
+      await app.prisma.user.update({
+        where: { id: other.user.id },
+        data: { sheetSpreadsheetId: contested },
+      })
+      expect((await save(contested)).statusCode).toBe(409)
+    } finally {
+      // Unlike every literal fixture id in this file, `contested` is only
+      // freed by deleting `other` — so if the assertion above throws before
+      // cleanup runs, this id is claimed forever and poisons every later run.
+      await other.cleanup()
+    }
     expect((await save(contested)).statusCode).toBe(200)
+  })
+
+  it('stores the bare id when a non-colliding URL is saved (AE3)', async () => {
+    const bare = '1SettingsSheetsUrlFormStoresBareIdJJJJJJJJJ'
+    const res = await save(`https://docs.google.com/spreadsheets/d/${bare}/edit#gid=0`)
+    expect(res.statusCode).toBe(200)
+    expect(res.json().targetSpreadsheetId).toBe(bare)
   })
 })
