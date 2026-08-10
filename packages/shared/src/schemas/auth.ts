@@ -65,3 +65,23 @@ export const SignupFormSchema = SignupSchema.extend({
 })
 
 export type SignupFormInput = z.infer<typeof SignupFormSchema>
+
+// Consuming an operator-issued reset link. The token rides in the URL fragment
+// and is posted in the body; the 8-character floor matches ChangePasswordSchema
+// so the two password-setting paths cannot drift apart.
+export const ResetPasswordSchema = z.object({
+  token: z.string().min(1),
+  newPassword: z.string().min(8).max(200),
+})
+export type ResetPasswordInput = z.infer<typeof ResetPasswordSchema>
+
+// Client-only: what the reset FORM validates. It deliberately has no `token` —
+// that comes from the fragment, not from anything the user types — and adds the
+// confirmation field (DEC-031). The API contract above never sees it.
+export const ResetPasswordFormSchema = ResetPasswordSchema.omit({ token: true })
+  .extend({ confirmPassword: z.string() })
+  .refine((v) => v.newPassword === v.confirmPassword, {
+    message: 'Passwords do not match',
+    path: ['confirmPassword'],
+  })
+export type ResetPasswordFormInput = z.infer<typeof ResetPasswordFormSchema>

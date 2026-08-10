@@ -1,12 +1,13 @@
 import type { FastifyInstance } from 'fastify'
 import rateLimit from '@fastify/rate-limit'
-import { LoginSchema, SignupSchema } from '@mac-invoices/shared'
+import { LoginSchema, SignupSchema, ResetPasswordSchema } from '@mac-invoices/shared'
 import { AppError } from '../middleware/errorHandler'
 import { parseBody } from '../lib/validate'
 import { verifyPassword, hashPassword, DUMMY_HASH } from './password'
 import { assertValidInviteCode } from './inviteCode'
 import { createSession, invalidateSession, sessionIdFromToken } from './session'
 import { requireAuth, sessionCookieOptions, SESSION_COOKIE } from './requireAuth'
+import { parseResetToken, resetTokenMatches } from './resetToken'
 
 async function authRoutes(app: FastifyInstance) {
   // Scoped rate limiting; applied per-route via config.rateLimit below. Match
@@ -107,6 +108,59 @@ async function authRoutes(app: FastifyInstance) {
         role: user.role,
         locale: user.locale,
       })
+    },
+  )
+
+  /**
+   * POST /api/auth/reset-password — consume an operator-issued reset link.
+   *
+   * PUBLIC by necessity: the caller is locked out, so there is no session to
+   * authenticate. Authorization is the token, exactly as it is for a vendor
+   * submission link.
+   *
+   * EVERY failure returns the identical response. Distinguishing "no such
+   * account" from "expired" from "tampered" would turn this into an oracle for
+   * which emails have accounts — the same reasoning as `validateLinkToken`
+   * returning null for any failure.
+   */
+  // Env-overridable exactly like `pwMax` above, and for the same reason: the
+  // tests in `auth.reset-password.test.ts` make well over ten reset calls from
+  // one IP, so a hard-coded cap would 429 the suite partway through and look
+  // like a broken endpoint. Production leaves it at 10.
+  const resetMax = Number(process.env.RESET_RATE_LIMIT_MAX ?? 10)
+
+  app.post(
+    '/api/auth/reset-password',
+    { config: { rateLimit: { max: resetMax, timeWindow: '1 hour' } } },
+    async (request, reply) => {
+      const { token, newPassword } = parseBody(ResetPasswordSchema, request.body)
+      const invalid = () =>
+        new AppError(
+          'INVALID_RESET_LINK',
+          'That reset link is invalid or has expired. Ask for a new one.',
+          400,
+        )
+
+      const parsed = parseResetToken(token)
+      if (!parsed) throw invalid()
+      if (parsed.expiresAtMs < Date.now()) throw invalid()
+
+      const user = await request.server.prisma.user.findUnique({
+        where: { id: parsed.userId },
+        select: { id: true, passwordHash: true },
+      })
+      if (!user) throw invalid()
+      if (!resetTokenMatches(parsed, user.passwordHash)) throw invalid()
+
+      const passwordHash = await hashPassword(newPassword)
+      await request.server.prisma.$transaction([
+        request.server.prisma.user.update({ where: { id: user.id }, data: { passwordHash } }),
+        // ALL sessions die — deliberately unlike the Settings password change,
+        // which keeps the caller's own alive (KTD-2). There is no caller session
+        // here, and if an attacker holds one, this is exactly when it should end.
+        request.server.prisma.session.deleteMany({ where: { userId: user.id } }),
+      ])
+      return reply.code(204).send()
     },
   )
 

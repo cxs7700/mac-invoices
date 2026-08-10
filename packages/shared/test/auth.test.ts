@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { LoginSchema, SignupSchema, SignupFormSchema } from '../src/index'
+import {
+  LoginSchema,
+  SignupSchema,
+  SignupFormSchema,
+  ResetPasswordSchema,
+  ResetPasswordFormSchema,
+} from '../src/index'
 
 describe('LoginSchema', () => {
   it('accepts a valid email + password', () => {
@@ -137,5 +143,53 @@ describe('SignupFormSchema', () => {
       lastName: 'Lovelace',
     })
     expect('confirmPassword' in parsed).toBe(false)
+  })
+})
+
+describe('ResetPasswordSchema', () => {
+  it('accepts a token and a long-enough password', () => {
+    const parsed = ResetPasswordSchema.parse({ token: 'rst_abc.1.xyz', newPassword: 'a-good-one' })
+    expect(parsed.newPassword).toBe('a-good-one')
+  })
+
+  it('rejects a password under 8 characters, matching the Settings floor', () => {
+    expect(
+      ResetPasswordSchema.safeParse({ token: 'rst_abc.1.xyz', newPassword: 'short' }).success,
+    ).toBe(false)
+  })
+
+  it('rejects an empty token', () => {
+    expect(ResetPasswordSchema.safeParse({ token: '', newPassword: 'a-good-one' }).success).toBe(
+      false,
+    )
+  })
+})
+
+describe('ResetPasswordFormSchema', () => {
+  it('blocks mismatched passwords and paths the error at the confirmation', () => {
+    const result = ResetPasswordFormSchema.safeParse({
+      newPassword: 'a-good-one',
+      confirmPassword: 'a-different-one',
+    })
+    expect(result.success).toBe(false)
+    expect(result.error!.issues[0].path).toEqual(['confirmPassword'])
+    expect(result.error!.issues[0].message).toBe('Passwords do not match')
+  })
+
+  it('accepts a matching pair', () => {
+    expect(
+      ResetPasswordFormSchema.safeParse({
+        newPassword: 'a-good-one',
+        confirmPassword: 'a-good-one',
+      }).success,
+    ).toBe(true)
+  })
+
+  // The token comes from the URL fragment, never the form — so the client
+  // schema must not require it.
+  it('does not require a token', () => {
+    expect(
+      Object.keys(ResetPasswordFormSchema.safeParse({}).error!.flatten().fieldErrors),
+    ).not.toContain('token')
   })
 })
