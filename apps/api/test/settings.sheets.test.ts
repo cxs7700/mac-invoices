@@ -18,16 +18,21 @@ import { buildApp } from '../src/app'
 import { createSecondUser } from './helpers/auth'
 
 // Realistic Drive file ids — SaveSheetSchema rejects anything that isn't one,
-// and each is distinct because users.sheetSpreadsheetId is UNIQUE.
-const ID_SAVED = '1SettingsSheetsSavedAAAAAAAAAAAAAAAAAAAAAAAA'
-const ID_UNREACHABLE = '1SettingsSheetsUnreachableBBBBBBBBBBBBBBBBBB'
-const ID_TARGET = '1SettingsSheetsSyncNowCCCCCCCCCCCCCCCCCCCCCC'
-const ID_DISCONNECT = '1SettingsSheetsDisconnectKKKKKKKKKKKKKKKKKK'
-const ID_RELEASED = '1SettingsSheetsReleasedLLLLLLLLLLLLLLLLLLLL'
-const ID_UNAUTH = '1SettingsSheetsUnauthMMMMMMMMMMMMMMMMMMMMMM'
-const ID_RESET_SAVE = '1SettingsSheetsResetOnSaveNNNNNNNNNNNNNNNNN'
-const ID_RESET_DISC = '1SettingsSheetsResetOnDiscOOOOOOOOOOOOOOOOO'
-const ID_NO_TARGET = '1SettingsSheetsNoTargetPPPPPPPPPPPPPPPPPPPP'
+// and each is distinct because users.sheetSpreadsheetId is UNIQUE. Randomized
+// per run (following apps/api/test/sheets.sync.test.ts and
+// apps/api/test/invoices.export.test.ts:36-39) rather than fixed literals: a
+// fixed id left behind by an aborted run would make later runs fail
+// confusingly on a stale UNIQUE collision instead of the test's own assertion.
+const uniq = () => Math.random().toString(36).slice(2, 10)
+const ID_SAVED = `1SettingsSheetsSavedAAAAAAAAAAAAAAAAAAAAAAAA-${uniq()}`
+const ID_UNREACHABLE = `1SettingsSheetsUnreachableBBBBBBBBBBBBBBBBBB-${uniq()}`
+const ID_TARGET = `1SettingsSheetsSyncNowCCCCCCCCCCCCCCCCCCCCCC-${uniq()}`
+const ID_DISCONNECT = `1SettingsSheetsDisconnectKKKKKKKKKKKKKKKKKK-${uniq()}`
+const ID_RELEASED = `1SettingsSheetsReleasedLLLLLLLLLLLLLLLLLLLL-${uniq()}`
+const ID_UNAUTH = `1SettingsSheetsUnauthMMMMMMMMMMMMMMMMMMMMMM-${uniq()}`
+const ID_RESET_SAVE = `1SettingsSheetsResetOnSaveNNNNNNNNNNNNNNNNN-${uniq()}`
+const ID_RESET_DISC = `1SettingsSheetsResetOnDiscOOOOOOOOOOOOOOOOO-${uniq()}`
+const ID_NO_TARGET = `1SettingsSheetsNoTargetPPPPPPPPPPPPPPPPPPPP-${uniq()}`
 
 const app = buildApp()
 let u: Awaited<ReturnType<typeof createSecondUser>>
@@ -140,7 +145,7 @@ describe('Sheets settings', () => {
     // Direct Prisma writes, deliberately bypassing the API: this asserts the
     // INDEX exists, not the handler's error translation (that is a separate
     // test). Without the index this write simply succeeds.
-    const shared = '1DbLevelUniquenessDDDDDDDDDDDDDDDDDDDDDDDDD'
+    const shared = `1DbLevelUniquenessDDDDDDDDDDDDDDDDDDDDDDDDD-${uniq()}`
     const other = await createSecondUser(app)
     try {
       await app.prisma.user.update({
@@ -182,7 +187,7 @@ describe('Sheets settings', () => {
   })
 
   it('refuses a spreadsheet another account has already connected (AE1)', async () => {
-    const taken = '1AlreadyConnectedElsewhereEEEEEEEEEEEEEEEEE'
+    const taken = `1AlreadyConnectedElsewhereEEEEEEEEEEEEEEEEE-${uniq()}`
     const other = await createSecondUser(app)
     try {
       await app.prisma.user.update({
@@ -206,7 +211,7 @@ describe('Sheets settings', () => {
   it('refuses the URL form of a spreadsheet another account holds as a bare id (AE2)', async () => {
     // The reason normalization exists: without it these are two different
     // strings, the unique index sees no conflict, and the wipe still happens.
-    const taken = '1UrlFormCollidesFFFFFFFFFFFFFFFFFFFFFFFFFFF'
+    const taken = `1UrlFormCollidesFFFFFFFFFFFFFFFFFFFFFFFFFFF-${uniq()}`
     const other = await createSecondUser(app)
     try {
       await app.prisma.user.update({
@@ -222,7 +227,7 @@ describe('Sheets settings', () => {
   })
 
   it('lets a landlord re-save their own current spreadsheet (AE4)', async () => {
-    const mine = '1MyOwnSheetReSavedGGGGGGGGGGGGGGGGGGGGGGGGG'
+    const mine = `1MyOwnSheetReSavedGGGGGGGGGGGGGGGGGGGGGGGGG-${uniq()}`
     expect((await save(mine)).statusCode).toBe(200)
     // Same row, same value — not a collision.
     const res = await save(mine)
@@ -246,7 +251,7 @@ describe('Sheets settings', () => {
   })
 
   it('frees the spreadsheet when the holding account is deleted (AE8)', async () => {
-    const contested = '1FreedOnDeleteHHHHHHHHHHHHHHHHHHHHHHHHHHHH'
+    const contested = `1FreedOnDeleteHHHHHHHHHHHHHHHHHHHHHHHHHHHH-${uniq()}`
     const other = await createSecondUser(app)
     try {
       await app.prisma.user.update({
@@ -264,7 +269,7 @@ describe('Sheets settings', () => {
   })
 
   it('stores the bare id when a non-colliding URL is saved (AE3)', async () => {
-    const bare = '1SettingsSheetsUrlFormStoresBareIdJJJJJJJJJ'
+    const bare = `1SettingsSheetsUrlFormStoresBareIdJJJJJJJJJ-${uniq()}`
     const res = await save(`https://docs.google.com/spreadsheets/d/${bare}/edit#gid=0`)
     expect(res.statusCode).toBe(200)
     expect(res.json().targetSpreadsheetId).toBe(bare)
@@ -280,7 +285,7 @@ describe('Sheets settings', () => {
   })
 
   it('releases the spreadsheet for another account (AE2)', async () => {
-    await save(ID_RELEASED)
+    expect((await save(ID_RELEASED)).statusCode).toBe(200)
     await disconnect()
     const other = await createSecondUser(app)
     try {
@@ -305,7 +310,7 @@ describe('Sheets settings', () => {
   })
 
   it('rejects an unauthenticated disconnect and changes nothing (AE4)', async () => {
-    await save(ID_UNAUTH)
+    expect((await save(ID_UNAUTH)).statusCode).toBe(200)
     const res = await app.inject({ method: 'DELETE', url: '/api/settings/sheets' })
     expect(res.statusCode).toBe(401)
     const row = await app.prisma.user.findUniqueOrThrow({ where: { id: u.user.id } })
@@ -338,7 +343,7 @@ describe('Sheets settings', () => {
   })
 
   it('export and test both report no sheet connected after a disconnect (AE9)', async () => {
-    await save(ID_NO_TARGET)
+    expect((await save(ID_NO_TARGET)).statusCode).toBe(200)
     await disconnect()
 
     const exported = await app.inject({
