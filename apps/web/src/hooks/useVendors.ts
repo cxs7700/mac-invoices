@@ -46,6 +46,14 @@ export function useReissueLink() {
   })
 }
 
+export function useDeleteVendor() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => apiClient<void>(`/api/vendors/${id}`, { method: 'DELETE' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['vendors'] }),
+  })
+}
+
 export function useUpdateVendor() {
   const qc = useQueryClient()
   return useMutation({

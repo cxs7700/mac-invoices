@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Check, Copy, Pencil } from 'lucide-react'
+import { Check, Copy, Pencil, X } from 'lucide-react'
 import { formatPhone, type Vendor, type UpdateVendorInput } from '@mac-invoices/shared'
 import { Button } from '@/components/ui/button'
 
 type Props = {
   vendor: Vendor
   onSave: (values: UpdateVendorInput) => void
+  onDelete: () => void
   onReissue: () => void
   onRevoke: () => void
   busy: boolean
@@ -27,6 +28,7 @@ const fieldClass = 'mt-1 w-full rounded-md border border-input bg-background px-
 export function VendorLinkCard({
   vendor,
   onSave,
+  onDelete,
   onReissue,
   onRevoke,
   busy,
@@ -36,6 +38,7 @@ export function VendorLinkCard({
   const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
   const [editing, setEditing] = useState(false)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [phone, setPhone] = useState(vendor.phone ?? '')
   const [email, setEmail] = useState(vendor.email ?? '')
 
@@ -80,17 +83,55 @@ export function VendorLinkCard({
             {vendor.linkActive ? t('vendorCard.linkActive') : t('vendorCard.linkRevoked')}
           </span>
           {!editing && (
-            <button
-              type="button"
-              aria-label={t('vendorCard.editContact', { name: vendor.name })}
-              className="rounded p-1.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-              onClick={startEditing}
-            >
-              <Pencil className="h-4 w-4" aria-hidden="true" />
-            </button>
+            <>
+              <button
+                type="button"
+                aria-label={t('vendorCard.editContact', { name: vendor.name })}
+                className="rounded p-1.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                onClick={startEditing}
+              >
+                <Pencil className="h-4 w-4" aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                aria-label={t('vendorCard.deleteVendor', { name: vendor.name })}
+                className="rounded p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                disabled={busy}
+                onClick={() => setConfirmingDelete(true)}
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </>
           )}
         </div>
       </div>
+
+      {confirmingDelete && (
+        <div className="mt-3 rounded-md border border-destructive/40 bg-destructive/5 p-3">
+          <p className="text-sm text-foreground">
+            {t('vendorCard.deleteConfirm', { name: vendor.name })}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {t('vendorCard.deleteKeepsInvoices')}
+          </p>
+          <div className="mt-3 flex gap-2">
+            <Button
+              size="sm"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={busy}
+              onClick={() => {
+                setConfirmingDelete(false)
+                onDelete()
+              }}
+            >
+              {t('vendorCard.deleteConfirmButton')}
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setConfirmingDelete(false)}>
+              {t('common.cancel')}
+            </Button>
+          </div>
+        </div>
+      )}
 
       {editing && (
         <div className="mt-3 rounded-md border border-border bg-background/60 p-3">

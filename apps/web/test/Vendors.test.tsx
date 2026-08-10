@@ -2,21 +2,28 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import Vendors from '@/pages/Vendors'
 
-const { useVendors, useCreateVendor, useRevokeLink, useReissueLink, useUpdateVendor } = vi.hoisted(
-  () => ({
-    useVendors: vi.fn(),
-    useCreateVendor: vi.fn(),
-    useRevokeLink: vi.fn(),
-    useReissueLink: vi.fn(),
-    useUpdateVendor: vi.fn(),
-  }),
-)
+const {
+  useVendors,
+  useCreateVendor,
+  useRevokeLink,
+  useReissueLink,
+  useUpdateVendor,
+  useDeleteVendor,
+} = vi.hoisted(() => ({
+  useVendors: vi.fn(),
+  useCreateVendor: vi.fn(),
+  useRevokeLink: vi.fn(),
+  useReissueLink: vi.fn(),
+  useUpdateVendor: vi.fn(),
+  useDeleteVendor: vi.fn(),
+}))
 vi.mock('@/hooks/useVendors', () => ({
   useVendors,
   useCreateVendor,
   useRevokeLink,
   useReissueLink,
   useUpdateVendor,
+  useDeleteVendor,
 }))
 
 const LINK = 'http://app/submit/inv_abc_secret'
@@ -37,6 +44,7 @@ const createMutate = vi.fn()
 const reissueMutate = vi.fn()
 const revokeMutate = vi.fn()
 const updateMutate = vi.fn()
+const deleteMutate = vi.fn()
 
 function listing(vendors: unknown[]) {
   useVendors.mockReturnValue({ data: { data: vendors }, isPending: false, isError: false })
@@ -48,6 +56,7 @@ describe('Vendors page', () => {
     useCreateVendor.mockReturnValue({ mutate: createMutate, isPending: false, error: null })
     useRevokeLink.mockReturnValue({ mutate: revokeMutate, isPending: false })
     useReissueLink.mockReturnValue({ mutate: reissueMutate, isPending: false })
+    useDeleteVendor.mockReturnValue({ mutate: deleteMutate, isPending: false })
     useUpdateVendor.mockReturnValue({
       mutate: updateMutate,
       isPending: false,
@@ -143,5 +152,31 @@ describe('Vendors page', () => {
     expect(screen.queryByText(LINK)).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: /issue new link/i }))
     expect(reissueMutate).toHaveBeenCalledWith('c1')
+  })
+
+  it('deletes a vendor, but only after confirming', () => {
+    listing([vendor()])
+    render(<Vendors />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Joe Plumber' }))
+    // The X asks first — deleting is not undoable.
+    expect(deleteMutate).not.toHaveBeenCalled()
+    expect(screen.getByText(/delete joe plumber\?/i)).toBeDefined()
+    // And it says what happens to their invoices.
+    expect(screen.getByText(/invoices are kept/i)).toBeDefined()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete vendor' }))
+    expect(deleteMutate).toHaveBeenCalledWith('c1')
+  })
+
+  it('backs out of a delete without calling the mutation', () => {
+    listing([vendor()])
+    render(<Vendors />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Joe Plumber' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    expect(screen.queryByText(/delete joe plumber\?/i)).toBeNull()
+    expect(deleteMutate).not.toHaveBeenCalled()
   })
 })

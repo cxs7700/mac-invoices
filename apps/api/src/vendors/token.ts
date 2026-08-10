@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import { encodeBase64urlNoPadding, encodeHexLowerCase } from '@oslojs/encoding'
+import { AppError } from '../middleware/errorHandler'
 import type { PrismaClient } from '../../prisma/generated/client.ts'
 
 // Vendor link tokens are bearer credentials shaped `inv_<lookupId>_<secret>`
@@ -29,8 +30,15 @@ const PREFIX = 'inv_'
 function linkKey(): Buffer {
   const raw = process.env.VENDOR_LINK_KEY
   if (!raw || raw.length < 32) {
-    throw new Error(
-      'VENDOR_LINK_KEY must be set to a random string of at least 32 characters — vendor submission links cannot be derived without it',
+    // A named AppError rather than a bare throw: this is a deployment
+    // misconfiguration, and surfacing it as a generic INTERNAL_ERROR sends the
+    // operator hunting through logs for what is a one-line env fix. It also
+    // only fires on link-deriving paths — listing revoked vendors never derives
+    // anything — so the symptom otherwise looks arbitrary.
+    throw new AppError(
+      'VENDOR_LINK_KEY_INVALID',
+      'VENDOR_LINK_KEY is missing or shorter than 32 characters, so vendor submission links cannot be derived. Set it in the environment and redeploy.',
+      500,
     )
   }
   return Buffer.from(raw, 'utf8')

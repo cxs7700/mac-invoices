@@ -12,6 +12,7 @@ import {
   useRevokeLink,
   useReissueLink,
   useUpdateVendor,
+  useDeleteVendor,
 } from '@/hooks/useVendors'
 
 const fieldClass = 'mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm'
@@ -25,6 +26,7 @@ export default function Vendors() {
   const revoke = useRevokeLink()
   const reissue = useReissueLink()
   const update = useUpdateVendor()
+  const remove = useDeleteVendor()
 
   const createError = create.error instanceof ApiError ? create.error.message : null
   const updateError = update.error instanceof ApiError ? update.error.message : null
@@ -51,7 +53,7 @@ export default function Vendors() {
     )
   })
 
-  const busy = revoke.isPending || reissue.isPending
+  const busy = revoke.isPending || reissue.isPending || remove.isPending
   const vendors = data?.data ?? []
 
   return (
@@ -120,6 +122,7 @@ export default function Vendors() {
               key={v.id}
               vendor={v}
               onSave={(values) => update.mutate({ id: v.id, ...values })}
+              onDelete={() => remove.mutate(v.id)}
               onReissue={() => reissue.mutate(v.id)}
               onRevoke={() => revoke.mutate(v.id)}
               busy={busy}

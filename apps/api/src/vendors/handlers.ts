@@ -122,6 +122,23 @@ export async function updateVendor(
 }
 
 /**
+ * DELETE /api/vendors/:id — remove a vendor (own only).
+ *
+ * Invoices are NOT deleted with them: both FKs (`vendorId`, `submittedByVendorId`)
+ * are `onDelete: SetNull`, and `Invoice.vendorName` is a plain string column, so
+ * a historical invoice keeps the name it was filed under and simply stops being
+ * linked to a vendor row. The vendor's submission link dies with the row.
+ */
+export async function deleteVendor(
+  request: FastifyRequest<{ Params: Params }>,
+  reply: FastifyReply,
+) {
+  await ownVendor(request.server.prisma, request.params.id, request.user.id)
+  await request.server.prisma.vendor.delete({ where: { id: request.params.id } })
+  return reply.code(204).send()
+}
+
+/**
  * POST /api/vendors/:id/revoke — invalidate the link (idempotent). A revoked
  * link can neither submit nor read; the vendor's existing (landlord-owned)
  * submissions are untouched.

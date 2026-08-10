@@ -167,3 +167,65 @@ describe('revoke / regenerate (U5)', () => {
     expect((await regenerate(otherId)).statusCode).toBe(404)
   })
 })
+
+describe('delete vendor', () => {
+  const del = (id: string, c = cookie) =>
+    app.inject({ method: 'DELETE', url: `/api/vendors/${id}`, headers: { cookie: c } })
+
+  it('deletes an own vendor and drops it from the list', async () => {
+    const id = (await create({ name: 'CRUD-Doomed', phone: 'x' })).json().id
+    expect((await del(id)).statusCode).toBe(204)
+
+    const list = (
+      await app.inject({ method: 'GET', url: '/api/vendors', headers: { cookie } })
+    ).json().data
+    expect(list.some((v: { id: string }) => v.id === id)).toBe(false)
+  })
+
+  it('keeps the vendor’s invoices, unlinking rather than deleting them', async () => {
+    const landlordId = (
+      await app.inject({ method: 'GET', url: '/api/auth/me', headers: { cookie } })
+    ).json().id
+    const vendorId = (await create({ name: 'CRUD-HasInvoices', phone: 'x' })).json().id
+    const invoice = await app.prisma.invoice.create({
+      data: {
+        invoiceNumber: `DEL-${Date.now()}`,
+        vendorName: 'CRUD-HasInvoices',
+        amount: 100,
+        currency: 'USD',
+        category: 'REPAIRS',
+        invoiceDate: new Date('2026-01-15'),
+        status: 'APPROVED',
+        userId: landlordId,
+        vendorId,
+        items: {
+          createMany: { data: [{ description: 'x', quantity: 1, total: 100, sortOrder: 0 }] },
+        },
+      },
+    })
+
+    expect((await del(vendorId)).statusCode).toBe(204)
+
+    // SetNull, not cascade: the invoice survives and keeps its free-text name.
+    const after = await app.prisma.invoice.findUniqueOrThrow({ where: { id: invoice.id } })
+    expect(after.vendorId).toBeNull()
+    expect(after.vendorName).toBe('CRUD-HasInvoices')
+
+    await app.prisma.invoice.delete({ where: { id: invoice.id } })
+  })
+
+  it('404s on another landlord’s vendor (no existence leak)', async () => {
+    const otherId = (await create({ name: 'CRUD-NotYours', phone: 'b' }, other.cookie)).json().id
+    expect((await del(otherId)).statusCode).toBe(404)
+    // Still there for its real owner.
+    expect(
+      (
+        await app.inject({
+          method: 'GET',
+          url: `/api/vendors/${otherId}`,
+          headers: { cookie: other.cookie },
+        })
+      ).statusCode,
+    ).toBe(200)
+  })
+})

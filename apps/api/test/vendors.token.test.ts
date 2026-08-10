@@ -118,3 +118,48 @@ describe('U4 link token', () => {
     expect(await validateLinkToken(app.prisma, crossed)).toBeNull()
   })
 })
+
+describe('VENDOR_LINK_KEY misconfiguration', () => {
+  // Regression: an unset or too-short key surfaced as a bare INTERNAL_ERROR,
+  // and only on link-DERIVING paths — listing revoked vendors never derives, so
+  // /vendors looked healthy while "Issue new link" 500'd. The named code is what
+  // points the operator at the env var instead of at the logs.
+  const withKey = (value: string | undefined, run: () => void) => {
+    const previous = process.env.VENDOR_LINK_KEY
+    if (value === undefined) delete process.env.VENDOR_LINK_KEY
+    else process.env.VENDOR_LINK_KEY = value
+    try {
+      run()
+    } finally {
+      if (previous === undefined) delete process.env.VENDOR_LINK_KEY
+      else process.env.VENDOR_LINK_KEY = previous
+    }
+  }
+
+  const codeOf = (fn: () => void): string | undefined => {
+    try {
+      fn()
+    } catch (err) {
+      return (err as { code?: string }).code
+    }
+    return undefined
+  }
+
+  it('names the failure when the key is unset', () => {
+    withKey(undefined, () => {
+      expect(codeOf(() => buildLinkToken('abc', 0))).toBe('VENDOR_LINK_KEY_INVALID')
+    })
+  })
+
+  it('names the failure when the key is too short to be a real secret', () => {
+    withKey('short', () => {
+      expect(codeOf(() => buildLinkToken('abc', 0))).toBe('VENDOR_LINK_KEY_INVALID')
+    })
+  })
+
+  it('accepts a key at the 32-character boundary', () => {
+    withKey('x'.repeat(32), () => {
+      expect(codeOf(() => buildLinkToken('abc', 0))).toBeUndefined()
+    })
+  })
+})
