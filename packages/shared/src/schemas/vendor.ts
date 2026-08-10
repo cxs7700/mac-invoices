@@ -34,6 +34,7 @@ export const SubmissionSchema = z.object({
   // `propertyId` is validated against the LINK'S OWN landlord server-side — a
   // token must never be able to attach another landlord's property.
   category: InvoiceCategory.optional(),
+  // Optional on the wire; the submission form requires it (2026-08-09).
   propertyId: z.string().min(1).optional(),
   // Photos are OPTIONAL as of 2026-08-09, reversing the original "at least one
   // photo is the proof" rule (KTD/AE2): vendors were being blocked at submit

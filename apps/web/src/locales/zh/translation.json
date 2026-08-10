@@ -1,5 +1,7 @@
 {
-  "app": { "name": "租務管理" },
+  "app": {
+    "name": "租務管理"
+  },
   "nav": {
     "dashboard": "總覽",
     "invoices": "發票",
@@ -27,7 +29,9 @@
   },
   "settings": {
     "title": "設定",
-    "language": { "title": "語言" },
+    "language": {
+      "title": "語言"
+    },
     "profile": {
       "title": "個人資料",
       "firstName": "名",
@@ -36,9 +40,18 @@
       "saved": "資料儲存咗喇。",
       "save": "儲存"
     },
-    "security": { "title": "保安" },
-    "sheets": { "title": "Google 試算表連接" },
-    "theme": { "title": "主題", "light": "淺色", "system": "跟系統", "dark": "深色" }
+    "security": {
+      "title": "保安"
+    },
+    "sheets": {
+      "title": "Google 試算表連接"
+    },
+    "theme": {
+      "title": "主題",
+      "light": "淺色",
+      "system": "跟系統",
+      "dark": "深色"
+    }
   },
   "login": {
     "welcome": "歡迎返嚟 — 登入繼續。",
@@ -91,7 +104,11 @@
     "cta": "仲未有相 — 影張相做呢張發票嘅憑證。"
   },
   "sync": {
-    "label": { "not-exported": "未匯出", "exported": "已匯出", "drifted": "有改動" },
+    "label": {
+      "not-exported": "未匯出",
+      "exported": "已匯出",
+      "drifted": "有改動"
+    },
     "hint": {
       "not-exported": "仲未匯出去 Google 試算表",
       "exported": "已經同步咗去 Google 試算表",
@@ -120,7 +137,9 @@
     "filterBy": "篩選 {{status}}，{{count}} 張發票",
     "activeSuffix": "，已揀"
   },
-  "spendBars": { "empty": "仲未有嘢顯示。" },
+  "spendBars": {
+    "empty": "仲未有嘢顯示。"
+  },
   "invoiceList": {
     "heading": "發票",
     "exporting": "匯出緊…",
@@ -254,6 +273,27 @@
     "confirmReject": "確認拒絕",
     "approve": "批准",
     "reject": "拒絕"
+  },
+  "invoiceFields": {
+    "optionalSuffix": "（選填）",
+    "items": {
+      "title": "做咗嘅工",
+      "description": "說明",
+      "quantity": "數量",
+      "total": "小計",
+      "add": "加一行",
+      "remove": "刪除第 {{index}} 行",
+      "increment": "第 {{index}} 行數量加一",
+      "decrement": "第 {{index}} 行數量減一",
+      "computedTotal": "發票總額"
+    },
+    "invoiceDate": "發票日期",
+    "property": "物業",
+    "selectProperty": "揀物業…",
+    "category": "類別",
+    "notSpecified": "— 未指定 —",
+    "notes": "備註",
+    "partsOrdered": "訂咗嘅零件"
   },
   "invoiceForm": {
     "vendor": "供應商",
@@ -433,8 +473,8 @@
     },
     "photosLabel": "相片",
     "optionalSuffix": "（選填）",
-    "category": "类别",
-    "property": "房产",
+    "category": "類別",
+    "property": "物業",
     "notSpecified": "— 未指定 —",
     "photosNoneYet": "仲未加相。",
     "photoN": "相片 {{n}}",

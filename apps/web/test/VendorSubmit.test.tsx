@@ -1,7 +1,8 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router'
 import VendorSubmit from '@/pages/VendorSubmit'
+import i18n from '@/lib/i18n'
 import { ApiError } from '@/lib/apiClient'
 
 const {
@@ -45,8 +46,17 @@ function fillFirstLine(description: string, total: string) {
 
 const submitMock = { mutate: vi.fn(), isPending: false, error: null as unknown }
 
+// Opening the link switches the app to Cantonese, so every assertion below is
+// against the zh catalog. Reset afterwards so sibling suites still see English.
+afterEach(() => i18n.changeLanguage('en'))
+
 describe('VendorSubmit', () => {
+  // The page forces Cantonese on mount for real vendors. These tests are about
+  // behaviour, not copy, so the switch is stubbed out and everything is asserted
+  // against the English catalogue — otherwise every query here would have to be
+  // rewritten in zh and would break again on any wording change.
   beforeEach(() => {
+    vi.spyOn(i18n, 'changeLanguage').mockResolvedValue(((key: string) => key) as never)
     vi.clearAllMocks()
     submitMock.error = null
     useSubmit.mockReturnValue(submitMock)
@@ -54,6 +64,27 @@ describe('VendorSubmit', () => {
     useSubmissionProperties.mockReturnValue({
       data: { data: [{ id: 'p1', name: 'Maple', address: '12 Main St' }] },
     })
+  })
+
+  it('opens in Cantonese even when the app was last used in English', async () => {
+    vi.mocked(i18n.changeLanguage).mockRestore()
+    await i18n.changeLanguage('en')
+    useSubmissionStatus.mockReturnValue({ isPending: false, isError: false, data: { data: [] } })
+    renderPage()
+    await waitFor(() => expect(i18n.language).toBe('zh'))
+    expect(screen.getByRole('heading', { name: '交發票' })).toBeDefined()
+  })
+
+  it('leaves the vendor on English if they pick it from the in-page switcher', async () => {
+    vi.mocked(i18n.changeLanguage).mockRestore()
+    useSubmissionStatus.mockReturnValue({ isPending: false, isError: false, data: { data: [] } })
+    renderPage()
+    await waitFor(() => expect(i18n.language).toBe('zh'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'EN' }))
+    await waitFor(() => expect(i18n.language).toBe('en'))
+    // The forced switch is once-per-visit, so it must not stomp the choice back.
+    expect(screen.getByRole('heading', { name: 'Submit an invoice' })).toBeDefined()
   })
 
   it('shows a loading state while the token resolves', () => {
@@ -126,7 +157,8 @@ describe('VendorSubmit', () => {
     const { container } = renderPage()
 
     fillFirstLine('Fixed a leak', '120')
-    fireEvent.change(screen.getByLabelText('Date'), { target: { value: '2026-06-01' } })
+    fireEvent.change(screen.getByLabelText('Invoice date'), { target: { value: '2026-06-01' } })
+    fireEvent.change(screen.getByLabelText(/^Property/), { target: { value: 'p1' } })
 
     // Upload a photo via the hidden file input (the second one — camera, then file).
     const fileInput = container.querySelectorAll('input[type="file"]')[1] as HTMLInputElement
@@ -156,7 +188,8 @@ describe('VendorSubmit', () => {
     const { container } = renderPage()
 
     fillFirstLine('Fixed a leak', '120')
-    fireEvent.change(screen.getByLabelText('Date'), { target: { value: '2026-06-01' } })
+    fireEvent.change(screen.getByLabelText('Invoice date'), { target: { value: '2026-06-01' } })
+    fireEvent.change(screen.getByLabelText(/^Property/), { target: { value: 'p1' } })
     const fileInput = container.querySelectorAll('input[type="file"]')[1] as HTMLInputElement
     fireEvent.change(fileInput, {
       target: { files: [new File(['x'], 'p.png', { type: 'image/png' })] },
@@ -186,7 +219,8 @@ describe('VendorSubmit', () => {
     const totals = screen.getAllByPlaceholderText('Total')
     fireEvent.change(descriptions[1], { target: { value: 'Valve' } })
     fireEvent.change(totals[1], { target: { value: '25.50' } })
-    fireEvent.change(screen.getByLabelText('Date'), { target: { value: '2026-06-01' } })
+    fireEvent.change(screen.getByLabelText('Invoice date'), { target: { value: '2026-06-01' } })
+    fireEvent.change(screen.getByLabelText(/^Property/), { target: { value: 'p1' } })
 
     // The running total mirrors the landlord form.
     expect(screen.getByText('$175.50')).toBeDefined()
@@ -219,7 +253,8 @@ describe('VendorSubmit', () => {
     const { container } = renderPage()
 
     fillFirstLine('Fixed a leak', '120')
-    fireEvent.change(screen.getByLabelText('Date'), { target: { value: '2026-06-01' } })
+    fireEvent.change(screen.getByLabelText('Invoice date'), { target: { value: '2026-06-01' } })
+    fireEvent.change(screen.getByLabelText(/^Property/), { target: { value: 'p1' } })
     fireEvent.change(screen.getByLabelText(/^Notes/), { target: { value: 'Gate code 1234' } })
     fireEvent.change(screen.getByLabelText(/^Parts ordered/), { target: { value: 'Cartridge' } })
 
@@ -245,7 +280,8 @@ describe('VendorSubmit', () => {
     renderPage()
 
     fillFirstLine('Fixed a leak', '120')
-    fireEvent.change(screen.getByLabelText('Date'), { target: { value: '2026-06-01' } })
+    fireEvent.change(screen.getByLabelText('Invoice date'), { target: { value: '2026-06-01' } })
+    fireEvent.change(screen.getByLabelText(/^Property/), { target: { value: 'p1' } })
 
     // No photo attached at all.
     expect((screen.getByRole('button', { name: 'Submit' }) as HTMLButtonElement).disabled).toBe(
@@ -303,7 +339,8 @@ describe('VendorSubmit', () => {
     renderPage()
 
     fillFirstLine('Fixed a leak', '120')
-    fireEvent.change(screen.getByLabelText('Date'), { target: { value: '2026-06-01' } })
+    fireEvent.change(screen.getByLabelText('Invoice date'), { target: { value: '2026-06-01' } })
+    fireEvent.change(screen.getByLabelText(/^Property/), { target: { value: 'p1' } })
     fireEvent.change(screen.getByLabelText(/^Category/), { target: { value: 'REPAIRS' } })
     fireEvent.change(screen.getByLabelText(/^Property/), { target: { value: 'p1' } })
 
@@ -314,17 +351,18 @@ describe('VendorSubmit', () => {
     )
   })
 
-  it('omits category and property when left unspecified', () => {
+  it('omits category when left unspecified — property is required', () => {
     useSubmissionStatus.mockReturnValue({ isPending: false, isError: false, data: { data: [] } })
     renderPage()
 
     fillFirstLine('Fixed a leak', '120')
-    fireEvent.change(screen.getByLabelText('Date'), { target: { value: '2026-06-01' } })
+    fireEvent.change(screen.getByLabelText('Invoice date'), { target: { value: '2026-06-01' } })
+    fireEvent.change(screen.getByLabelText(/^Property/), { target: { value: 'p1' } })
     fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
 
     const body = submitMock.mutate.mock.calls[0][0]
     expect(body.category).toBeUndefined()
-    expect(body.propertyId).toBeUndefined()
+    expect(body.propertyId).toBe('p1')
   })
 
   it('offers no vendor field — the name comes from the link', () => {

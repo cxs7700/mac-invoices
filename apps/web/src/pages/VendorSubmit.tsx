@@ -1,12 +1,12 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { Minus, Plus, X } from 'lucide-react'
 import { ApiError } from '@/lib/apiClient'
 import { StatusBadge } from '@/components/StatusBadge'
 import { PhotoAttach } from '@/components/PhotoAttach'
 import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 import { Button } from '@/components/ui/button'
+import { InvoiceFields, type ItemRowValue } from '@/components/InvoiceFields'
 import { formatMoney, formatDate } from '@/lib/format'
 import {
   useSubmissionStatus,
@@ -15,22 +15,13 @@ import {
   useWithdraw,
   uploadSubmissionPhoto,
 } from '@/hooks/useSubmission'
-import { MAX_INVOICE_IMAGES, ImageType, InvoiceCategory, propertyLabel } from '@mac-invoices/shared'
+import { MAX_INVOICE_IMAGES, ImageType } from '@mac-invoices/shared'
 import type { SubmissionStatus, ImageType as ImageTypeT } from '@mac-invoices/shared'
-
-const itemFieldClass = 'w-full rounded-md border border-input bg-background px-2 py-2 text-sm'
-
-/**
- * A line-item row while it is being typed. Quantity and total stay strings so a
- * half-typed value ("1.") is not coerced to NaN under the user's cursor; they
- * are converted once, on submit.
- */
-type ItemRow = { id: string; description: string; quantity: string; total: string }
 
 // A stable per-row key. Rows are added and removed, so the array index would
 // re-key surviving rows and lose focus mid-edit.
 let itemRowSeq = 0
-function blankItem(): ItemRow {
+function blankItem(): ItemRowValue {
   itemRowSeq += 1
   return { id: `row-${itemRowSeq}`, description: '', quantity: '1', total: '' }
 }
@@ -53,13 +44,26 @@ function Shell({ children }: { children: React.ReactNode }) {
 
 export default function VendorSubmit() {
   const { token } = useParams()
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+
+  // Vendors read Cantonese, so the submission link opens in Cantonese whatever
+  // the browser (or a previous visitor on this device) asked for. Once per
+  // visit only — the in-page switcher still wins afterwards, and a landlord who
+  // follows a vendor link gets their own locale back from the server on their
+  // next login (AuthGuard reconciles it).
+  const localeForced = useRef(false)
+  useEffect(() => {
+    if (localeForced.current) return
+    localeForced.current = true
+    if (i18n.language !== 'zh') i18n.changeLanguage('zh')
+  }, [i18n])
+
   const status = useSubmissionStatus(token!)
   const submit = useSubmit(token!)
   const withdraw = useWithdraw(token!)
   const propertyList = useSubmissionProperties(token!)
 
-  const [items, setItems] = useState<ItemRow[]>([blankItem()])
+  const [items, setItems] = useState<ItemRowValue[]>([blankItem()])
   const [invoiceDate, setInvoiceDate] = useState('')
   const [notes, setNotes] = useState('')
   const [partsOrdered, setPartsOrdered] = useState('')
@@ -96,7 +100,8 @@ export default function VendorSubmit() {
   const computedTotal = filledItems.reduce((sum, i) => sum + Number(i.total), 0)
   // Photos, notes and parts are all optional — a submission needs only a dated
   // line item.
-  const canSubmit = !!invoiceDate && filledItems.length > 0
+  // Property is required on both forms; notes, parts, category and photos are not.
+  const canSubmit = !!invoiceDate && !!propertyId && filledItems.length > 0
 
   const submitError =
     submit.error instanceof ApiError
@@ -117,17 +122,9 @@ export default function VendorSubmit() {
     setPhotos([])
   }
 
-  const updateItem = (id: string, patch: Partial<ItemRow>) =>
+  const updateItem = (id: string, patch: Partial<ItemRowValue>) =>
     setItems((prev) => prev.map((row) => (row.id === id ? { ...row, ...patch } : row)))
   const addItem = () => setItems((prev) => [...prev, blankItem()])
-  /** Quantity as a number for the steppers; a half-typed or empty box reads 1. */
-  const quantityOf = (row: ItemRow) => Math.max(1, Number(row.quantity) || 1)
-  const stepQuantity = (id: string, delta: number) =>
-    setItems((prev) =>
-      prev.map((row) =>
-        row.id === id ? { ...row, quantity: String(Math.max(1, quantityOf(row) + delta)) } : row,
-      ),
-    )
   const removeItem = (id: string) =>
     setItems((prev) => (prev.length === 1 ? prev : prev.filter((row) => row.id !== id)))
 
@@ -182,187 +179,24 @@ export default function VendorSubmit() {
         </div>
       ) : (
         <form onSubmit={onSubmit} className="space-y-4 rounded-lg border border-border bg-card p-5">
-          <div>
-            <div className="mb-1">
-              <span className="text-sm font-medium text-foreground">
-                {t('vendorSubmit.items.title')}
-              </span>
-            </div>
-            <div className="space-y-2">
-              {items.map((row, index) => (
-                <div key={row.id} className="rounded-md border border-border bg-background/40 p-3">
-                  {/* Description gets the full width of the card: it is the
-                      field with the most to say, and at this page width it was
-                      down to ~180px sharing a row with three other controls. */}
-                  <label htmlFor={`item-desc-${row.id}`} className="sr-only">
-                    {t('vendorSubmit.items.description')}
-                  </label>
-                  <input
-                    id={`item-desc-${row.id}`}
-                    placeholder={t('vendorSubmit.items.description')}
-                    value={row.description}
-                    onChange={(e) => updateItem(row.id, { description: e.target.value })}
-                    className={itemFieldClass}
-                  />
-
-                  <div className="mt-2 flex items-end justify-between gap-3">
-                    <div>
-                      <label
-                        htmlFor={`item-qty-${row.id}`}
-                        className="mb-1 block text-xs text-muted-foreground"
-                      >
-                        {t('vendorSubmit.items.quantity')}
-                      </label>
-                      <div className="flex items-stretch">
-                        <button
-                          type="button"
-                          aria-label={t('vendorSubmit.items.decrement', { index: index + 1 })}
-                          onClick={() => stepQuantity(row.id, -1)}
-                          className="rounded-l-md border border-input px-2 text-muted-foreground hover:bg-accent disabled:opacity-40"
-                          disabled={quantityOf(row) <= 1}
-                        >
-                          <Minus className="h-3.5 w-3.5" aria-hidden="true" />
-                        </button>
-                        <input
-                          id={`item-qty-${row.id}`}
-                          type="number"
-                          inputMode="numeric"
-                          min="1"
-                          value={row.quantity}
-                          onChange={(e) => updateItem(row.id, { quantity: e.target.value })}
-                          className="w-14 border-y border-input bg-background px-1 py-2 text-center text-sm"
-                        />
-                        <button
-                          type="button"
-                          aria-label={t('vendorSubmit.items.increment', { index: index + 1 })}
-                          onClick={() => stepQuantity(row.id, 1)}
-                          className="rounded-r-md border border-input px-2 text-muted-foreground hover:bg-accent"
-                        >
-                          <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="flex-1">
-                      <label
-                        htmlFor={`item-total-${row.id}`}
-                        className="mb-1 block text-xs text-muted-foreground"
-                      >
-                        {t('vendorSubmit.items.total')}
-                      </label>
-                      <input
-                        id={`item-total-${row.id}`}
-                        type="number"
-                        inputMode="decimal"
-                        step="0.01"
-                        min="0"
-                        placeholder={t('vendorSubmit.items.total')}
-                        value={row.total}
-                        onChange={(e) => updateItem(row.id, { total: e.target.value })}
-                        className={itemFieldClass}
-                      />
-                    </div>
-
-                    {items.length > 1 && (
-                      <button
-                        type="button"
-                        aria-label={t('vendorSubmit.items.remove', { index: index + 1 })}
-                        onClick={() => removeItem(row.id)}
-                        className="mb-1 rounded p-1.5 text-destructive hover:bg-destructive/10"
-                      >
-                        <X className="h-4 w-4" aria-hidden="true" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-              <button
-                type="button"
-                onClick={addItem}
-                className="flex w-full items-center justify-center gap-1.5 rounded-md border border-dashed border-input py-2 text-sm text-primary hover:bg-accent"
-              >
-                <Plus className="h-4 w-4" aria-hidden="true" />
-                {t('vendorSubmit.items.add')}
-              </button>
-            </div>
-            <p className="mt-2 text-right text-sm text-muted-foreground">
-              {t('vendorSubmit.items.computedTotal')}:{' '}
-              <span className="font-medium text-foreground tabular-nums">
-                {formatMoney(computedTotal)}
-              </span>
-            </p>
-          </div>
-          <div>
-            <label htmlFor="invoiceDate" className="text-sm font-medium text-foreground">
-              {t('vendorSubmit.date')}
-            </label>
-            <input
-              id="invoiceDate"
-              type="date"
-              value={invoiceDate}
-              onChange={(e) => setInvoiceDate(e.target.value)}
-              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            />
-          </div>
-          <div>
-            <label htmlFor="category" className="text-sm font-medium text-foreground">
-              {t('vendorSubmit.category')} {t('vendorSubmit.optionalSuffix')}
-            </label>
-            <select
-              id="category"
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            >
-              <option value="">{t('vendorSubmit.notSpecified')}</option>
-              {InvoiceCategory.options.map((c) => (
-                <option key={c} value={c}>
-                  {t(`category.${c}`)}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label htmlFor="propertyId" className="text-sm font-medium text-foreground">
-              {t('vendorSubmit.property')} {t('vendorSubmit.optionalSuffix')}
-            </label>
-            <select
-              id="propertyId"
-              value={propertyId}
-              onChange={(e) => setPropertyId(e.target.value)}
-              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            >
-              <option value="">{t('vendorSubmit.notSpecified')}</option>
-              {properties.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {propertyLabel(p)}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label htmlFor="partsOrdered" className="text-sm font-medium text-foreground">
-              {t('vendorSubmit.partsOrdered')} {t('vendorSubmit.optionalSuffix')}
-            </label>
-            <input
-              id="partsOrdered"
-              value={partsOrdered}
-              onChange={(e) => setPartsOrdered(e.target.value)}
-              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            />
-          </div>
-          <div>
-            <label htmlFor="notes" className="text-sm font-medium text-foreground">
-              {t('vendorSubmit.notes')} {t('vendorSubmit.optionalSuffix')}
-            </label>
-            <textarea
-              id="notes"
-              rows={2}
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            />
-          </div>
+          <InvoiceFields
+            items={items}
+            onItemChange={updateItem}
+            onItemAdd={addItem}
+            onItemRemove={removeItem}
+            computedTotal={computedTotal}
+            invoiceDate={invoiceDate}
+            onInvoiceDate={setInvoiceDate}
+            propertyId={propertyId}
+            onPropertyId={setPropertyId}
+            properties={properties}
+            category={category}
+            onCategory={setCategory}
+            notes={notes}
+            onNotes={setNotes}
+            partsOrdered={partsOrdered}
+            onPartsOrdered={setPartsOrdered}
+          />
           <div>
             <span className="text-sm font-medium text-foreground">
               {t('vendorSubmit.photosLabel')} {t('vendorSubmit.optionalSuffix')}

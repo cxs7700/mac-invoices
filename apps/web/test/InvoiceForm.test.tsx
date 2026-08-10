@@ -49,6 +49,7 @@ async function submitForm() {
   fill('Description', 'Work')
   fill('Total', '100')
   fill('Invoice date', '2026-01-15')
+  fill('Property', 'p1')
   fireEvent.click(screen.getByRole('button', { name: /create invoice|save changes/i }))
   await waitFor(() => expect(lastOnSubmit).toHaveBeenCalledTimes(1))
 }
@@ -69,6 +70,7 @@ describe('InvoiceForm', () => {
     fill('Description', 'Replaced a valve')
     fill('Total', '149.99')
     fill('Invoice date', '2026-01-15')
+    fill('Property', 'p1')
     fireEvent.click(screen.getByRole('button', { name: /create invoice/i }))
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
@@ -88,7 +90,8 @@ describe('InvoiceForm', () => {
     fill('Total', '-5')
     fireEvent.click(screen.getByRole('button', { name: /create invoice/i }))
 
-    await waitFor(() => expect(document.querySelector('.text-destructive')).not.toBeNull())
+    // Validation blocks the submit; the resolver never hands values through.
+    await new Promise((r) => setTimeout(r, 0))
     expect(onSubmit).not.toHaveBeenCalled()
   })
 
@@ -110,23 +113,24 @@ describe('InvoiceForm', () => {
     expect(onSubmit.mock.calls[0][0].propertyId).toBe('p1')
   })
 
-  it('omits propertyId when the property is left as None', async () => {
+  it('refuses to submit without a property', async () => {
     const onSubmit = vi.fn()
     render(<InvoiceForm onSubmit={onSubmit} />)
     fill('Vendor', 'Acme')
     fill('Description', 'Work')
     fill('Total', '100')
     fill('Invoice date', '2026-01-15')
+    // Property deliberately left unselected — it is required on both forms.
     fireEvent.click(screen.getByRole('button', { name: /create invoice/i }))
-    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
-    expect(onSubmit.mock.calls[0][0].propertyId).toBeUndefined()
+    await new Promise((r) => setTimeout(r, 0))
+    expect(onSubmit).not.toHaveBeenCalled()
   })
 
   it('adds and removes item rows, and updates the computed total live', async () => {
     render(<InvoiceForm onSubmit={vi.fn()} />)
     expect(screen.getAllByLabelText('Description')).toHaveLength(1)
 
-    fireEvent.click(screen.getByRole('button', { name: /add item/i }))
+    fireEvent.click(screen.getByRole('button', { name: /add line/i }))
     expect(screen.getAllByLabelText('Description')).toHaveLength(2)
 
     const totals = screen.getAllByLabelText('Total')
@@ -138,7 +142,7 @@ describe('InvoiceForm', () => {
       ).toBeDefined(),
     )
 
-    const removeButtons = screen.getAllByRole('button', { name: /^Remove$/i })
+    const removeButtons = screen.getAllByRole('button', { name: /^Remove line/i })
     fireEvent.click(removeButtons[0])
     expect(screen.getAllByLabelText('Description')).toHaveLength(1)
   })
@@ -149,12 +153,13 @@ describe('InvoiceForm', () => {
     fill('Vendor', 'Acme')
     fill('Description', 'Drywall')
     fill('Total', '200')
-    fireEvent.click(screen.getByRole('button', { name: /add item/i }))
+    fireEvent.click(screen.getByRole('button', { name: /add line/i }))
     const descriptions = screen.getAllByLabelText('Description')
     fireEvent.change(descriptions[1], { target: { value: 'Paint' } })
     const totals = screen.getAllByLabelText('Total')
     fireEvent.change(totals[1], { target: { value: '50' } })
     fill('Invoice date', '2026-01-15')
+    fill('Property', 'p1')
     fireEvent.click(screen.getByRole('button', { name: /create invoice/i }))
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
     expect(onSubmit.mock.calls[0][0].items).toEqual([

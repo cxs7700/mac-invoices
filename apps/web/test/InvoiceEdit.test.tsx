@@ -14,7 +14,7 @@ const invoice = {
   amount: '149.99',
   currency: 'USD',
   category: 'REPAIRS',
-  propertyId: null,
+  propertyId: 'p1',
   status: 'PENDING',
   invoiceDate: '2026-01-15',
   paidDate: null,

@@ -255,6 +255,27 @@
     "approve": "Approve",
     "reject": "Reject"
   },
+  "invoiceFields": {
+    "optionalSuffix": "(optional)",
+    "items": {
+      "title": "Work performed",
+      "description": "Description",
+      "quantity": "Qty",
+      "total": "Total",
+      "add": "Add line",
+      "remove": "Remove line {{index}}",
+      "increment": "Increase quantity on line {{index}}",
+      "decrement": "Decrease quantity on line {{index}}",
+      "computedTotal": "Invoice total"
+    },
+    "invoiceDate": "Invoice date",
+    "property": "Property",
+    "selectProperty": "Select a property…",
+    "category": "Category",
+    "notSpecified": "— Not specified —",
+    "notes": "Notes",
+    "partsOrdered": "Parts ordered"
+  },
   "invoiceForm": {
     "vendor": "Vendor",
     "vendorToggle": "Show vendors",

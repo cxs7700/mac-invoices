@@ -104,7 +104,14 @@ export const CreateInvoiceSchema = z.object({
   // stores `amount` as their sum; it is never accepted as input.
   items: z.array(InvoiceItemInputSchema).min(1).max(MAX_INVOICE_ITEMS),
   currency: z.string().length(3).default('USD'),
-  category: InvoiceCategory,
+  // Category is OPTIONAL as of 2026-08-09 — it is set on review as often as at
+  // create, and approving already refuses without one, so demanding it up front
+  // only forced a guess.
+  category: InvoiceCategory.optional(),
+  // Optional on the WIRE, required by the forms — see CreateInvoiceFormSchema
+  // below. Keeping the API tolerant means the Sheets importer, the seed and
+  // every existing caller keep working; the requirement belongs where the
+  // person is, not on the contract.
   propertyId: z.string().optional(),
   invoiceDate: z.coerce.date(),
   notes: z.string().max(1000).optional(),
@@ -150,6 +157,21 @@ export const ListInvoicesQuerySchema = z.object({
 
 export type InvoiceStatus = z.infer<typeof InvoiceStatus>
 export type InvoiceCategory = z.infer<typeof InvoiceCategory>
+/**
+ * Client-only: what the invoice FORM requires, which is stricter than what the
+ * API accepts. Property is mandatory for a person filling the form in — an
+ * invoice without one cannot be approved (PROPERTY_REQUIRED), so collecting it
+ * at entry beats chasing it at review. The wire schema stays tolerant so the
+ * seed, the Sheets importer and existing callers are unaffected.
+ *
+ * Same shape as DEC-031's SignupFormSchema: extend rather than redeclare, so the
+ * two cannot drift.
+ */
+export const CreateInvoiceFormSchema = CreateInvoiceSchema.extend({
+  propertyId: z.string().trim().min(1, 'Choose a property'),
+})
+export type CreateInvoiceFormInput = z.infer<typeof CreateInvoiceFormSchema>
+
 export type CreateInvoiceInput = z.infer<typeof CreateInvoiceSchema>
 export type UpdateInvoiceInput = z.infer<typeof UpdateInvoiceSchema>
 export type InvoiceSortField = z.infer<typeof InvoiceSortField>
