@@ -44,6 +44,15 @@ export function useSignup() {
   })
 }
 
+/** Consume an operator-issued reset link. No session involved — the token is
+ *  the authorization, and a 204 means the password is set. */
+export function useResetPassword() {
+  return useMutation({
+    mutationFn: (body: { token: string; newPassword: string }) =>
+      apiClient<void>('/api/auth/reset-password', { method: 'POST', body: JSON.stringify(body) }),
+  })
+}
+
 export function useLogout() {
   const queryClient = useQueryClient()
   return useMutation({

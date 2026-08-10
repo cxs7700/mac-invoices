@@ -270,6 +270,23 @@ still `SELECT`s `tokenHash` by name; dropping the column while that code is live
 No pre-deploy audit query is needed: the migration rewrites no rows and the dropped column
 feeds nothing downstream.
 
+### Issuing a password reset (2026-08-10)
+
+A landlord who forgets their password has no self-service route — there is no
+deliverable email (see DEC-036(a)) and no admin UI (DEC-036(b)). Recovery is:
+
+```bash
+npm run auth:reset-link -- someone@example.com
+```
+
+run against the environment whose database holds the account, with `WEB_ORIGIN`
+set to that environment's URL. It prints a link valid for one hour that works
+exactly once; send it to the person directly. Issuing a second link retires the
+first, and using the link signs that account out everywhere.
+
+Against production this reads and writes the live database — the same care as
+any other script run with the production `DATABASE_URL`.
+
 ## 4. Seed the landlord (one-off, strong password)
 
 The seed upserts the landlord login and **fails closed** if `LANDLORD_PASSWORD` is unset, and
@@ -307,6 +324,7 @@ previews hit a DB). Mark secrets **Sensitive**.
 | `LANDLORD_EMAIL` | the seeded email | |
 | `COOKIE_SECURE` | `true` | sends the session cookie only over HTTPS — **set for Preview too** |
 | `VENDOR_LINK_KEY` | a random string ≥32 chars | **REQUIRED** — every vendor submission link is derived from it (DEC-034). Sensitive: it is the only thing between a database dump and a working link. **Unset ⇒ the vendors page and every `/submit/:token` request throw.** Changing it invalidates every outstanding link. Generate with `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"` |
+| `RESET_LINK_KEY` | signing key for operator-issued password-reset links; ≥32 chars, generate with `openssl rand -base64 32`. Must NOT reuse `VENDOR_LINK_KEY` — separate purposes must not share a key. Unset ⇒ `POST /api/auth/reset-password` fails with `RESET_LINK_KEY_INVALID` (500) and no link can be issued. |
 | `NODE_ENV` | *(do **not** set)* | Vercel sets `production` in the function runtime automatically; adding it as a project env var makes the build's `npm install` skip devDependencies → the web build fails with exit 2 |
 | `VITE_API_URL` | *(empty / unset)* | same-origin; baked into the SPA at build |
 

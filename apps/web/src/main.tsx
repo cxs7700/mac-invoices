@@ -19,6 +19,7 @@ import InvoiceNew from './pages/InvoiceNew.tsx'
 import InvoiceDetail from './pages/InvoiceDetail.tsx'
 import InvoiceEdit from './pages/InvoiceEdit.tsx'
 import VendorSubmit from './pages/VendorSubmit.tsx'
+import ResetPassword from './pages/ResetPassword.tsx'
 import Vendors from './pages/Vendors.tsx'
 import Properties from './pages/Properties.tsx'
 import PropertyDetail from './pages/PropertyDetail.tsx'
@@ -34,6 +35,10 @@ const router = createBrowserRouter([
   // Public, no-login vendor submission link — a top-level sibling of /login,
   // deliberately OUTSIDE the AuthGuard subtree. Authorization is the path token.
   { path: '/submit/:token', element: <VendorSubmit /> },
+  // Public reset page — outside AuthGuard, because the person using it is
+  // locked out by definition. The token is in the fragment, so it never
+  // reaches the server's access logs.
+  { path: '/reset-password', element: <ResetPassword /> },
   {
     path: '/',
     element: <AuthGuard />,
