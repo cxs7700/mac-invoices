@@ -162,7 +162,21 @@ export async function saveSheet(request: FastifyRequest, reply: FastifyReply) {
   try {
     await request.server.prisma.user.update({
       where: { id: request.user.id },
-      data: { sheetSpreadsheetId: spreadsheetId },
+      data: {
+        sheetSpreadsheetId: spreadsheetId,
+        // Clearing the high-water mark is what makes the next cron run mirror
+        // into this sheet. `runSheetsSyncFlush` decides dirtiness by comparing
+        // invoice/property timestamps against `sheetSyncedAt`, and changing the
+        // target touches neither — so without this, switching sheets leaves the
+        // new one empty until something unrelated marks the landlord dirty.
+        //
+        // Unconditional, not "only when the id changed": that would need a
+        // read-then-write, and if two saves interleave the loser skips the reset
+        // and the bug returns. The cost is one redundant mirror when the same id
+        // is saved twice, which is harmless — the mirror is idempotent (DEC-001)
+        // — and arguably correct, since pressing Save means "make this current".
+        sheetSyncedAt: null,
+      },
     })
   } catch (err) {
     // `sheetSpreadsheetId` is the only unique column this update touches, so a
@@ -176,6 +190,28 @@ export async function saveSheet(request: FastifyRequest, reply: FastifyReply) {
     }
     throw err
   }
+  return getSheets(request, reply)
+}
+
+/**
+ * DELETE /api/settings/sheets — disconnect the target spreadsheet.
+ *
+ * A distinct verb rather than a nullable PATCH body. Because the UI is an
+ * explicit Disconnect button, no save payload ever needs to mean "clear", so
+ * `SaveSheetSchema` keeps rejecting empty and an accidental disconnect cannot
+ * be spelled in a save request at all (DEC-034).
+ *
+ * Idempotent: disconnecting with nothing connected succeeds and changes
+ * nothing. Clearing the id releases it under the unique index added in
+ * DEC-033 — Postgres treats NULLs as distinct — so another account can then
+ * connect that spreadsheet. `sheetSyncedAt` is cleared for the same reason as
+ * in `saveSheet`: whatever is connected next must be mirrored in full.
+ */
+export async function disconnectSheet(request: FastifyRequest, reply: FastifyReply) {
+  await request.server.prisma.user.update({
+    where: { id: request.user.id },
+    data: { sheetSpreadsheetId: null, sheetSyncedAt: null },
+  })
   return getSheets(request, reply)
 }
 

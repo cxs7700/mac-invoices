@@ -22,6 +22,12 @@ import { createSecondUser } from './helpers/auth'
 const ID_SAVED = '1SettingsSheetsSavedAAAAAAAAAAAAAAAAAAAAAAAA'
 const ID_UNREACHABLE = '1SettingsSheetsUnreachableBBBBBBBBBBBBBBBBBB'
 const ID_TARGET = '1SettingsSheetsSyncNowCCCCCCCCCCCCCCCCCCCCCC'
+const ID_DISCONNECT = '1SettingsSheetsDisconnectKKKKKKKKKKKKKKKKKK'
+const ID_RELEASED = '1SettingsSheetsReleasedLLLLLLLLLLLLLLLLLLLL'
+const ID_UNAUTH = '1SettingsSheetsUnauthMMMMMMMMMMMMMMMMMMMMMM'
+const ID_RESET_SAVE = '1SettingsSheetsResetOnSaveNNNNNNNNNNNNNNNNN'
+const ID_RESET_DISC = '1SettingsSheetsResetOnDiscOOOOOOOOOOOOOOOOO'
+const ID_NO_TARGET = '1SettingsSheetsNoTargetPPPPPPPPPPPPPPPPPPPP'
 
 const app = buildApp()
 let u: Awaited<ReturnType<typeof createSecondUser>>
@@ -48,6 +54,8 @@ const save = (spreadsheetId: string) =>
   })
 const test = () =>
   app.inject({ method: 'POST', url: '/api/settings/sheets/test', headers: { cookie: cookie() } })
+const disconnect = () =>
+  app.inject({ method: 'DELETE', url: '/api/settings/sheets', headers: { cookie: cookie() } })
 
 describe('Sheets settings', () => {
   it('GET status returns null targetSpreadsheetId for a user with no saved sheet — no server-side fallback of any kind', async () => {
@@ -260,5 +268,90 @@ describe('Sheets settings', () => {
     const res = await save(`https://docs.google.com/spreadsheets/d/${bare}/edit#gid=0`)
     expect(res.statusCode).toBe(200)
     expect(res.json().targetSpreadsheetId).toBe(bare)
+  })
+
+  it('disconnects a connected spreadsheet (AE1)', async () => {
+    expect((await save(ID_DISCONNECT)).statusCode).toBe(200)
+    const res = await disconnect()
+    expect(res.statusCode).toBe(200)
+    expect(res.json().targetSpreadsheetId).toBeNull()
+    const row = await app.prisma.user.findUniqueOrThrow({ where: { id: u.user.id } })
+    expect(row.sheetSpreadsheetId).toBeNull()
+  })
+
+  it('releases the spreadsheet for another account (AE2)', async () => {
+    await save(ID_RELEASED)
+    await disconnect()
+    const other = await createSecondUser(app)
+    try {
+      const res = await app.inject({
+        method: 'PATCH',
+        url: '/api/settings/sheets',
+        payload: { spreadsheetId: ID_RELEASED },
+        headers: { cookie: other.cookie },
+      })
+      expect(res.statusCode).toBe(200)
+      expect(res.json().targetSpreadsheetId).toBe(ID_RELEASED)
+    } finally {
+      await other.cleanup()
+    }
+  })
+
+  it('is idempotent when nothing is connected (AE3)', async () => {
+    await disconnect()
+    const res = await disconnect()
+    expect(res.statusCode).toBe(200)
+    expect(res.json().targetSpreadsheetId).toBeNull()
+  })
+
+  it('rejects an unauthenticated disconnect and changes nothing (AE4)', async () => {
+    await save(ID_UNAUTH)
+    const res = await app.inject({ method: 'DELETE', url: '/api/settings/sheets' })
+    expect(res.statusCode).toBe(401)
+    const row = await app.prisma.user.findUniqueOrThrow({ where: { id: u.user.id } })
+    expect(row.sheetSpreadsheetId).toBe(ID_UNAUTH)
+  })
+
+  // AE5/AE6 are the tests that would have caught the stale-sync bug: without
+  // the reset, runSheetsSyncFlush compares invoice/property timestamps against
+  // sheetSyncedAt, neither of which a target change touches — so the landlord
+  // reads as clean and the newly connected sheet is never populated.
+  it('clears the sync high-water mark when a target is saved (AE5)', async () => {
+    await app.prisma.user.update({
+      where: { id: u.user.id },
+      data: { sheetSyncedAt: new Date('2026-01-01T00:00:00Z') },
+    })
+    await save(ID_RESET_SAVE)
+    const row = await app.prisma.user.findUniqueOrThrow({ where: { id: u.user.id } })
+    expect(row.sheetSyncedAt).toBeNull()
+  })
+
+  it('clears the sync high-water mark on disconnect (AE6)', async () => {
+    await save(ID_RESET_DISC)
+    await app.prisma.user.update({
+      where: { id: u.user.id },
+      data: { sheetSyncedAt: new Date('2026-01-01T00:00:00Z') },
+    })
+    await disconnect()
+    const row = await app.prisma.user.findUniqueOrThrow({ where: { id: u.user.id } })
+    expect(row.sheetSyncedAt).toBeNull()
+  })
+
+  it('export and test both report no sheet connected after a disconnect (AE9)', async () => {
+    await save(ID_NO_TARGET)
+    await disconnect()
+
+    const exported = await app.inject({
+      method: 'POST',
+      url: '/api/invoices/export',
+      payload: {},
+      headers: { cookie: cookie() },
+    })
+    expect(exported.statusCode).toBe(400)
+    expect(exported.json().error.code).toBe('SHEET_NOT_CONNECTED')
+
+    const tested = await test()
+    expect(tested.statusCode).toBe(400)
+    expect(tested.json().error.message).toMatch(/No target spreadsheet set/)
   })
 })

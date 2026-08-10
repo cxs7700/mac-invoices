@@ -27,6 +27,7 @@ async function settingsRoutes(fastify: FastifyInstance) {
   )
   fastify.get('/api/settings/sheets', auth, handlers.getSheets)
   fastify.patch('/api/settings/sheets', auth, handlers.saveSheet)
+  fastify.delete('/api/settings/sheets', auth, handlers.disconnectSheet)
   fastify.post('/api/settings/sheets/test', auth, handlers.testSheet)
 }
 
