@@ -11,10 +11,11 @@ import { formatMoney, formatDate } from '@/lib/format'
 import {
   useSubmissionStatus,
   useSubmit,
+  useSubmissionProperties,
   useWithdraw,
   uploadSubmissionPhoto,
 } from '@/hooks/useSubmission'
-import { MAX_INVOICE_IMAGES, ImageType } from '@mac-invoices/shared'
+import { MAX_INVOICE_IMAGES, ImageType, InvoiceCategory, propertyLabel } from '@mac-invoices/shared'
 import type { SubmissionStatus, ImageType as ImageTypeT } from '@mac-invoices/shared'
 
 const itemFieldClass = 'w-full rounded-md border border-input bg-background px-2 py-2 text-sm'
@@ -56,11 +57,14 @@ export default function VendorSubmit() {
   const status = useSubmissionStatus(token!)
   const submit = useSubmit(token!)
   const withdraw = useWithdraw(token!)
+  const propertyList = useSubmissionProperties(token!)
 
   const [items, setItems] = useState<ItemRow[]>([blankItem()])
   const [invoiceDate, setInvoiceDate] = useState('')
   const [notes, setNotes] = useState('')
   const [partsOrdered, setPartsOrdered] = useState('')
+  const [category, setCategory] = useState('')
+  const [propertyId, setPropertyId] = useState('')
   const [photos, setPhotos] = useState<{ url: string; type: ImageTypeT }[]>([])
   const [justSubmitted, setJustSubmitted] = useState(false)
 
@@ -84,6 +88,9 @@ export default function VendorSubmit() {
   }
 
   const submissions = status.data.data
+  // A failed property fetch must never block submitting — the field just has
+  // nothing to offer, and the landlord assigns one on review as before.
+  const properties = propertyList.data?.data ?? []
   const atCap = photos.length >= MAX_INVOICE_IMAGES
   const filledItems = items.filter((i) => i.description.trim() && Number(i.total) > 0)
   const computedTotal = filledItems.reduce((sum, i) => sum + Number(i.total), 0)
@@ -105,6 +112,8 @@ export default function VendorSubmit() {
     setInvoiceDate('')
     setNotes('')
     setPartsOrdered('')
+    setCategory('')
+    setPropertyId('')
     setPhotos([])
   }
 
@@ -143,6 +152,8 @@ export default function VendorSubmit() {
         invoiceDate,
         notes: notes.trim() || undefined,
         partsOrdered: partsOrdered.trim() || undefined,
+        category: category || undefined,
+        propertyId: propertyId || undefined,
         images: photos.length > 0 ? photos : undefined,
       },
       {
@@ -292,6 +303,42 @@ export default function VendorSubmit() {
               onChange={(e) => setInvoiceDate(e.target.value)}
               className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
             />
+          </div>
+          <div>
+            <label htmlFor="category" className="text-sm font-medium text-foreground">
+              {t('vendorSubmit.category')} {t('vendorSubmit.optionalSuffix')}
+            </label>
+            <select
+              id="category"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            >
+              <option value="">{t('vendorSubmit.notSpecified')}</option>
+              {InvoiceCategory.options.map((c) => (
+                <option key={c} value={c}>
+                  {t(`category.${c}`)}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label htmlFor="propertyId" className="text-sm font-medium text-foreground">
+              {t('vendorSubmit.property')} {t('vendorSubmit.optionalSuffix')}
+            </label>
+            <select
+              id="propertyId"
+              value={propertyId}
+              onChange={(e) => setPropertyId(e.target.value)}
+              className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            >
+              <option value="">{t('vendorSubmit.notSpecified')}</option>
+              {properties.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {propertyLabel(p)}
+                </option>
+              ))}
+            </select>
           </div>
           <div>
             <label htmlFor="partsOrdered" className="text-sm font-medium text-foreground">

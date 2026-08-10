@@ -41,12 +41,27 @@ export function useSubmissionStatus(token: string) {
   })
 }
 
+export type SubmissionProperty = { id: string; name: string; address: string }
+
+/** The landlord's properties, so a vendor can file against one. Disclosed to
+ * link holders by design — see the handler's note. */
+export function useSubmissionProperties(token: string) {
+  return useQuery<{ data: SubmissionProperty[] }>({
+    queryKey: ['submission-properties', token],
+    queryFn: () => apiClient(`${base(token)}/properties`),
+    retry: false,
+  })
+}
+
 export type SubmitBody = {
   // Itemized like the landlord form; the server sums the totals into `amount`.
   items: { description: string; quantity: number; total: number }[]
   invoiceDate: string
   notes?: string
   partsOrdered?: string
+  // All optional: the landlord can set or change either on review.
+  category?: string
+  propertyId?: string
   // Optional as of 2026-08-09 — a vendor may submit without a photo.
   images?: { url: string; type: ImageType }[]
 }

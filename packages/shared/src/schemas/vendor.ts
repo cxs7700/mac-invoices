@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import {
+  InvoiceCategory,
   InvoiceImageInputSchema,
   InvoiceItemInputSchema,
   InvoiceStatus,
@@ -27,6 +28,13 @@ export const SubmissionSchema = z.object({
     .refine((d) => d.getTime() >= Date.now() - 366 * DAY_MS, 'Invoice date is too far in the past'),
   notes: z.string().trim().max(2000).optional(),
   partsOrdered: z.string().trim().max(500).optional(),
+  // Both optional, and both only ever a suggestion: the landlord can change
+  // either on review. They exist because approving REQUIRES a category and a
+  // property, so a vendor who knows them saves the landlord a round trip.
+  // `propertyId` is validated against the LINK'S OWN landlord server-side — a
+  // token must never be able to attach another landlord's property.
+  category: InvoiceCategory.optional(),
+  propertyId: z.string().min(1).optional(),
   // Photos are OPTIONAL as of 2026-08-09, reversing the original "at least one
   // photo is the proof" rule (KTD/AE2): vendors were being blocked at submit
   // when they had a paper invoice they could not photograph on the spot. The
@@ -43,6 +51,8 @@ export const EditSubmissionSchema = z.object({
   invoiceDate: SubmissionSchema.shape.invoiceDate.optional(),
   notes: SubmissionSchema.shape.notes,
   partsOrdered: SubmissionSchema.shape.partsOrdered,
+  category: SubmissionSchema.shape.category,
+  propertyId: SubmissionSchema.shape.propertyId,
 })
 export type EditSubmissionInput = z.infer<typeof EditSubmissionSchema>
 

@@ -244,3 +244,72 @@ describe('POST /api/submissions/:token/upload-token', () => {
     expect(res.statusCode).toBe(404)
   })
 })
+
+describe('vendor-supplied category and property', () => {
+  it('stores a category and a property the landlord owns', async () => {
+    const c = await makeVendor('Classifier')
+    const property = await app.prisma.property.create({
+      data: { landlordId: landlord.user.id, name: 'Maple', address: '12 Main St' },
+    })
+
+    const res = await submit(
+      c.token,
+      submitBody({ category: 'REPAIRS', propertyId: property.id }, c.blobOwner),
+    )
+    expect(res.statusCode).toBe(201)
+
+    const inv = await app.prisma.invoice.findUniqueOrThrow({ where: { id: res.json().id } })
+    expect(inv.category).toBe('REPAIRS')
+    expect(inv.propertyId).toBe(property.id)
+    // The vendor name still comes from the link, never from the payload.
+    expect(inv.vendorName).toBe('Classifier')
+  })
+
+  it('refuses a property belonging to another landlord (404, no existence leak)', async () => {
+    const other = await createSecondUser(app)
+    const foreign = await app.prisma.property.create({
+      data: { landlordId: other.user.id, name: 'Not Yours', address: '99 Elsewhere' },
+    })
+    const c = await makeVendor('Trespasser')
+
+    const res = await submit(c.token, submitBody({ propertyId: foreign.id }, c.blobOwner))
+    expect(res.statusCode).toBe(404)
+
+    // Nothing was written under the foreign property.
+    expect(await app.prisma.invoice.count({ where: { propertyId: foreign.id } })).toBe(0)
+    await app.prisma.property.delete({ where: { id: foreign.id } }).catch(() => {})
+    await other.cleanup()
+  })
+
+  it('leaves both unset when the vendor does not supply them', async () => {
+    const c = await makeVendor('Undecided')
+    const res = await submit(c.token, submitBody({}, c.blobOwner))
+    expect(res.statusCode).toBe(201)
+
+    const inv = await app.prisma.invoice.findUniqueOrThrow({ where: { id: res.json().id } })
+    expect(inv.category).toBeNull()
+    expect(inv.propertyId).toBeNull()
+  })
+
+  it('lists only the link’s own landlord properties', async () => {
+    const other = await createSecondUser(app)
+    const mine = await app.prisma.property.create({
+      data: { landlordId: landlord.user.id, name: 'Mine', address: '1 Ours' },
+    })
+    const theirs = await app.prisma.property.create({
+      data: { landlordId: other.user.id, name: 'Theirs', address: '2 Foreign' },
+    })
+    const c = await makeVendor('Lister')
+
+    const res = await app.inject({ method: 'GET', url: `/api/submissions/${c.token}/properties` })
+    expect(res.statusCode).toBe(200)
+    const ids = res.json().data.map((p: { id: string }) => p.id)
+    expect(ids).toContain(mine.id)
+    expect(ids).not.toContain(theirs.id)
+    // Notes are never disclosed to a link holder.
+    expect(Object.keys(res.json().data[0])).toEqual(['id', 'name', 'address'])
+
+    await app.prisma.property.delete({ where: { id: theirs.id } }).catch(() => {})
+    await other.cleanup()
+  })
+})

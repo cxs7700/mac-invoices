@@ -5,6 +5,7 @@ import type {
   InvoiceImageInput,
   InvoiceItemInput,
   InvoiceStatus,
+  InvoiceCategory,
 } from '@mac-invoices/shared'
 import { MAX_INVOICE_IMAGES } from '@mac-invoices/shared'
 import { AppError } from '../middleware/errorHandler'
@@ -401,6 +402,8 @@ export async function createSubmission(
     invoiceDate: Date
     notes?: string
     partsOrdered?: string
+    category?: InvoiceCategory
+    propertyId?: string
     images?: InvoiceImageInput[]
   },
 ) {
@@ -411,15 +414,28 @@ export async function createSubmission(
   const images = input.images ?? []
   for (const image of images) gateImageRef(image.url, blobOwner)
   return prisma.$transaction(async (tx) => {
+    // A property named by the vendor must belong to the landlord who owns the
+    // link. Without this a token could attach any property id it guessed, and
+    // the invoice would show up filed against another landlord's address.
+    if (input.propertyId != null) {
+      const owned = await tx.property.findFirst({
+        where: { id: input.propertyId, landlordId: args.ownerUserId },
+      })
+      if (!owned) throw new AppError('NOT_FOUND', 'Property not found', 404)
+    }
     // The vendor form is itemized like the landlord's, so the amount is summed
     // from the lines here rather than trusted from the client — the same rule
     // createInvoice follows.
     const invoice = await tx.invoice.create({
       data: {
         invoiceNumber: null,
+        // The vendor never types their own name — it comes from the row their
+        // link resolves to, so a submission is always attributed to the link
+        // holder rather than to whatever they claimed to be.
         vendorName: args.vendorName,
         amount: sumItemTotals(input.items),
-        category: null,
+        category: input.category ?? null,
+        ...(input.propertyId != null && { property: { connect: { id: input.propertyId } } }),
         invoiceDate: input.invoiceDate,
         notes: input.notes ?? null,
         partsOrdered: input.partsOrdered ?? null,

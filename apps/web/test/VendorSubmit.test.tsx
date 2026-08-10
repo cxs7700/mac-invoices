@@ -4,16 +4,24 @@ import { MemoryRouter, Routes, Route } from 'react-router'
 import VendorSubmit from '@/pages/VendorSubmit'
 import { ApiError } from '@/lib/apiClient'
 
-const { useSubmissionStatus, useSubmit, useWithdraw, uploadSubmissionPhoto } = vi.hoisted(() => ({
+const {
+  useSubmissionStatus,
+  useSubmit,
+  useWithdraw,
+  useSubmissionProperties,
+  uploadSubmissionPhoto,
+} = vi.hoisted(() => ({
   useSubmissionStatus: vi.fn(),
   useSubmit: vi.fn(),
   useWithdraw: vi.fn(),
+  useSubmissionProperties: vi.fn(),
   uploadSubmissionPhoto: vi.fn(),
 }))
 vi.mock('@/hooks/useSubmission', () => ({
   useSubmissionStatus,
   useSubmit,
   useWithdraw,
+  useSubmissionProperties,
   uploadSubmissionPhoto,
 }))
 // The language switcher in the header uses the profile mutation; stub it so this
@@ -43,6 +51,9 @@ describe('VendorSubmit', () => {
     submitMock.error = null
     useSubmit.mockReturnValue(submitMock)
     useWithdraw.mockReturnValue({ mutate: vi.fn(), isPending: false })
+    useSubmissionProperties.mockReturnValue({
+      data: { data: [{ id: 'p1', name: 'Maple', address: '12 Main St' }] },
+    })
   })
 
   it('shows a loading state while the token resolves', () => {
@@ -285,6 +296,41 @@ describe('VendorSubmit', () => {
     for (const label of [/^Notes/, /^Parts ordered/, /^Photos/]) {
       expect(screen.getByText(label).textContent).toContain('(optional)')
     }
+  })
+
+  it('sends an optional category and property, both chosen from a select', async () => {
+    useSubmissionStatus.mockReturnValue({ isPending: false, isError: false, data: { data: [] } })
+    renderPage()
+
+    fillFirstLine('Fixed a leak', '120')
+    fireEvent.change(screen.getByLabelText('Date'), { target: { value: '2026-06-01' } })
+    fireEvent.change(screen.getByLabelText(/^Category/), { target: { value: 'REPAIRS' } })
+    fireEvent.change(screen.getByLabelText(/^Property/), { target: { value: 'p1' } })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
+    expect(submitMock.mutate).toHaveBeenCalledWith(
+      expect.objectContaining({ category: 'REPAIRS', propertyId: 'p1' }),
+      expect.anything(),
+    )
+  })
+
+  it('omits category and property when left unspecified', () => {
+    useSubmissionStatus.mockReturnValue({ isPending: false, isError: false, data: { data: [] } })
+    renderPage()
+
+    fillFirstLine('Fixed a leak', '120')
+    fireEvent.change(screen.getByLabelText('Date'), { target: { value: '2026-06-01' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
+
+    const body = submitMock.mutate.mock.calls[0][0]
+    expect(body.category).toBeUndefined()
+    expect(body.propertyId).toBeUndefined()
+  })
+
+  it('offers no vendor field — the name comes from the link', () => {
+    useSubmissionStatus.mockReturnValue({ isPending: false, isError: false, data: { data: [] } })
+    renderPage()
+    expect(screen.queryByLabelText(/vendor/i)).toBeNull()
   })
 
   it('shows a distinct rate-limit message on a 429', () => {
