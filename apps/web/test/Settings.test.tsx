@@ -10,6 +10,7 @@ const h = vi.hoisted(() => ({
   useSheetsStatus: vi.fn(),
   useSaveSheet: vi.fn(),
   useTestSheet: vi.fn(),
+  useDisconnectSheet: vi.fn(),
 }))
 vi.mock('@/hooks/useAuth', () => ({ useMe: h.useMe }))
 vi.mock('@/hooks/useSettings', () => ({
@@ -18,6 +19,7 @@ vi.mock('@/hooks/useSettings', () => ({
   useSheetsStatus: h.useSheetsStatus,
   useSaveSheet: h.useSaveSheet,
   useTestSheet: h.useTestSheet,
+  useDisconnectSheet: h.useDisconnectSheet,
 }))
 
 const idle = (over = {}) => ({
@@ -45,6 +47,7 @@ describe('Settings page', () => {
     h.useChangePassword.mockReturnValue(idle())
     h.useSaveSheet.mockReturnValue(idle())
     h.useTestSheet.mockReturnValue(idle())
+    h.useDisconnectSheet.mockReturnValue(idle())
     h.useSheetsStatus.mockReturnValue({
       data: {
         configured: true,
@@ -175,5 +178,59 @@ describe('Settings page', () => {
     // The local override is cleared on success, so the field now falls back
     // to the fresh cached status rather than the pasted URL still in state.
     expect(input.value).toBe('BareIdFromServer0000000000000000000000000')
+  })
+
+  it('offers no disconnect control when no sheet is connected (AE8)', () => {
+    h.useSheetsStatus.mockReturnValue({
+      data: {
+        configured: true,
+        serviceAccountEmail: 'svc@project.iam.gserviceaccount.com',
+        targetSpreadsheetId: null,
+        reachable: false,
+      },
+      isPending: false,
+    })
+    render(<Settings />)
+    expect(screen.queryByRole('button', { name: 'Disconnect' })).toBeNull()
+  })
+
+  it('disconnects the connected sheet and drops any unsaved draft from the field', () => {
+    // The reset only does anything when a local override exists — with no
+    // draft, the field already follows the status. So type first: that is the
+    // case where dropping the override is what stops the input contradicting
+    // the server. Same mock shape as the existing save test: update what
+    // useSheetsStatus returns, then fire onSuccess.
+    const mutate = vi.fn((_vars: unknown, opts?: { onSuccess?: () => void }) => {
+      h.useSheetsStatus.mockReturnValue({
+        data: {
+          configured: true,
+          serviceAccountEmail: 'svc@project.iam.gserviceaccount.com',
+          targetSpreadsheetId: null,
+          reachable: false,
+        },
+        isPending: false,
+      })
+      opts?.onSuccess?.()
+    })
+    h.useDisconnectSheet.mockReturnValue(idle({ mutate }))
+    render(<Settings />)
+    const input = screen.getByLabelText('Target spreadsheet ID or URL') as HTMLInputElement
+    expect(input.value).toBe('SID') // the connected id from beforeEach
+    fireEvent.change(input, { target: { value: 'a-draft-the-landlord-abandoned' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Disconnect' }))
+    expect(mutate).toHaveBeenCalled()
+    // Override dropped, so the field falls back to the refreshed status — empty
+    // — rather than still showing the abandoned draft.
+    expect(input.value).toBe('')
+  })
+
+  it('will not let an emptied field clear the connection (AE7)', () => {
+    render(<Settings />)
+    const input = screen.getByLabelText('Target spreadsheet ID or URL') as HTMLInputElement
+    fireEvent.change(input, { target: { value: '' } })
+    // Save stays disabled on empty — clearing the field is not a disconnect.
+    expect(
+      (screen.getByRole('button', { name: 'Save target' }) as HTMLButtonElement).disabled,
+    ).toBe(true)
   })
 })

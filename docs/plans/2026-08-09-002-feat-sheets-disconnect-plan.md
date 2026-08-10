@@ -37,7 +37,7 @@
 | `apps/web/src/hooks/useSettings.ts` | **Modify.** Add `useDisconnectSheet`. |
 | `apps/web/src/pages/Settings.tsx` | **Modify.** Disconnect button, shown only when connected. |
 | `apps/web/test/Settings.test.tsx` | **Modify.** AE7, AE8, and the click path. |
-| `docs/DECISIONS.md` | **Modify.** Append DEC-034. |
+| `docs/DECISIONS.md` | **Modify.** Append DEC-035. |
 
 **Two spec questions resolved here:**
 1. *Shared status helper, or call `getSheets`?* **Call `getSheets`**, exactly as `saveSheet` already does. It is one line and keeps a single definition of the status shape.
@@ -216,7 +216,7 @@ Append to `apps/api/src/settings/handlers.ts`, directly after `saveSheet`:
  * A distinct verb rather than a nullable PATCH body. Because the UI is an
  * explicit Disconnect button, no save payload ever needs to mean "clear", so
  * `SaveSheetSchema` keeps rejecting empty and an accidental disconnect cannot
- * be spelled in a save request at all (DEC-034).
+ * be spelled in a save request at all (DEC-035).
  *
  * Idempotent: disconnecting with nothing connected succeeds and changes
  * nothing. Clearing the id releases it under the unique index added in
@@ -322,10 +322,12 @@ Then add these tests inside `describe('Settings page')`:
     expect(screen.queryByRole('button', { name: 'Disconnect' })).toBeNull()
   })
 
-  it('disconnects the connected sheet and empties the field', () => {
-    // Same shape as the existing "shows the normalized bare id after a
-    // successful save" test: mimic the real hook by updating what
-    // useSheetsStatus returns, then firing onSuccess.
+  it('disconnects the connected sheet and drops any unsaved draft from the field', () => {
+    // The reset only does anything when a local override exists — with no
+    // draft, the field already follows the status. So type first: that is the
+    // case where dropping the override is what stops the input contradicting
+    // the server. Same mock shape as the existing save test: update what
+    // useSheetsStatus returns, then fire onSuccess.
     const mutate = vi.fn((_vars: unknown, opts?: { onSuccess?: () => void }) => {
       h.useSheetsStatus.mockReturnValue({
         data: {
@@ -342,10 +344,11 @@ Then add these tests inside `describe('Settings page')`:
     render(<Settings />)
     const input = screen.getByLabelText('Target spreadsheet ID or URL') as HTMLInputElement
     expect(input.value).toBe('SID') // the connected id from beforeEach
+    fireEvent.change(input, { target: { value: 'a-draft-the-landlord-abandoned' } })
     fireEvent.click(screen.getByRole('button', { name: 'Disconnect' }))
     expect(mutate).toHaveBeenCalled()
-    // The local override is dropped on success, so the field falls back to the
-    // refreshed status — empty — rather than still showing the disconnected id.
+    // Override dropped, so the field falls back to the refreshed status — empty
+    // — rather than still showing the abandoned draft.
     expect(input.value).toBe('')
   })
 
@@ -426,12 +429,12 @@ And add the button inside the existing `<div className="flex gap-2">`, after `Te
 Run: `npm test -w @mac-invoices/web -- Settings`
 Expected: PASS, every test in the file.
 
-- [ ] **Step 6: Record DEC-034**
+- [ ] **Step 6: Record DEC-035**
 
 Append to `docs/DECISIONS.md`, matching the existing flat bullet format (`- **DEC-0NN — Title** (plan: ..., spec: ...). (a) ... (b) ...` — dense prose, one bullet per decision; the most recent entry is DEC-033):
 
 ```markdown
-- **DEC-034 — Disconnecting a Sheets target is its own verb; any target change resets the sync high-water mark** (plan: `docs/plans/2026-08-09-002-feat-sheets-disconnect-plan.md`, spec: `docs/brainstorms/2026-08-09-sheets-disconnect-requirements.md`). **Closes the follow-up DEC-033(g) named as outstanding.** (a) **`DELETE /api/settings/sheets`, not a nullable `PATCH` body.** Rejected: accepting `null` or `""` on the save path. Because the UI is an explicit Disconnect button rather than an empty save, no save payload ever needs to mean "clear" — so `SaveSheetSchema` keeps rejecting empty and an accidental disconnect becomes unspellable in a save request rather than merely unlikely. Rejected for the same reason: supporting both, which keeps the accidental-clear risk while adding a second path to test. (b) **The response is the same status body `PATCH` returns** (`getSheets`), so the client refreshes through one path. (c) **Any successful save or disconnect clears `User.sheetSyncedAt`, unconditionally.** This fixes a pre-existing bug, not one introduced here: `runSheetsSyncFlush` judges dirtiness by comparing the newest invoice/property change against `sheetSyncedAt`, and changing `sheetSpreadsheetId` touches neither — so a landlord who switched sheets without editing an invoice was judged clean and **the new spreadsheet was never populated**, which from their side is indistinguishable from the integration being broken. Rejected: resetting only when the id actually changed, which needs a read-then-write — if two saves interleave, the loser skips the reset and the bug returns. Unconditional needs no read and has no race; its cost is one redundant mirror when the same id is saved twice, harmless because the mirror is idempotent (DEC-001) and arguably correct, since pressing Save means "make this sheet current". (d) **Disconnecting releases the id** under the DEC-033 unique index (Postgres treats NULLs as distinct), so an ordinary mistake — connecting the wrong sheet — no longer requires deleting an account to undo. (e) **Squatting is softened, not solved.** A landlord who grabbed the wrong sheet can now release it; a hostile holder still will not press the button, so the remedy for that case is unchanged. `PATCH`/`DELETE /api/settings/sheets` also remain unrate-limited — the gap DEC-033(g) records on that point stands. (f) **No confirmation dialog**: the action is explicitly named and reversible by re-saving. (g) **Per-invoice `sheetsSyncedAt` stamps are not reset** on a target change; they drive the SyncBadge only and the full mirror that follows re-stamps them, so a badge may briefly overstate how current the new sheet is (accepted).
+- **DEC-035 — Disconnecting a Sheets target is its own verb; any target change resets the sync high-water mark** (plan: `docs/plans/2026-08-09-002-feat-sheets-disconnect-plan.md`, spec: `docs/brainstorms/2026-08-09-sheets-disconnect-requirements.md`). **Closes the follow-up DEC-033(g) named as outstanding.** (a) **`DELETE /api/settings/sheets`, not a nullable `PATCH` body.** Rejected: accepting `null` or `""` on the save path. Because the UI is an explicit Disconnect button rather than an empty save, no save payload ever needs to mean "clear" — so `SaveSheetSchema` keeps rejecting empty and an accidental disconnect becomes unspellable in a save request rather than merely unlikely. Rejected for the same reason: supporting both, which keeps the accidental-clear risk while adding a second path to test. (b) **The response is the same status body `PATCH` returns** (`getSheets`), so the client refreshes through one path. (c) **Any successful save or disconnect clears `User.sheetSyncedAt`, unconditionally.** This fixes a pre-existing bug, not one introduced here: `runSheetsSyncFlush` judges dirtiness by comparing the newest invoice/property change against `sheetSyncedAt`, and changing `sheetSpreadsheetId` touches neither — so a landlord who switched sheets without editing an invoice was judged clean and **the new spreadsheet was never populated**, which from their side is indistinguishable from the integration being broken. Rejected: resetting only when the id actually changed, which needs a read-then-write — if two saves interleave, the loser skips the reset and the bug returns. Unconditional needs no read and has no race; its cost is one redundant mirror when the same id is saved twice, harmless because the mirror is idempotent (DEC-001) and arguably correct, since pressing Save means "make this sheet current". (d) **Disconnecting releases the id** under the DEC-033 unique index (Postgres treats NULLs as distinct), so an ordinary mistake — connecting the wrong sheet — no longer requires deleting an account to undo. (e) **Squatting is softened, not solved.** A landlord who grabbed the wrong sheet can now release it; a hostile holder still will not press the button, so the remedy for that case is unchanged. `PATCH`/`DELETE /api/settings/sheets` also remain unrate-limited — the gap DEC-033(g) records on that point stands. (f) **No confirmation dialog**: the action is explicitly named and reversible by re-saving. (g) **Per-invoice `sheetsSyncedAt` stamps are not reset** on a target change; they drive the SyncBadge only and the full mirror that follows re-stamps them, so a badge may briefly overstate how current the new sheet is (accepted).
 ```
 
 - [ ] **Step 7: Run everything**
@@ -456,7 +459,7 @@ select-all-delete cannot drop a connection. Shown only when a sheet is
 connected, and clears the local input override on success so the field reflects
 what the server now holds.
 
-DEC-034 records the reasoning, including why the sync high-water mark is reset
+DEC-035 records the reasoning, including why the sync high-water mark is reset
 unconditionally, and closes the follow-up DEC-033(g) named."
 ```
 

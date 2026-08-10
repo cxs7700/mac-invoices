@@ -9,6 +9,7 @@ import {
   useSheetsStatus,
   useSaveSheet,
   useTestSheet,
+  useDisconnectSheet,
 } from '@/hooks/useSettings'
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -177,6 +178,7 @@ function SheetsSection() {
   const { data: status, isPending } = useSheetsStatus()
   const save = useSaveSheet()
   const test = useTestSheet()
+  const disconnect = useDisconnectSheet()
   const [sheetId, setSheetId] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const value = sheetId ?? status?.targetSpreadsheetId ?? ''
@@ -250,6 +252,11 @@ function SheetsSection() {
               {errOf(test.error)}
             </p>
           )}
+          {errOf(disconnect.error) && (
+            <p className="text-sm text-destructive" role="alert">
+              {errOf(disconnect.error)}
+            </p>
+          )}
           <div className="flex gap-2">
             <Button
               disabled={save.isPending || !value.trim()}
@@ -262,6 +269,15 @@ function SheetsSection() {
             <Button variant="outline" disabled={test.isPending} onClick={() => test.mutate()}>
               {test.isPending ? 'Testing…' : 'Test connection'}
             </Button>
+            {status?.targetSpreadsheetId && (
+              <Button
+                variant="outline"
+                disabled={disconnect.isPending}
+                onClick={() => disconnect.mutate(undefined, { onSuccess: () => setSheetId(null) })}
+              >
+                {disconnect.isPending ? 'Disconnecting…' : 'Disconnect'}
+              </Button>
+            )}
           </div>
         </div>
       )}

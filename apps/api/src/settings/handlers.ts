@@ -199,7 +199,7 @@ export async function saveSheet(request: FastifyRequest, reply: FastifyReply) {
  * A distinct verb rather than a nullable PATCH body. Because the UI is an
  * explicit Disconnect button, no save payload ever needs to mean "clear", so
  * `SaveSheetSchema` keeps rejecting empty and an accidental disconnect cannot
- * be spelled in a save request at all (DEC-034).
+ * be spelled in a save request at all (DEC-035).
  *
  * Idempotent: disconnecting with nothing connected succeeds and changes
  * nothing. Clearing the id releases it under the unique index added in

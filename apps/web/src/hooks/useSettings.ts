@@ -44,6 +44,16 @@ export function useSaveSheet() {
   })
 }
 
+/** Disconnect the target spreadsheet. Takes no variables — the whole point of
+ * the DELETE verb is that "clear" cannot be expressed as a save payload. */
+export function useDisconnectSheet() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => apiClient<SheetsStatus>('/api/settings/sheets', { method: 'DELETE' }),
+    onSuccess: (status) => qc.setQueryData(['sheets-status'], status),
+  })
+}
+
 export function useTestSheet() {
   const qc = useQueryClient()
   return useMutation({
