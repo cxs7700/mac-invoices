@@ -134,15 +134,25 @@ describe('POST /api/submissions/:token', () => {
     expect(res.statusCode).toBe(403)
   })
 
-  it('requires at least one photo (400 with none / empty array) — AE2', async () => {
-    const c = await makeVendor()
+  // Photos became optional on 2026-08-09 (reversing AE2's "the photo is the
+  // proof"): a vendor holding a paper invoice they cannot photograph on the
+  // spot was otherwise unable to submit at all.
+  it('accepts a submission with no photos, and with an empty array', async () => {
+    const c = await makeVendor('Photoless')
     const none = await submit(c.token, {
       items: [{ description: 'x', quantity: 1, total: 10 }],
       invoiceDate: '2026-06-01',
     })
-    expect(none.statusCode).toBe(400) // schema: images required
+    expect(none.statusCode).toBe(201)
+
     const empty = await submit(c.token, submitBody({ images: [] }, c.blobOwner))
-    expect(empty.statusCode).toBe(400) // schema: images.min(1)
+    expect(empty.statusCode).toBe(201)
+
+    const inv = await app.prisma.invoice.findUniqueOrThrow({
+      where: { id: none.json().id },
+      include: { images: true },
+    })
+    expect(inv.images).toHaveLength(0)
   })
 
   it('accepts up to the cap, persisting every image; a 6th is rejected — AE2', async () => {

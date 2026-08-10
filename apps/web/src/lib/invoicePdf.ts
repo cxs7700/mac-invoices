@@ -8,7 +8,7 @@
 // live in a frozen map here, not the i18n catalogs, so UI copy edits can't
 // silently reword a financial document.
 
-import { compareInvoiceOrder, formatPhone } from '@mac-invoices/shared'
+import { compareInvoiceOrder, formatPhone, statusTone, type StatusTone } from '@mac-invoices/shared'
 
 /** One itemized line, as the PDF needs it. */
 export type PdfInvoiceItem = {
@@ -48,6 +48,8 @@ export type InvoicePdfPage = {
   number: string
   date: string
   status: string
+  /** The status's shared tone — the same one the app's filters use. */
+  tone: StatusTone
   location: string
   // Variable-height: email and phone are each omitted when blank, so a vendor
   // with no contact details renders a name only rather than empty gaps.
@@ -55,6 +57,9 @@ export type InvoicePdfPage = {
   billTo: { name: string; email: string }
   items: { description: string; quantity: string; total: string }[]
   balanceDue: string
+  /** Drives the panel's colour. Derived from the number, not from parsing the
+   * formatted string back out (which would depend on the currency's glyphs). */
+  balanceTone: BalanceTone
 }
 
 /** Single source of truth for the per-page items table layout. Matches the
@@ -108,8 +113,21 @@ function statusLabel(status: string): string {
   return status.charAt(0) + status.slice(1).toLowerCase()
 }
 
+/** The numeric balance: zero for settled/void statuses, else the amount. */
+function balanceAmount(inv: Pick<PdfInvoiceInput, 'status' | 'amount'>): number {
+  if (ZERO_BALANCE_STATUSES.has(inv.status)) return 0
+  const n = parseFloat(inv.amount)
+  return Number.isNaN(n) ? 0 : n
+}
+
 export function balanceDue(inv: Pick<PdfInvoiceInput, 'status' | 'amount'>): string {
   return ZERO_BALANCE_STATUSES.has(inv.status) ? formatPdfMoney('0') : formatPdfMoney(inv.amount)
+}
+
+export function balanceToneOf(inv: Pick<PdfInvoiceInput, 'status' | 'amount'>): BalanceTone {
+  const n = balanceAmount(inv)
+  if (n < 0) return 'credit'
+  return n === 0 ? 'settled' : 'owing'
 }
 
 /** "Jane Doe" from parts, falling back to the email when both names are unset
@@ -163,6 +181,7 @@ export function buildInvoicePdfModel(
     number: inv.invoiceNumber ?? EMPTY,
     date: formatPdfDate(inv.invoiceDate),
     status: statusLabel(inv.status),
+    tone: statusTone(inv.status),
     location: (inv.propertyId && addressByPropertyId.get(inv.propertyId)) || EMPTY,
     sender: senderBlock(inv),
     billTo,
@@ -174,6 +193,7 @@ export function buildInvoicePdfModel(
         total: formatPdfMoney(item.total),
       })),
     balanceDue: balanceDue(inv),
+    balanceTone: balanceToneOf(inv),
   }))
 }
 
@@ -192,23 +212,38 @@ const INK: Rgb = [17, 24, 33] // primary text
 const MUTED: Rgb = [110, 122, 138] // field labels, secondary lines
 const RULE: Rgb = [226, 232, 240] // hairlines
 
-// Balance due keeps the original green rather than the document accent: it is
-// the one figure a reader hunts for, and a colour of its own is what makes it
-// findable at a glance instead of blending into the blue.
-const BALANCE_FILL: Rgb = [220, 237, 200]
-const BALANCE_TEXT: Rgb = [20, 90, 50]
+/**
+ * Balance due, keyed by what is actually owed. The green is the original — it
+ * is the one figure a reader hunts for, and a colour of its own is what makes
+ * it findable instead of blending into the document accent.
+ *
+ * - owing    green — money is outstanding, the normal case
+ * - settled  grey  — nothing due; quiet, because there is nothing to act on
+ * - credit   red   — a negative balance, i.e. owed back. Not reachable today
+ *   (amounts are schema-bounded positive) but rendered distinctly rather than
+ *   silently shown as if it were an ordinary debt.
+ */
+type BalanceTone = 'owing' | 'settled' | 'credit'
+const BALANCE_COLORS: Record<BalanceTone, { fill: Rgb; text: Rgb }> = {
+  owing: { fill: [220, 237, 200], text: [20, 90, 50] },
+  settled: { fill: [238, 242, 247], text: [90, 107, 123] },
+  credit: { fill: [251, 226, 226], text: [153, 27, 27] },
+}
 
 /**
- * Status chips. Only the three states with real meaning to a reader of the
- * printed document get their own color; everything else stays neutral so the
- * page never turns into a color chart.
+ * The shared status→tone mapping, resolved to fixed RGB. These are the light
+ * variants of the app's `--tone-*` custom properties: the same six tones the
+ * status filters use, so a status is one idea on screen and on paper, but
+ * hardcoded because an exported artifact is always light (DEC-025e).
  */
-const STATUS_COLORS: Record<string, { fill: Rgb; text: Rgb }> = {
-  Paid: { fill: [223, 242, 228], text: [22, 101, 52] },
-  Rejected: { fill: [253, 226, 226], text: [153, 27, 27] },
-  Cancelled: { fill: [253, 226, 226], text: [153, 27, 27] },
+const TONE_COLORS: Record<StatusTone, { fill: Rgb; text: Rgb }> = {
+  amber: { fill: [253, 240, 213], text: [161, 98, 7] },
+  blue: { fill: [231, 238, 252], text: [29, 95, 176] },
+  violet: { fill: [239, 233, 253], text: [109, 63, 196] },
+  green: { fill: [230, 244, 236], text: [31, 138, 91] },
+  red: { fill: [251, 238, 233], text: [184, 68, 42] },
+  slate: { fill: [238, 242, 247], text: [90, 107, 123] },
 }
-const STATUS_NEUTRAL = { fill: [237, 240, 244] as Rgb, text: [55, 65, 81] as Rgb }
 
 // Vertical rhythm for a stacked label/value pair: the label sits above its
 // value rather than sharing a line, so each field reads as its own unit.
@@ -288,7 +323,7 @@ export async function generateInvoicesPdf(
 
     const statusY = metaY + META_ROW
     drawLabel(PDF_LABELS.status, MARGIN, statusY)
-    const chip = STATUS_COLORS[page.status] ?? STATUS_NEUTRAL
+    const chip = TONE_COLORS[page.tone]
     // Measure at the size the text is actually drawn at. Measuring before
     // setFontSize used the 7.5pt label metrics, so the pill came out too narrow
     // for its 9.5pt text and the label sat off-centre inside it.
@@ -377,16 +412,17 @@ export async function generateInvoicesPdf(
     const boxHeight = 40
     const boxX = pageWidth - MARGIN - boxWidth
     const boxY = finalY + 20
-    doc.setFillColor(...BALANCE_FILL)
+    const balance = BALANCE_COLORS[page.balanceTone]
+    doc.setFillColor(...balance.fill)
     doc.rect(boxX, boxY, boxWidth, boxHeight, 'F')
-    doc.setFillColor(...BALANCE_TEXT)
+    doc.setFillColor(...balance.text)
     doc.rect(boxX, boxY, 3, boxHeight, 'F') // spine, in the same green family
 
     // The label takes the green too, so the panel reads as one unit rather than
     // a green box with a grey caption.
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(7.5)
-    doc.setTextColor(...BALANCE_TEXT)
+    doc.setTextColor(...balance.text)
     doc.setCharSpace(1.1)
     doc.text(PDF_LABELS.balanceDue.toUpperCase(), boxX + 14, boxY + 15)
     doc.setCharSpace(0)

@@ -136,7 +136,7 @@ describe('buildInvoicePdfModel', () => {
       addresses,
       landlord,
     )
-    expect(pages[0].sender.lines).toEqual(['ace@x.com', '(555)123-4567'])
+    expect(pages[0].sender.lines).toEqual(['ace@x.com', '555-123-4567'])
   })
 
   it('leaves a phone it cannot confidently reformat as typed', () => {
@@ -244,6 +244,27 @@ describe('buildInvoicePdfModel', () => {
     )
     expect(pages[0].items[0].total).toBe('$1,234.50')
     expect(pages[1].items[0].total).toBe('—')
+  })
+  it('keys the status chip to the shared status tone', () => {
+    const toneOf = (status: string) =>
+      buildInvoicePdfModel([inv({ status })], addresses, landlord)[0].tone
+    expect(toneOf('PENDING')).toBe('amber')
+    expect(toneOf('SUBMITTED')).toBe('blue')
+    expect(toneOf('APPROVED')).toBe('violet')
+    expect(toneOf('PAID')).toBe('green')
+    expect(toneOf('REJECTED')).toBe('red')
+    expect(toneOf('CANCELLED')).toBe('slate')
+    // All six are distinct — the point of the mapping.
+    const tones = ['PENDING', 'SUBMITTED', 'APPROVED', 'PAID', 'REJECTED', 'CANCELLED'].map(toneOf)
+    expect(new Set(tones).size).toBe(6)
+  })
+
+  it('colours the balance by what is actually owed', () => {
+    const toneFor = (over: Partial<PdfInvoiceInput>) =>
+      buildInvoicePdfModel([inv(over)], addresses, landlord)[0].balanceTone
+    expect(toneFor({ status: 'PENDING', amount: '120.00' })).toBe('owing')
+    expect(toneFor({ status: 'PAID', amount: '120.00' })).toBe('settled')
+    expect(toneFor({ status: 'PENDING', amount: '-40.00' })).toBe('credit')
   })
 })
 

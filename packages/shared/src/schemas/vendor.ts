@@ -27,7 +27,12 @@ export const SubmissionSchema = z.object({
     .refine((d) => d.getTime() >= Date.now() - 366 * DAY_MS, 'Invoice date is too far in the past'),
   notes: z.string().trim().max(2000).optional(),
   partsOrdered: z.string().trim().max(500).optional(),
-  images: z.array(InvoiceImageInputSchema).min(1).max(MAX_INVOICE_IMAGES),
+  // Photos are OPTIONAL as of 2026-08-09, reversing the original "at least one
+  // photo is the proof" rule (KTD/AE2): vendors were being blocked at submit
+  // when they had a paper invoice they could not photograph on the spot. The
+  // landlord still sees a photo-less invoice flagged in review, so the evidence
+  // requirement moves from the form to the reviewer's judgement.
+  images: z.array(InvoiceImageInputSchema).max(MAX_INVOICE_IMAGES).optional(),
 })
 export type SubmissionInput = z.infer<typeof SubmissionSchema>
 

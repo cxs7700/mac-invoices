@@ -47,6 +47,19 @@
   --color-status-pending-foreground: var(--status-pending-foreground);
   --color-status-submitted: var(--status-submitted);
   --color-status-submitted-foreground: var(--status-submitted-foreground);
+  /* Per-status tones — see STATUS_TONE in @mac-invoices/shared */
+  --color-tone-amber: var(--tone-amber);
+  --color-tone-amber-foreground: var(--tone-amber-foreground);
+  --color-tone-blue: var(--tone-blue);
+  --color-tone-blue-foreground: var(--tone-blue-foreground);
+  --color-tone-violet: var(--tone-violet);
+  --color-tone-violet-foreground: var(--tone-violet-foreground);
+  --color-tone-green: var(--tone-green);
+  --color-tone-green-foreground: var(--tone-green-foreground);
+  --color-tone-red: var(--tone-red);
+  --color-tone-red-foreground: var(--tone-red-foreground);
+  --color-tone-slate: var(--tone-slate);
+  --color-tone-slate-foreground: var(--tone-slate-foreground);
 }
 
 /* Rent Ops palette — light and dark values declared together via light-dark()
@@ -94,6 +107,23 @@
      from pending grey so the "to review" state reads at a glance). */
   --status-submitted: light-dark(#e7eefc, #142441);
   --status-submitted-foreground: light-dark(#1d5fb0, #6ba3e8);
+  /* One tone per status (STATUS_TONE in @mac-invoices/shared). The older
+     --status-* names above stay for the badge; these are the per-tone pair the
+     filters resolve through, so a status is one idea across the app and the
+     PDF. Each carries a light and a dark variant; the PDF, which is always
+     light, hardcodes the light values. */
+  --tone-amber: light-dark(#fdf0d5, #33270f);
+  --tone-amber-foreground: light-dark(#a16207, #e0b155);
+  --tone-blue: light-dark(#e7eefc, #142441);
+  --tone-blue-foreground: light-dark(#1d5fb0, #6ba3e8);
+  --tone-violet: light-dark(#efe9fd, #241a3d);
+  --tone-violet-foreground: light-dark(#6d3fc4, #a98ae6);
+  --tone-green: light-dark(#e6f4ec, #12291c);
+  --tone-green-foreground: light-dark(#1f8a5b, #4cc38a);
+  --tone-red: light-dark(#fbeee9, #331611);
+  --tone-red-foreground: light-dark(#b8442a, #f2916d);
+  --tone-slate: light-dark(#eef2f7, #1d2530);
+  --tone-slate-foreground: light-dark(#5a6b7b, #97a8ba);
 }
 
 /* Explicit user choice (stamped on <html> by the v1 boot script) pins the

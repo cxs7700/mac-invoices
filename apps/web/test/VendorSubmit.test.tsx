@@ -209,8 +209,8 @@ describe('VendorSubmit', () => {
 
     fillFirstLine('Fixed a leak', '120')
     fireEvent.change(screen.getByLabelText('Date'), { target: { value: '2026-06-01' } })
-    fireEvent.change(screen.getByLabelText('Notes'), { target: { value: 'Gate code 1234' } })
-    fireEvent.change(screen.getByLabelText('Parts ordered'), { target: { value: 'Cartridge' } })
+    fireEvent.change(screen.getByLabelText(/^Notes/), { target: { value: 'Gate code 1234' } })
+    fireEvent.change(screen.getByLabelText(/^Parts ordered/), { target: { value: 'Cartridge' } })
 
     const fileInput = container.querySelectorAll('input[type="file"]')[1] as HTMLInputElement
     fireEvent.change(fileInput, {
@@ -227,6 +227,64 @@ describe('VendorSubmit', () => {
       expect.objectContaining({ notes: 'Gate code 1234', partsOrdered: 'Cartridge' }),
       expect.anything(),
     )
+  })
+
+  it('submits with no photo, notes or parts — only a dated line is required', async () => {
+    useSubmissionStatus.mockReturnValue({ isPending: false, isError: false, data: { data: [] } })
+    renderPage()
+
+    fillFirstLine('Fixed a leak', '120')
+    fireEvent.change(screen.getByLabelText('Date'), { target: { value: '2026-06-01' } })
+
+    // No photo attached at all.
+    expect((screen.getByRole('button', { name: 'Submit' }) as HTMLButtonElement).disabled).toBe(
+      false,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
+    const body = submitMock.mutate.mock.calls[0][0]
+    expect(body.images).toBeUndefined()
+    expect(body.notes).toBeUndefined()
+    expect(body.partsOrdered).toBeUndefined()
+  })
+
+  it('steps the quantity up and down, never below one', () => {
+    useSubmissionStatus.mockReturnValue({ isPending: false, isError: false, data: { data: [] } })
+    renderPage()
+
+    const qty = () => (screen.getByLabelText('Qty') as HTMLInputElement).value
+    expect(qty()).toBe('1')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Increase quantity on line 1' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Increase quantity on line 1' }))
+    expect(qty()).toBe('3')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Decrease quantity on line 1' }))
+    expect(qty()).toBe('2')
+
+    // Floor at 1: the decrement is disabled rather than walking to zero.
+    fireEvent.click(screen.getByRole('button', { name: 'Decrease quantity on line 1' }))
+    expect(qty()).toBe('1')
+    expect(
+      (screen.getByRole('button', { name: 'Decrease quantity on line 1' }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true)
+  })
+
+  it('adds a line from the inline plus control', () => {
+    useSubmissionStatus.mockReturnValue({ isPending: false, isError: false, data: { data: [] } })
+    renderPage()
+
+    expect(screen.getAllByPlaceholderText('Description')).toHaveLength(1)
+    fireEvent.click(screen.getByRole('button', { name: 'Add line' }))
+    expect(screen.getAllByPlaceholderText('Description')).toHaveLength(2)
+  })
+
+  it('labels the optional fields as optional', () => {
+    useSubmissionStatus.mockReturnValue({ isPending: false, isError: false, data: { data: [] } })
+    renderPage()
+    for (const label of [/^Notes/, /^Parts ordered/, /^Photos/]) {
+      expect(screen.getByText(label).textContent).toContain('(optional)')
+    }
   })
 
   it('shows a distinct rate-limit message on a 429', () => {

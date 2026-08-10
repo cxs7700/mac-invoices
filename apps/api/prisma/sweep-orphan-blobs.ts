@@ -39,8 +39,7 @@ export async function sweepOrphanBlobs(deps: Deps, opts: Opts = {}) {
 
   const orphans = blobs.filter(
     (b) =>
-      !referenced.has(toPathname(b.pathname)) &&
-      now - new Date(b.uploadedAt).getTime() >= minAgeMs,
+      !referenced.has(toPathname(b.pathname)) && now - new Date(b.uploadedAt).getTime() >= minAgeMs,
   )
 
   let deleted = 0
@@ -78,9 +77,13 @@ if (invokedDirectly) {
     { apply },
   )
     .then(async (r) => {
-      console.log(`Scanned ${r.scanned} blob(s); ${r.referenced} referenced; ${r.orphans} orphan(s).`)
+      console.log(
+        `Scanned ${r.scanned} blob(s); ${r.referenced} referenced; ${r.orphans} orphan(s).`,
+      )
       if (apply) {
-        console.log(`Deleted ${r.deleted} orphan blob(s)${r.failed ? `; ${r.failed} failed (will retry next run)` : ''}.`)
+        console.log(
+          `Deleted ${r.deleted} orphan blob(s)${r.failed ? `; ${r.failed} failed (will retry next run)` : ''}.`,
+        )
       } else if (r.orphans > 0) {
         console.log('Dry run — pass `-- --apply` to reclaim these:')
         for (const p of r.orphanPathnames) console.log(`  ${p}`)

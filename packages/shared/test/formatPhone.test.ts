@@ -3,18 +3,18 @@ import { formatPhone } from '../src/lib/formatPhone'
 
 describe('formatPhone', () => {
   it('formats a bare 10-digit number', () => {
-    expect(formatPhone('1234567890')).toBe('(123)456-7890')
+    expect(formatPhone('1234567890')).toBe('123-456-7890')
   })
 
   it('reformats numbers however they were punctuated', () => {
-    expect(formatPhone('123-456-7890')).toBe('(123)456-7890')
-    expect(formatPhone('(123) 456 7890')).toBe('(123)456-7890')
-    expect(formatPhone(' 123.456.7890 ')).toBe('(123)456-7890')
+    expect(formatPhone('123-456-7890')).toBe('123-456-7890')
+    expect(formatPhone('(123) 456 7890')).toBe('123-456-7890')
+    expect(formatPhone(' 123.456.7890 ')).toBe('123-456-7890')
   })
 
   it('drops a US country code', () => {
-    expect(formatPhone('11234567890')).toBe('(123)456-7890')
-    expect(formatPhone('+1 (123) 456-7890')).toBe('(123)456-7890')
+    expect(formatPhone('11234567890')).toBe('123-456-7890')
+    expect(formatPhone('+1 (123) 456-7890')).toBe('123-456-7890')
   })
 
   it('leaves a number it cannot confidently reformat alone', () => {

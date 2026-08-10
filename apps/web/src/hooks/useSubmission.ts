@@ -47,7 +47,8 @@ export type SubmitBody = {
   invoiceDate: string
   notes?: string
   partsOrdered?: string
-  images: { url: string; type: ImageType }[]
+  // Optional as of 2026-08-09 — a vendor may submit without a photo.
+  images?: { url: string; type: ImageType }[]
 }
 
 export function useSubmit(token: string) {

@@ -1,16 +1,20 @@
 import { useTranslation } from 'react-i18next'
+import { statusTone, type StatusTone } from '@mac-invoices/shared'
 import { useInvoiceStats } from '@/hooks/useInvoiceStats'
 import { STATUS_OPTIONS } from '@/lib/listParams'
 
 // Small colored dot keys each chip to its status without full-intensity fills
-// (the strip is a secondary summary, not the table's focal point).
-const DOT: Record<string, string> = {
-  PAID: 'bg-status-paid-foreground',
-  REJECTED: 'bg-status-overdue-foreground',
-  CANCELLED: 'bg-status-overdue-foreground',
-  PENDING: 'bg-status-pending-foreground',
-  APPROVED: 'bg-status-pending-foreground',
-  SUBMITTED: 'bg-status-submitted-foreground',
+// (the strip is a secondary summary, not the table's focal point). Colours come
+// from the shared status→tone mapping, so a status reads the same here as it
+// does on the PDF; previously REJECTED/CANCELLED and PENDING/APPROVED shared a
+// dot apiece and were indistinguishable.
+const DOT: Record<StatusTone, string> = {
+  amber: 'bg-tone-amber-foreground',
+  blue: 'bg-tone-blue-foreground',
+  violet: 'bg-tone-violet-foreground',
+  green: 'bg-tone-green-foreground',
+  red: 'bg-tone-red-foreground',
+  slate: 'bg-tone-slate-foreground',
 }
 
 type Props = {
@@ -58,7 +62,10 @@ export function StatusCounts({ activeStatus, onSelect }: Props) {
                 : 'border-border bg-card text-muted-foreground hover:bg-accent/40'
             }`}
           >
-            <span className={`inline-block h-2 w-2 rounded-full ${DOT[s]}`} aria-hidden />
+            <span
+              className={`inline-block h-2 w-2 rounded-full ${DOT[statusTone(s)]}`}
+              aria-hidden
+            />
             {t(`status.${s}`)}
             <span className="font-medium tabular-nums text-foreground">{data.counts[s]}</span>
           </button>

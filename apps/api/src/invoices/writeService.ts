@@ -401,12 +401,15 @@ export async function createSubmission(
     invoiceDate: Date
     notes?: string
     partsOrdered?: string
-    images: InvoiceImageInput[]
+    images?: InvoiceImageInput[]
   },
 ) {
   const actorId = vendorActorId(args.vendorId)
   const blobOwner = vendorBlobOwner(args.vendorId)
-  for (const image of input.images) gateImageRef(image.url, blobOwner)
+  // Photos are optional on a submission (see SubmissionSchema); each supplied
+  // one is still gated to the vendor's own uploads.
+  const images = input.images ?? []
+  for (const image of images) gateImageRef(image.url, blobOwner)
   return prisma.$transaction(async (tx) => {
     // The vendor form is itemized like the landlord's, so the amount is summed
     // from the lines here rather than trusted from the client — the same rule
@@ -437,7 +440,7 @@ export async function createSubmission(
         detail: {},
       },
     })
-    for (const image of input.images) {
+    for (const image of images) {
       await writeImageAttachment(tx, invoice.id, actorId, invoice.userId, image)
     }
     return invoice

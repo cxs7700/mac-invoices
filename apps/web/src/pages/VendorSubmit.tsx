@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useParams } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { X } from 'lucide-react'
+import { Minus, Plus, X } from 'lucide-react'
 import { ApiError } from '@/lib/apiClient'
 import { StatusBadge } from '@/components/StatusBadge'
 import { PhotoAttach } from '@/components/PhotoAttach'
@@ -87,7 +87,9 @@ export default function VendorSubmit() {
   const atCap = photos.length >= MAX_INVOICE_IMAGES
   const filledItems = items.filter((i) => i.description.trim() && Number(i.total) > 0)
   const computedTotal = filledItems.reduce((sum, i) => sum + Number(i.total), 0)
-  const canSubmit = photos.length > 0 && !!invoiceDate && filledItems.length > 0
+  // Photos, notes and parts are all optional — a submission needs only a dated
+  // line item.
+  const canSubmit = !!invoiceDate && filledItems.length > 0
 
   const submitError =
     submit.error instanceof ApiError
@@ -109,6 +111,14 @@ export default function VendorSubmit() {
   const updateItem = (id: string, patch: Partial<ItemRow>) =>
     setItems((prev) => prev.map((row) => (row.id === id ? { ...row, ...patch } : row)))
   const addItem = () => setItems((prev) => [...prev, blankItem()])
+  /** Quantity as a number for the steppers; a half-typed or empty box reads 1. */
+  const quantityOf = (row: ItemRow) => Math.max(1, Number(row.quantity) || 1)
+  const stepQuantity = (id: string, delta: number) =>
+    setItems((prev) =>
+      prev.map((row) =>
+        row.id === id ? { ...row, quantity: String(Math.max(1, quantityOf(row) + delta)) } : row,
+      ),
+    )
   const removeItem = (id: string) =>
     setItems((prev) => (prev.length === 1 ? prev : prev.filter((row) => row.id !== id)))
 
@@ -133,7 +143,7 @@ export default function VendorSubmit() {
         invoiceDate,
         notes: notes.trim() || undefined,
         partsOrdered: partsOrdered.trim() || undefined,
-        images: photos,
+        images: photos.length > 0 ? photos : undefined,
       },
       {
         onSuccess: () => {
@@ -162,13 +172,10 @@ export default function VendorSubmit() {
       ) : (
         <form onSubmit={onSubmit} className="space-y-4 rounded-lg border border-border bg-card p-5">
           <div>
-            <div className="mb-1 flex items-center justify-between">
+            <div className="mb-1">
               <span className="text-sm font-medium text-foreground">
                 {t('vendorSubmit.items.title')}
               </span>
-              <Button type="button" size="sm" variant="outline" onClick={addItem}>
-                {t('vendorSubmit.items.add')}
-              </Button>
             </div>
             <div className="space-y-2">
               {items.map((row, index) => (
@@ -185,22 +192,41 @@ export default function VendorSubmit() {
                       className={itemFieldClass}
                     />
                   </div>
-                  <div className="col-span-2">
+                  <div className="col-span-3">
                     <label htmlFor={`item-qty-${row.id}`} className="sr-only">
                       {t('vendorSubmit.items.quantity')}
                     </label>
-                    <input
-                      id={`item-qty-${row.id}`}
-                      type="number"
-                      inputMode="numeric"
-                      min="1"
-                      placeholder={t('vendorSubmit.items.quantity')}
-                      value={row.quantity}
-                      onChange={(e) => updateItem(row.id, { quantity: e.target.value })}
-                      className={itemFieldClass}
-                    />
+                    <div className="flex items-stretch">
+                      <button
+                        type="button"
+                        aria-label={t('vendorSubmit.items.decrement', { index: index + 1 })}
+                        onClick={() => stepQuantity(row.id, -1)}
+                        className="rounded-l-md border border-input px-2 text-muted-foreground hover:bg-accent disabled:opacity-40"
+                        disabled={quantityOf(row) <= 1}
+                      >
+                        <Minus className="h-3.5 w-3.5" aria-hidden="true" />
+                      </button>
+                      <input
+                        id={`item-qty-${row.id}`}
+                        type="number"
+                        inputMode="numeric"
+                        min="1"
+                        placeholder={t('vendorSubmit.items.quantity')}
+                        value={row.quantity}
+                        onChange={(e) => updateItem(row.id, { quantity: e.target.value })}
+                        className="w-full border-y border-input bg-background px-1 py-2 text-center text-sm"
+                      />
+                      <button
+                        type="button"
+                        aria-label={t('vendorSubmit.items.increment', { index: index + 1 })}
+                        onClick={() => stepQuantity(row.id, 1)}
+                        className="rounded-r-md border border-input px-2 text-muted-foreground hover:bg-accent"
+                      >
+                        <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+                      </button>
+                    </div>
                   </div>
-                  <div className="col-span-3">
+                  <div className="col-span-2">
                     <label htmlFor={`item-total-${row.id}`} className="sr-only">
                       {t('vendorSubmit.items.total')}
                     </label>
@@ -216,7 +242,19 @@ export default function VendorSubmit() {
                       className={itemFieldClass}
                     />
                   </div>
-                  <div className="col-span-1 flex items-center">
+                  <div className="col-span-1 flex items-center justify-end gap-0.5">
+                    {/* The add control lives on the last row, so a new line
+                        appears directly beneath where the eye already is. */}
+                    {index === items.length - 1 && (
+                      <button
+                        type="button"
+                        aria-label={t('vendorSubmit.items.add')}
+                        onClick={addItem}
+                        className="rounded p-1 text-primary hover:bg-accent"
+                      >
+                        <Plus className="h-4 w-4" aria-hidden="true" />
+                      </button>
+                    )}
                     {items.length > 1 && (
                       <button
                         type="button"
@@ -252,7 +290,7 @@ export default function VendorSubmit() {
           </div>
           <div>
             <label htmlFor="partsOrdered" className="text-sm font-medium text-foreground">
-              {t('vendorSubmit.partsOrdered')}
+              {t('vendorSubmit.partsOrdered')} {t('vendorSubmit.optionalSuffix')}
             </label>
             <input
               id="partsOrdered"
@@ -263,7 +301,7 @@ export default function VendorSubmit() {
           </div>
           <div>
             <label htmlFor="notes" className="text-sm font-medium text-foreground">
-              {t('vendorSubmit.notes')}
+              {t('vendorSubmit.notes')} {t('vendorSubmit.optionalSuffix')}
             </label>
             <textarea
               id="notes"
@@ -275,7 +313,7 @@ export default function VendorSubmit() {
           </div>
           <div>
             <span className="text-sm font-medium text-foreground">
-              {t('vendorSubmit.photosLabel')}
+              {t('vendorSubmit.photosLabel')} {t('vendorSubmit.optionalSuffix')}
             </span>
             {photos.length > 0 && (
               <ul className="mt-2 space-y-2">
@@ -325,7 +363,7 @@ export default function VendorSubmit() {
               </p>
             ) : photos.length === 0 ? (
               <p className="mt-1 text-xs text-muted-foreground">
-                {t('vendorSubmit.photoRequired')}
+                {t('vendorSubmit.photosNoneYet')}
               </p>
             ) : (
               <p className="mt-1 text-xs text-muted-foreground">

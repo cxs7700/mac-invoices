@@ -36,7 +36,12 @@ export async function backfillEvents(prisma: Db = defaultPrisma) {
     }
     rows.push({ ...base, type: 'CREATED', detail: {}, createdAt: inv.createdAt })
     if (inv.paidDate) {
-      rows.push({ ...base, type: 'STATUS_CHANGED', detail: { to: 'PAID' }, createdAt: inv.paidDate })
+      rows.push({
+        ...base,
+        type: 'STATUS_CHANGED',
+        detail: { to: 'PAID' },
+        createdAt: inv.paidDate,
+      })
     }
   }
   if (rows.length) await prisma.invoiceEvent.createMany({ data: rows })

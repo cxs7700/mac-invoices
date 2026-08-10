@@ -110,7 +110,9 @@ const seedInvoices = async () => {
       invoiceDate,
       notes: notes || null,
       user: { connect: { id: LANDLORD_ID } },
-      items: { create: [{ description: row.description, quantity: 1, total: amount, sortOrder: 0 }] },
+      items: {
+        create: [{ description: row.description, quantity: 1, total: amount, sortOrder: 0 }],
+      },
     }
 
     await prisma.invoice.upsert({

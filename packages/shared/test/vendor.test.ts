@@ -9,9 +9,12 @@ const baseSubmission = {
 const img = (url: string) => ({ url })
 
 describe('SubmissionSchema images', () => {
-  it('requires at least one photo (the proof)', () => {
-    expect(SubmissionSchema.safeParse({ ...baseSubmission, images: [] }).success).toBe(false)
-    expect(SubmissionSchema.safeParse({ ...baseSubmission }).success).toBe(false)
+  // Photos became optional on 2026-08-09, reversing the original "at least one
+  // photo is the proof" rule — vendors were blocked at submit when they had a
+  // paper invoice they could not photograph on the spot.
+  it('accepts a submission with no photos at all', () => {
+    expect(SubmissionSchema.safeParse({ ...baseSubmission, images: [] }).success).toBe(true)
+    expect(SubmissionSchema.safeParse({ ...baseSubmission }).success).toBe(true)
   })
 
   it('accepts 1 up to the cap', () => {

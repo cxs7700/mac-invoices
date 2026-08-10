@@ -112,10 +112,10 @@ describe('Vendors page', () => {
     expect(writeText).toHaveBeenCalledWith(LINK)
   })
 
-  it('displays the phone in (123)456-7890 form', () => {
+  it('displays the phone in 123-456-7890 form', () => {
     listing([vendor()])
     render(<Vendors />)
-    expect(screen.getByText(/\(555\)123-4567/)).toBeDefined()
+    expect(screen.getByText(/555-123-4567/)).toBeDefined()
   })
 
   it('edits a vendor’s contact details in place', () => {

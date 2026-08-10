@@ -1,5 +1,5 @@
 /**
- * Normalize a phone number to `(123)456-7890`.
+ * Normalize a phone number to `123-456-7890`.
  *
  * Only North-American 10-digit numbers are reformatted (an 11-digit number
  * with a leading country code `1` counts, and the `1` is dropped). Anything
@@ -21,5 +21,5 @@ export function formatPhone(raw: string | null | undefined): string {
   // one is ambiguous enough that reformatting it would be a guess.
   if (trimmed.startsWith('+') && digits.length !== 11) return trimmed
 
-  return `(${local.slice(0, 3)})${local.slice(3, 6)}-${local.slice(6)}`
+  return `${local.slice(0, 3)}-${local.slice(3, 6)}-${local.slice(6)}`
 }
