@@ -10,10 +10,10 @@ describe('i18n foundation', () => {
     expect(i18n.t('nav.dashboard')).toBe('Dashboard')
   })
 
-  it('switches a translated key to its Chinese value and back', async () => {
+  it('switches a translated key to its Cantonese value and back', async () => {
     await i18n.changeLanguage('zh')
-    expect(i18n.t('nav.dashboard')).toBe('仪表板')
-    expect(i18n.t('nav.invoices')).toBe('发票')
+    expect(i18n.t('nav.dashboard')).toBe('總覽')
+    expect(i18n.t('nav.invoices')).toBe('發票')
     await i18n.changeLanguage('en')
     expect(i18n.t('nav.dashboard')).toBe('Dashboard')
   })

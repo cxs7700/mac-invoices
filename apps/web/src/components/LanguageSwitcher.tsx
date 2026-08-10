@@ -3,8 +3,9 @@ import { SUPPORTED_LOCALES, type Locale } from '@/lib/i18n'
 import { useUpdateProfile } from '@/hooks/useSettings'
 import { SegmentedSwitcher } from './SegmentedSwitcher'
 
-// Languages are labelled in their own script (autonyms).
-const LABEL: Record<Locale, string> = { en: 'EN', zh: '中文' }
+// Languages are labelled in their own script (autonyms). The `zh` catalog is
+// written Cantonese (traditional characters), so it is labelled 粵語, not 中文.
+const LABEL: Record<Locale, string> = { en: 'EN', zh: '粵語' }
 
 /**
  * Compact EN/中文 toggle. Always switches the UI language immediately (and the

@@ -19,14 +19,14 @@ afterEach(() => i18n.changeLanguage('en'))
 describe('LanguageSwitcher', () => {
   it('persists the choice when persist is set (chrome)', async () => {
     render(<LanguageSwitcher persist />)
-    fireEvent.click(screen.getByRole('button', { name: '中文' }))
+    fireEvent.click(screen.getByRole('button', { name: '粵語' }))
     expect(mutate).toHaveBeenCalledWith({ locale: 'zh' })
     await waitFor(() => expect(i18n.language).toBe('zh'))
   })
 
   it('switches without persisting when persist is omitted (public vendor page)', async () => {
     render(<LanguageSwitcher />)
-    fireEvent.click(screen.getByRole('button', { name: '中文' }))
+    fireEvent.click(screen.getByRole('button', { name: '粵語' }))
     expect(mutate).not.toHaveBeenCalled()
     await waitFor(() => expect(i18n.language).toBe('zh'))
   })

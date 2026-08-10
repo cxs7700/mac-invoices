@@ -17,9 +17,13 @@ export function isLocale(value: unknown): value is Locale {
   return value === 'en' || value === 'zh'
 }
 
-/** BCP-47 tag for Intl, derived from the active i18n language. Currency stays USD. */
+/**
+ * BCP-47 tag for Intl, derived from the active i18n language. Currency stays USD.
+ * The `zh` catalog is written Cantonese in traditional characters, so Intl gets
+ * `zh-HK` (HK date/number conventions), not `zh-CN`.
+ */
 export function localeTag(): string {
-  return i18n.language === 'zh' ? 'zh-CN' : 'en-US'
+  return i18n.language === 'zh' ? 'zh-HK' : 'en-US'
 }
 
 i18n
@@ -29,7 +33,7 @@ i18n
     resources: { en: { translation: en }, zh: { translation: zh } },
     fallbackLng: 'en',
     supportedLngs: SUPPORTED_LOCALES,
-    load: 'languageOnly', // collapse zh-CN / zh-Hans → 'zh'
+    load: 'languageOnly', // collapse zh-HK / zh-Hant / zh-CN → 'zh'
     detection: { order: ['localStorage', 'navigator'], caches: ['localStorage'] },
     interpolation: { escapeValue: false }, // React already escapes
     react: { useSuspense: false },

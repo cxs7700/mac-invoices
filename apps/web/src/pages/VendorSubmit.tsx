@@ -179,88 +179,85 @@ export default function VendorSubmit() {
             </div>
             <div className="space-y-2">
               {items.map((row, index) => (
-                <div key={row.id} className="grid grid-cols-12 gap-2">
-                  <div className="col-span-6">
-                    <label htmlFor={`item-desc-${row.id}`} className="sr-only">
-                      {t('vendorSubmit.items.description')}
-                    </label>
-                    <input
-                      id={`item-desc-${row.id}`}
-                      placeholder={t('vendorSubmit.items.description')}
-                      value={row.description}
-                      onChange={(e) => updateItem(row.id, { description: e.target.value })}
-                      className={itemFieldClass}
-                    />
-                  </div>
-                  <div className="col-span-3">
-                    <label htmlFor={`item-qty-${row.id}`} className="sr-only">
-                      {t('vendorSubmit.items.quantity')}
-                    </label>
-                    <div className="flex items-stretch">
-                      <button
-                        type="button"
-                        aria-label={t('vendorSubmit.items.decrement', { index: index + 1 })}
-                        onClick={() => stepQuantity(row.id, -1)}
-                        className="rounded-l-md border border-input px-2 text-muted-foreground hover:bg-accent disabled:opacity-40"
-                        disabled={quantityOf(row) <= 1}
+                <div key={row.id} className="rounded-md border border-border bg-background/40 p-3">
+                  {/* Description gets the full width of the card: it is the
+                      field with the most to say, and at this page width it was
+                      down to ~180px sharing a row with three other controls. */}
+                  <label htmlFor={`item-desc-${row.id}`} className="sr-only">
+                    {t('vendorSubmit.items.description')}
+                  </label>
+                  <input
+                    id={`item-desc-${row.id}`}
+                    placeholder={t('vendorSubmit.items.description')}
+                    value={row.description}
+                    onChange={(e) => updateItem(row.id, { description: e.target.value })}
+                    className={itemFieldClass}
+                  />
+
+                  <div className="mt-2 flex items-end justify-between gap-3">
+                    <div>
+                      <label
+                        htmlFor={`item-qty-${row.id}`}
+                        className="mb-1 block text-xs text-muted-foreground"
                       >
-                        <Minus className="h-3.5 w-3.5" aria-hidden="true" />
-                      </button>
-                      <input
-                        id={`item-qty-${row.id}`}
-                        type="number"
-                        inputMode="numeric"
-                        min="1"
-                        placeholder={t('vendorSubmit.items.quantity')}
-                        value={row.quantity}
-                        onChange={(e) => updateItem(row.id, { quantity: e.target.value })}
-                        className="w-full border-y border-input bg-background px-1 py-2 text-center text-sm"
-                      />
-                      <button
-                        type="button"
-                        aria-label={t('vendorSubmit.items.increment', { index: index + 1 })}
-                        onClick={() => stepQuantity(row.id, 1)}
-                        className="rounded-r-md border border-input px-2 text-muted-foreground hover:bg-accent"
-                      >
-                        <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-                      </button>
+                        {t('vendorSubmit.items.quantity')}
+                      </label>
+                      <div className="flex items-stretch">
+                        <button
+                          type="button"
+                          aria-label={t('vendorSubmit.items.decrement', { index: index + 1 })}
+                          onClick={() => stepQuantity(row.id, -1)}
+                          className="rounded-l-md border border-input px-2 text-muted-foreground hover:bg-accent disabled:opacity-40"
+                          disabled={quantityOf(row) <= 1}
+                        >
+                          <Minus className="h-3.5 w-3.5" aria-hidden="true" />
+                        </button>
+                        <input
+                          id={`item-qty-${row.id}`}
+                          type="number"
+                          inputMode="numeric"
+                          min="1"
+                          value={row.quantity}
+                          onChange={(e) => updateItem(row.id, { quantity: e.target.value })}
+                          className="w-14 border-y border-input bg-background px-1 py-2 text-center text-sm"
+                        />
+                        <button
+                          type="button"
+                          aria-label={t('vendorSubmit.items.increment', { index: index + 1 })}
+                          onClick={() => stepQuantity(row.id, 1)}
+                          className="rounded-r-md border border-input px-2 text-muted-foreground hover:bg-accent"
+                        >
+                          <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                  <div className="col-span-2">
-                    <label htmlFor={`item-total-${row.id}`} className="sr-only">
-                      {t('vendorSubmit.items.total')}
-                    </label>
-                    <input
-                      id={`item-total-${row.id}`}
-                      type="number"
-                      inputMode="decimal"
-                      step="0.01"
-                      min="0"
-                      placeholder={t('vendorSubmit.items.total')}
-                      value={row.total}
-                      onChange={(e) => updateItem(row.id, { total: e.target.value })}
-                      className={itemFieldClass}
-                    />
-                  </div>
-                  <div className="col-span-1 flex items-center justify-end gap-0.5">
-                    {/* The add control lives on the last row, so a new line
-                        appears directly beneath where the eye already is. */}
-                    {index === items.length - 1 && (
-                      <button
-                        type="button"
-                        aria-label={t('vendorSubmit.items.add')}
-                        onClick={addItem}
-                        className="rounded p-1 text-primary hover:bg-accent"
+
+                    <div className="flex-1">
+                      <label
+                        htmlFor={`item-total-${row.id}`}
+                        className="mb-1 block text-xs text-muted-foreground"
                       >
-                        <Plus className="h-4 w-4" aria-hidden="true" />
-                      </button>
-                    )}
+                        {t('vendorSubmit.items.total')}
+                      </label>
+                      <input
+                        id={`item-total-${row.id}`}
+                        type="number"
+                        inputMode="decimal"
+                        step="0.01"
+                        min="0"
+                        placeholder={t('vendorSubmit.items.total')}
+                        value={row.total}
+                        onChange={(e) => updateItem(row.id, { total: e.target.value })}
+                        className={itemFieldClass}
+                      />
+                    </div>
+
                     {items.length > 1 && (
                       <button
                         type="button"
                         aria-label={t('vendorSubmit.items.remove', { index: index + 1 })}
                         onClick={() => removeItem(row.id)}
-                        className="rounded p-1 text-muted-foreground hover:bg-accent"
+                        className="mb-1 rounded p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                       >
                         <X className="h-4 w-4" aria-hidden="true" />
                       </button>
@@ -268,6 +265,14 @@ export default function VendorSubmit() {
                   </div>
                 </div>
               ))}
+              <button
+                type="button"
+                onClick={addItem}
+                className="flex w-full items-center justify-center gap-1.5 rounded-md border border-dashed border-input py-2 text-sm text-primary hover:bg-accent"
+              >
+                <Plus className="h-4 w-4" aria-hidden="true" />
+                {t('vendorSubmit.items.add')}
+              </button>
             </div>
             <p className="mt-2 text-right text-sm text-muted-foreground">
               {t('vendorSubmit.items.computedTotal')}:{' '}
