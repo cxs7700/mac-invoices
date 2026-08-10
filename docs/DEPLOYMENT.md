@@ -244,8 +244,22 @@ still `SELECT`s `tokenHash` by name; dropping the column while that code is live
 `column "tokenHash" does not exist` on every vendor read. This is the same rule
 `drop_invoice_description` follows.
 
-The new code does not read `tokenHash`, so the window between deploying and migrating is
-safe: the column simply sits unused.
+> **There is no safe ordering for this migration, and the deploy→migrate window is NOT
+> quiet — this was mis-stated here originally and cost a live outage on 2026-08-09.**
+> The migration does two things with opposite requirements: it **adds** `tokenVersion`,
+> which the new code selects, and it **drops** `tokenHash`, which the old code selects.
+> Deploy first and every vendor read 500s (`column vendors.tokenVersion does not exist`)
+> until `db:deploy` lands — the landlord sees "Couldn't load vendors" on `/vendors`.
+> Migrate first and the *old* code breaks instead. Whichever order you pick, close the gap
+> promptly; deploy-then-migrate is still preferable, since the broken window sits after a
+> deploy you are already watching.
+>
+> **The lesson for next time: split a migration that both adds and drops.** Ship
+> `ADD COLUMN` in one migration (safe before the deploy, the old code ignores it), deploy,
+> then `DROP COLUMN` in a second (safe after, the new code ignores it). That sequence has
+> no broken window at all. This one was written as a single migration and shipped as such;
+> it is left intact rather than rewritten, because splitting an already-applied migration
+> would put the local and production ledgers out of sync for no benefit.
 
 > **Every outstanding submission link stops working — this is expected and unavoidable.**
 > The old plaintext cannot be re-derived under the new scheme, which is the cost of making
