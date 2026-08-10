@@ -28,11 +28,14 @@ describe('resetLinkFor', () => {
 
       const row = await app.prisma.user.findUniqueOrThrow({
         where: { id: u.user.id },
-        select: { passwordHash: true },
+        select: { passwordHash: true, passwordResetVersion: true },
       })
       const parsed = parseResetToken(issued.url.split('#t=')[1])!
       expect(parsed.userId).toBe(u.user.id)
-      expect(resetTokenMatches(parsed, row.passwordHash)).toBe(true)
+      expect(resetTokenMatches(parsed, row.passwordHash, row.passwordResetVersion)).toBe(true)
+      // Issuing bumped the version — the mechanism that retires an older,
+      // unconsumed link on re-issue (R8).
+      expect(row.passwordResetVersion).toBe(1)
     } finally {
       await u.cleanup()
     }

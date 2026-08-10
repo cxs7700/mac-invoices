@@ -4,14 +4,19 @@ import { AppError } from '../middleware/errorHandler'
 
 // Operator-issued password-reset links. The token is DERIVED, never stored:
 // `rst_<userId>.<expiresAtMs>.<mac>`, where the mac signs
-// `userId:expiresAtMs:passwordHash`.
+// `userId:expiresAtMs:passwordHash:passwordResetVersion`.
 //
 // Including the CURRENT password hash is what makes a link single-use without a
-// table: consuming it writes a new hash, so the old mac no longer verifies, and
-// issuing a second link likewise retires the first. Argon2id salts per call, so
-// even re-using the same password produces a different hash and still kills the
-// link. This mirrors the vendor-link idiom (DEC-034), where `tokenVersion`
-// plays the role the password hash plays here.
+// table: consuming it writes a new hash, so the old mac no longer verifies.
+// Argon2id salts per call, so even re-using the same password produces a
+// different hash and still kills the link.
+//
+// Including `passwordResetVersion` is what retires a link on RE-ISSUE, before
+// it is ever consumed: issuing a link bumps the version and signs the new
+// value in, so an older, unconsumed link — whose signature still names the
+// old version — stops matching. This mirrors the vendor-link idiom (DEC-034),
+// where `tokenVersion` plays exactly this role. The version is looked up
+// server-side at verify time, never carried in the token itself.
 
 const PREFIX = 'rst_'
 
@@ -33,16 +38,27 @@ function resetKey(): Buffer {
   return Buffer.from(raw, 'utf8')
 }
 
-function mac(userId: string, expiresAtMs: number, passwordHash: string): string {
+function mac(userId: string, expiresAtMs: number, passwordHash: string, version: number): string {
   const digest = createHmac('sha256', resetKey())
-    .update(`${userId}:${expiresAtMs}:${passwordHash}`)
+    .update(`${userId}:${expiresAtMs}:${passwordHash}:${version}`)
     .digest()
   return encodeBase64urlNoPadding(new Uint8Array(digest))
 }
 
-/** The full link token for `userId`, valid until `expiresAtMs`. Recomputable. */
-export function buildResetToken(userId: string, passwordHash: string, expiresAtMs: number): string {
-  return `${PREFIX}${userId}.${expiresAtMs}.${mac(userId, expiresAtMs, passwordHash)}`
+/**
+ * The full link token for `userId`, valid until `expiresAtMs`, signed against
+ * `version` (the account's current `passwordResetVersion`). `version` sits
+ * before `expiresAtMs` in the parameter list deliberately — both are numbers,
+ * and keeping them non-adjacent avoids a call site silently swapping them.
+ * Recomputable at any time given the same inputs.
+ */
+export function buildResetToken(
+  userId: string,
+  passwordHash: string,
+  version: number,
+  expiresAtMs: number,
+): string {
+  return `${PREFIX}${userId}.${expiresAtMs}.${mac(userId, expiresAtMs, passwordHash, version)}`
 }
 
 export type ParsedResetToken = { userId: string; expiresAtMs: number; mac: string }
@@ -60,9 +76,13 @@ export function parseResetToken(raw: unknown): ParsedResetToken | null {
   return { userId, expiresAtMs: Number(expiresRaw), mac: macPart }
 }
 
-/** Constant-time check that `parsed` signs exactly this password hash. */
-export function resetTokenMatches(parsed: ParsedResetToken, passwordHash: string): boolean {
-  const expected = Buffer.from(mac(parsed.userId, parsed.expiresAtMs, passwordHash), 'utf8')
+/** Constant-time check that `parsed` signs exactly this password hash and version. */
+export function resetTokenMatches(
+  parsed: ParsedResetToken,
+  passwordHash: string,
+  version: number,
+): boolean {
+  const expected = Buffer.from(mac(parsed.userId, parsed.expiresAtMs, passwordHash, version), 'utf8')
   const actual = Buffer.from(parsed.mac, 'utf8')
   // Length-check first: timingSafeEqual THROWS on unequal lengths, and
   // branching on length leaks nothing here (the mac's length is fixed and

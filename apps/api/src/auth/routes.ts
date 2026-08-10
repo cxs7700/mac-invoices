@@ -148,23 +148,35 @@ async function authRoutes(app: FastifyInstance) {
 
       const user = await request.server.prisma.user.findUnique({
         where: { id: parsed.userId },
-        select: { id: true, passwordHash: true },
+        select: { id: true, passwordHash: true, passwordResetVersion: true },
       })
       // Compare even when the account is unknown, against a dummy hash, so
       // "no such user" is not measurably faster than "wrong signature" —
       // the same constant-time reasoning as login's DUMMY_HASH verify
       // (DEC-018). Both outcomes then fall into the identical `invalid()`.
-      const matches = resetTokenMatches(parsed, user?.passwordHash ?? DUMMY_HASH)
+      const matches = resetTokenMatches(
+        parsed,
+        user?.passwordHash ?? DUMMY_HASH,
+        user?.passwordResetVersion ?? 0,
+      )
       if (!user || !matches) throw invalid()
 
       const passwordHash = await hashPassword(newPassword)
-      await request.server.prisma.$transaction([
-        request.server.prisma.user.update({ where: { id: user.id }, data: { passwordHash } }),
+      await request.server.prisma.$transaction(async (tx) => {
+        // Guarded by the hash read above rather than an unconditional update:
+        // two simultaneous requests bearing the same valid token both pass the
+        // compare before either commits, and only one may actually apply. A
+        // lost race is refused rather than silently last-write-wins.
+        const { count } = await tx.user.updateMany({
+          where: { id: user.id, passwordHash: user.passwordHash },
+          data: { passwordHash },
+        })
+        if (count !== 1) throw invalid()
         // ALL sessions die — deliberately unlike the Settings password change,
         // which keeps the caller's own alive (KTD-2). There is no caller session
         // here, and if an attacker holds one, this is exactly when it should end.
-        request.server.prisma.session.deleteMany({ where: { userId: user.id } }),
-      ])
+        await tx.session.deleteMany({ where: { userId: user.id } })
+      })
       return reply.code(204).send()
     },
   )

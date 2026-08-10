@@ -42,6 +42,11 @@ model User {
   notificationsSeenAt DateTime?
   // UI language preference (server source of truth, mirrored to localStorage).
   locale       String       @default("en")
+  // Bumped every time a reset link is issued, and signed into the link, so
+  // issuing a new link retires any outstanding one (spec R8). Mirrors
+  // Vendor.tokenVersion (DEC-034). Consuming a link is separately covered by
+  // the password hash also being signed.
+  passwordResetVersion Int @default(0)
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
   invoices     Invoice[]

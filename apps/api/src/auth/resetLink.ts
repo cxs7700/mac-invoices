@@ -20,12 +20,26 @@ export async function resetLinkFor(
 ): Promise<IssuedResetLink | null> {
   const user = await prisma.user.findUnique({
     where: { email: email.trim().toLowerCase() },
-    select: { id: true, passwordHash: true },
+    select: { id: true },
   })
   if (!user) return null
 
+  // Bump and read back in one statement: the returned row carries the version
+  // this link is signed with, and a concurrent issue cannot land on the same
+  // number. Retiring the previous link is the whole point (R8).
+  const bumped = await prisma.user.update({
+    where: { id: user.id },
+    data: { passwordResetVersion: { increment: 1 } },
+    select: { id: true, passwordHash: true, passwordResetVersion: true },
+  })
+
   const expiresAt = new Date(Date.now() + RESET_TTL_MS)
-  const token = buildResetToken(user.id, user.passwordHash, expiresAt.getTime())
+  const token = buildResetToken(
+    bumped.id,
+    bumped.passwordHash,
+    bumped.passwordResetVersion,
+    expiresAt.getTime(),
+  )
   // Fragment, not a path or query parameter: fragments are not sent in Referer
   // headers and never reach server access logs.
   return { url: `${origin.replace(/\/+$/, '')}/reset-password#t=${token}`, expiresAt }

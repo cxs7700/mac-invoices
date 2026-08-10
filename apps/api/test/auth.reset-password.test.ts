@@ -11,6 +11,7 @@ import { buildApp } from '../src/app'
 import { createSecondUser } from './helpers/auth'
 import { buildResetToken, RESET_TTL_MS } from '../src/auth/resetToken'
 import { verifyPassword } from '../src/auth/password'
+import { resetLinkFor } from '../src/auth/resetLink'
 
 const app = buildApp()
 beforeAll(async () => {
@@ -28,9 +29,14 @@ async function userWithLink(ttlMs = RESET_TTL_MS) {
   const u = await createSecondUser(app)
   const row = await app.prisma.user.findUniqueOrThrow({
     where: { id: u.user.id },
-    select: { passwordHash: true },
+    select: { passwordHash: true, passwordResetVersion: true },
   })
-  const token = buildResetToken(u.user.id, row.passwordHash, Date.now() + ttlMs)
+  const token = buildResetToken(
+    u.user.id,
+    row.passwordHash,
+    row.passwordResetVersion,
+    Date.now() + ttlMs,
+  )
   return { ...u, token }
 }
 
@@ -101,10 +107,11 @@ describe('POST /api/auth/reset-password', () => {
     const u = await userWithLink()
     let expired: string
     try {
-      expired = buildResetToken(u.user.id, 'whatever', Date.now() - 1000)
+      expired = buildResetToken(u.user.id, 'whatever', 0, Date.now() - 1000)
       const unknownUser = buildResetToken(
         'clx9999999999999999999999',
         'whatever',
+        0,
         Date.now() + RESET_TTL_MS,
       )
       const tampered = `${u.token.slice(0, -1)}${u.token.endsWith('A') ? 'B' : 'A'}`
@@ -126,24 +133,24 @@ describe('POST /api/auth/reset-password', () => {
     }
   })
 
-  it('retires the older link when a newer one is issued (AE6)', async () => {
+  // R8: issuing a SECOND link retires the first, even if the first is never
+  // consumed. This must be exercised with two co-existing, unconsumed links —
+  // anything that consumes the older link first is really re-testing replay
+  // (AE2), not re-issuance. `resetLinkFor` is the real issuer path (what the
+  // operator script calls), so it — not a hand-built token — is what proves
+  // re-issuance bumps `passwordResetVersion`.
+  it('retires the older link when a newer one is issued, before either is used (AE6)', async () => {
     const u = await createSecondUser(app)
     try {
-      const before = await app.prisma.user.findUniqueOrThrow({
-        where: { id: u.user.id },
-        select: { passwordHash: true },
-      })
-      const older = buildResetToken(u.user.id, before.passwordHash, Date.now() + RESET_TTL_MS)
-      // Using the older link rotates the hash, which is exactly what retires it.
-      expect((await reset(older, 'password-from-older')).statusCode).toBe(204)
+      const older = (await resetLinkFor(app.prisma, u.user.email, 'https://example.com'))!
+      const newer = (await resetLinkFor(app.prisma, u.user.email, 'https://example.com'))!
+      const olderToken = older.url.split('#t=')[1]
+      const newerToken = newer.url.split('#t=')[1]
 
-      const mid = await app.prisma.user.findUniqueOrThrow({
-        where: { id: u.user.id },
-        select: { passwordHash: true },
-      })
-      const newer = buildResetToken(u.user.id, mid.passwordHash, Date.now() + RESET_TTL_MS)
-      expect((await reset(older, 'should-not-work')).statusCode).toBe(400)
-      expect((await reset(newer, 'password-from-newer')).statusCode).toBe(204)
+      // The older link, never consumed, is refused outright — retired purely
+      // by the newer link having been issued.
+      expect((await reset(olderToken, 'should-not-work')).statusCode).toBe(400)
+      expect((await reset(newerToken, 'password-from-newer')).statusCode).toBe(204)
     } finally {
       await u.cleanup()
     }
