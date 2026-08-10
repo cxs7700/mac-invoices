@@ -16,7 +16,8 @@
     "db:seed": "prisma db seed",
     "db:backfill-events": "tsx prisma/backfill-events.ts",
     "db:backfill-invoice-items": "tsx prisma/backfill-invoice-items.ts",
-    "db:sweep-orphan-blobs": "tsx prisma/sweep-orphan-blobs.ts"
+    "db:sweep-orphan-blobs": "tsx prisma/sweep-orphan-blobs.ts",
+    "auth:reset-link": "tsx prisma/reset-link.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^11.0.2",
