@@ -1,5 +1,5 @@
 import type { FastifyRequest, FastifyReply } from 'fastify'
-import { CreateVendorSchema, UpdateVendorSchema } from '@mac-invoices/shared'
+import { CreateVendorSchema, UpdateVendorSchema, formatPhone } from '@mac-invoices/shared'
 import { AppError } from '../middleware/errorHandler'
 import { parseBody } from '../lib/validate'
 import { buildLinkToken, newLookupId } from './token'
@@ -27,7 +27,11 @@ function toVendor(v: VendorRow) {
   return {
     id: v.id,
     name: v.name,
-    phone: v.phone,
+    // Normalized on the way out as well as on the way in. Writes have gone
+    // through formatPhone since DEC-034's wave, but rows created before that
+    // still hold raw input, and formatPhone is idempotent — so reading through
+    // it makes every consumer see one shape without a backfill.
+    phone: formatPhone(v.phone) || null,
     email: v.email,
     linkActive: active,
     link: active ? linkUrl(buildLinkToken(v.tokenLookupId, v.tokenVersion)) : null,

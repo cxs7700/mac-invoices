@@ -8,7 +8,7 @@
 // live in a frozen map here, not the i18n catalogs, so UI copy edits can't
 // silently reword a financial document.
 
-import { compareInvoiceOrder } from '@mac-invoices/shared'
+import { compareInvoiceOrder, formatPhone } from '@mac-invoices/shared'
 
 /** One itemized line, as the PDF needs it. */
 export type PdfInvoiceItem = {
@@ -135,7 +135,10 @@ function senderBlock(inv: PdfInvoiceInput): { name: string; lines: string[] } {
   if (inv.vendor) {
     return {
       name: inv.vendor.name,
-      lines: [inv.vendor.email, inv.vendor.phone].filter((s): s is string => !!s),
+      // Formatted here, not just trusted from the column: rows written before
+      // phone normalization existed still hold whatever was typed, and this is
+      // the one place a vendor's number reaches a third party.
+      lines: [inv.vendor.email, formatPhone(inv.vendor.phone)].filter((s): s is string => !!s),
     }
   }
   return { name: inv.vendorName, lines: [inv.vendorEmail].filter((s): s is string => !!s) }

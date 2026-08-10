@@ -130,6 +130,24 @@ describe('buildInvoicePdfModel', () => {
     expect(pages[0].sender).toEqual({ name: 'Ace Plumbing', lines: ['ace@x.com', '555-0100'] })
   })
 
+  it('formats the sender phone, even for a row stored unformatted', () => {
+    const pages = buildInvoicePdfModel(
+      [inv({ vendor: { name: 'Ace', phone: '5551234567', email: 'ace@x.com' } })],
+      addresses,
+      landlord,
+    )
+    expect(pages[0].sender.lines).toEqual(['ace@x.com', '(555)123-4567'])
+  })
+
+  it('leaves a phone it cannot confidently reformat as typed', () => {
+    const pages = buildInvoicePdfModel(
+      [inv({ vendor: { name: 'Ace', phone: '+44 20 7946 0958', email: null } })],
+      addresses,
+      landlord,
+    )
+    expect(pages[0].sender.lines).toEqual(['+44 20 7946 0958'])
+  })
+
   it('skips a blank phone rather than emitting an empty line', () => {
     const pages = buildInvoicePdfModel(
       [inv({ vendor: { name: 'Ace', phone: null, email: 'ace@x.com' } })],

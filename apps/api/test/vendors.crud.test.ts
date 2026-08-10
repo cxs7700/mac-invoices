@@ -229,3 +229,38 @@ describe('delete vendor', () => {
     ).toBe(200)
   })
 })
+
+describe('phone normalization', () => {
+  it('normalizes on create and on edit', async () => {
+    const created = (await create({ name: 'CRUD-Phone', phone: '5551234567' })).json()
+    expect(created.phone).toBe('(555)123-4567')
+
+    const patched = await app.inject({
+      method: 'PATCH',
+      url: `/api/vendors/${created.id}`,
+      payload: { phone: '555.987.6543' },
+      headers: { cookie },
+    })
+    expect(patched.json().phone).toBe('(555)987-6543')
+
+    // Stored that way, not merely displayed that way.
+    const row = await app.prisma.vendor.findUniqueOrThrow({ where: { id: created.id } })
+    expect(row.phone).toBe('(555)987-6543')
+  })
+
+  it('normalizes a legacy row on read, without needing an edit', async () => {
+    // A row written before normalization existed — bypass the schema entirely.
+    const created = (await create({ name: 'CRUD-Legacy', phone: '5550001111' })).json()
+    await app.prisma.vendor.update({
+      where: { id: created.id },
+      data: { phone: '555-000-1111' },
+    })
+
+    const fetched = await app.inject({
+      method: 'GET',
+      url: `/api/vendors/${created.id}`,
+      headers: { cookie },
+    })
+    expect(fetched.json().phone).toBe('(555)000-1111')
+  })
+})
