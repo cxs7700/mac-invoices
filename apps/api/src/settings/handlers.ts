@@ -172,9 +172,12 @@ export async function saveSheet(request: FastifyRequest, reply: FastifyReply) {
         //
         // Unconditional, not "only when the id changed": that would need a
         // read-then-write, and if two saves interleave the loser skips the reset
-        // and the bug returns. The cost is one redundant mirror when the same id
-        // is saved twice, which is harmless — the mirror is idempotent (DEC-001)
-        // — and arguably correct, since pressing Save means "make this current".
+        // and the bug returns. Unconditional avoids that race, and the flush's
+        // own stamp (sheetSync.ts) is guarded on the target it mirrored, so an
+        // in-flight flush landing after this write cannot silently undo it. The
+        // cost is one redundant mirror when the same id is saved twice, which is
+        // harmless — the mirror is idempotent (DEC-001) — and arguably correct,
+        // since pressing Save means "make this current".
         sheetSyncedAt: null,
       },
     })
