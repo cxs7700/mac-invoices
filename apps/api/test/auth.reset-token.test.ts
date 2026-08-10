@@ -43,7 +43,12 @@ describe('reset token', () => {
   it('rejects a tampered mac', () => {
     const token = buildResetToken(USER, HASH, 0, future())
     const parsed = parseResetToken(token)!
-    expect(resetTokenMatches({ ...parsed, mac: `${parsed.mac.slice(0, -1)}A` }, HASH, 0)).toBe(false)
+    // Swap the last character for a DIFFERENT one. Appending a fixed 'A'
+    // would be a no-op whenever the mac already ends in 'A' (~1 run in 64),
+    // and the test would then fail claiming tampering went undetected when
+    // nothing had actually been tampered with.
+    const flipped = `${parsed.mac.slice(0, -1)}${parsed.mac.endsWith('A') ? 'B' : 'A'}`
+    expect(resetTokenMatches({ ...parsed, mac: flipped }, HASH, 0)).toBe(false)
   })
 
   it('rejects a tampered user id', () => {
