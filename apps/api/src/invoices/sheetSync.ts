@@ -100,7 +100,16 @@ export async function mirrorUserSheet(
   await applyColumnDropdowns(spreadsheetId, tab, dropdownSpecs(properties.map((p) => p.address)))
 
   await prisma.$transaction([
-    prisma.user.update({ where: { id: userId }, data: { sheetSyncedAt: flushStart } }),
+    // Guarded on the target we actually mirrored. A landlord can save a NEW
+    // target (or disconnect) during this flush — that write nulls
+    // `sheetSyncedAt` precisely so the next run re-mirrors, and an unguarded
+    // stamp here would land afterwards and silently undo it, leaving the new
+    // spreadsheet empty. `updateMany` with the target in its `where` makes the
+    // stamp a no-op when the target changed under us.
+    prisma.user.updateMany({
+      where: { id: userId, sheetSpreadsheetId: spreadsheetId },
+      data: { sheetSyncedAt: flushStart },
+    }),
     prisma.invoice.updateMany({
       where: { id: { in: invoices.map((i) => i.id) }, userId },
       data: { sheetsSyncedAt: flushStart },

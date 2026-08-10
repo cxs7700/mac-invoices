@@ -13,7 +13,9 @@ vi.mock('../src/integrations/sheets', () => ({
   resolveSheetTab,
   applyColumnDropdowns,
   appendRows: vi.fn(),
-  checkAccess: vi.fn(),
+  // Resolves (not bare vi.fn()): getSheets — called at the end of saveSheet —
+  // awaits `checkAccess(...).then(...)`, which throws on a non-promise return.
+  checkAccess: vi.fn(async () => {}),
   serviceAccountEmail: vi.fn(() => 'svc@x.iam.gserviceaccount.com'),
 }))
 
@@ -21,6 +23,7 @@ import { buildApp } from '../src/app'
 import { hashPassword } from '../src/auth/password'
 import { runSheetsSyncFlush } from '../src/invoices/sheetSync'
 import * as writeService from '../src/invoices/writeService'
+import { createSecondUser } from './helpers/auth'
 
 const app = buildApp()
 const created: string[] = [] // landlord ids to clean up
@@ -291,6 +294,67 @@ describe('continuous Sheets sync flush', () => {
     await runSheetsSyncFlush(app.prisma) // retries → succeeds
     expect(callsFor(l.target).length).toBeGreaterThanOrEqual(1)
     expect(await hwOf(l.id)).not.toBeNull()
+  })
+
+  it('does not stamp sheetSyncedAt when the target changes mid-flush (guarded against a concurrent save/disconnect)', async () => {
+    const l = await makeLandlord()
+    await makeInvoice(l.id)
+    // Simulate the landlord saving a NEW target (or disconnecting) while this
+    // flush is mid-mirror: overwriteRows is the seam we can hook to land the
+    // change between the mirror's read and its stamp. Not `mockImplementationOnce`:
+    // a leftover dirty landlord from an earlier test (e.g. the isolation test's
+    // permanently-failed `bad` user) can consume the FIRST call before ours runs,
+    // so guard by target instead of call order — it only ever matches once since
+    // the update below moves `l` off `l.target`.
+    overwriteRows.mockImplementation(async (target: string) => {
+      if (target === l.target) {
+        await app.prisma.user.update({
+          where: { id: l.id },
+          data: { sheetSpreadsheetId: `SS-${uniq()}`, sheetSyncedAt: null },
+        })
+      }
+    })
+
+    await runSheetsSyncFlush(app.prisma)
+
+    // The stamp must be a no-op: the target under `l.id` is no longer
+    // `l.target`, so an unguarded update would still land and undo the reset
+    // the concurrent save/disconnect just made — leaving the new spreadsheet
+    // permanently unmirrored.
+    expect(await hwOf(l.id)).toBeNull()
+  })
+
+  it('a target saved through the API is mirrored in full by the next flush (R7)', async () => {
+    // AE5/AE6 (settings.sheets.test.ts) assert the column is nulled by a save;
+    // the sync tests above separately assert null-high-water ⇒ mirror. Nothing
+    // exercises save-then-flush end to end, which is the one seam where an
+    // implementation could regress with every existing test still green.
+    const other = await createSecondUser(app)
+    try {
+      const oldTarget = `SS-${uniq()}`
+      await app.prisma.user.update({
+        where: { id: other.user.id },
+        data: { sheetSpreadsheetId: oldTarget, sheetSyncedAt: new Date() },
+      })
+      await makeInvoice(other.user.id)
+
+      const newTarget = `SHEET-PATCH-${uniq()}-${uniq()}`
+      const res = await app.inject({
+        method: 'PATCH',
+        url: '/api/settings/sheets',
+        payload: { spreadsheetId: newTarget },
+        headers: { cookie: other.cookie },
+      })
+      expect(res.statusCode).toBe(200)
+
+      overwriteRows.mockClear()
+      await runSheetsSyncFlush(app.prisma)
+
+      expect(overwriteRows.mock.calls.filter((c) => c[0] === newTarget)).toHaveLength(1)
+      expect(overwriteRows.mock.calls.some((c) => c[0] === oldTarget)).toBe(false)
+    } finally {
+      await other.cleanup()
+    }
   })
 
   it('never mirrors a landlord with no connected sheet', async () => {
