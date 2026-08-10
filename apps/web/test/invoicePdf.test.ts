@@ -16,6 +16,7 @@ const textSpy = vi.hoisted(() => vi.fn())
 const autoTableSpy = vi.hoisted(() => vi.fn())
 const rectSpy = vi.hoisted(() => vi.fn())
 const roundedRectSpy = vi.hoisted(() => vi.fn())
+const fillColorSpy = vi.hoisted(() => vi.fn())
 
 vi.mock('jspdf', () => {
   jspdfImported.value = true
@@ -25,7 +26,7 @@ vi.mock('jspdf', () => {
     setFontSize = vi.fn()
     setFont = vi.fn()
     setTextColor = vi.fn()
-    setFillColor = vi.fn()
+    setFillColor = fillColorSpy
     setDrawColor = vi.fn()
     setLineWidth = vi.fn()
     setCharSpace = vi.fn()
@@ -252,6 +253,7 @@ describe('generateInvoicesPdf', () => {
     autoTableSpy.mockClear()
     rectSpy.mockClear()
     roundedRectSpy.mockClear()
+    fillColorSpy.mockClear()
   })
 
   it('does not load jspdf at module import time', () => {
@@ -299,10 +301,46 @@ describe('generateInvoicesPdf', () => {
     expect(valueCall[2]).toBeGreaterThan(labelCall[2]) // lower down the page
   })
 
-  it('draws the status as a chip', async () => {
+  it('draws the status as a chip, centred on both axes', async () => {
     await generateInvoicesPdf([inv({ status: 'PAID' })], addresses, landlord)
     expect(roundedRectSpy).toHaveBeenCalledTimes(1)
-    expect(textSpy.mock.calls.some((c) => c[0] === 'Paid')).toBe(true)
+
+    const [chipX, chipTop, chipW, chipH] = roundedRectSpy.mock.calls[0] as number[]
+    const statusCall = textSpy.mock.calls.find((c) => c[0] === 'Paid')!
+
+    // Horizontal: drawn centre-aligned about the pill's mid-x. The width must
+    // be measured at the text's own font size — measuring at the label's 7.5pt
+    // is what previously made the pill too narrow for its 9.5pt text.
+    expect(statusCall[3]).toMatchObject({ align: 'center' })
+    expect(statusCall[1]).toBe(chipX + chipW / 2)
+
+    // Vertical: the baseline sits half a cap-height below the pill's mid-y, so
+    // the glyphs straddle the centre rather than resting on it.
+    const capHeight = 9.5 * 0.72
+    expect(statusCall[2]).toBeCloseTo(chipTop + chipH / 2 + capHeight / 2, 5)
+  })
+
+  it('puts Date, Status and Location on their own lines, not side by side', async () => {
+    await generateInvoicesPdf([inv()], addresses, landlord)
+    const at = (text: string) => textSpy.mock.calls.find((c) => c[0] === text)!
+
+    const date = at('DATE')
+    const status = at('STATUS')
+    const location = at('LOCATION')
+
+    // Same left edge…
+    expect(status[1]).toBe(date[1])
+    expect(location[1]).toBe(date[1])
+    // …stacked strictly downward.
+    expect(status[2]).toBeGreaterThan(date[2])
+    expect(location[2]).toBeGreaterThan(status[2])
+  })
+
+  it('fills the balance panel in green, not the document accent', async () => {
+    await generateInvoicesPdf([inv()], addresses, landlord)
+    const fills = fillColorSpy.mock.calls.map((c) => c.join(','))
+    expect(fills).toContain('220,237,200') // panel
+    expect(fills).toContain('20,90,50') // spine + text
   })
 
   // The items table's startY is computed from the sender block's actual line
@@ -315,7 +353,7 @@ describe('generateInvoicesPdf', () => {
       landlord,
     )
     // Bill-To is one line, so a contact-less sender is level with it.
-    expect(autoTableSpy.mock.calls[0][1]).toMatchObject({ startY: 215 })
+    expect(autoTableSpy.mock.calls[0][1]).toMatchObject({ startY: 291 })
   })
 
   it('drops the table when the sender has one contact line', async () => {
@@ -324,7 +362,7 @@ describe('generateInvoicesPdf', () => {
       addresses,
       landlord,
     )
-    expect(autoTableSpy.mock.calls[0][1]).toMatchObject({ startY: 228 })
+    expect(autoTableSpy.mock.calls[0][1]).toMatchObject({ startY: 304 })
   })
 
   it('starts the table below a two-line sender (email + phone)', async () => {
@@ -333,6 +371,6 @@ describe('generateInvoicesPdf', () => {
       addresses,
       landlord,
     )
-    expect(autoTableSpy.mock.calls[0][1]).toMatchObject({ startY: 241 })
+    expect(autoTableSpy.mock.calls[0][1]).toMatchObject({ startY: 317 })
   })
 })

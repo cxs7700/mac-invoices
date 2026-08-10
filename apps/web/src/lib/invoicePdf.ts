@@ -184,10 +184,16 @@ type Rgb = [number, number, number]
  * third party must not change appearance with the landlord's dark-mode setting.
  */
 const ACCENT: Rgb = [37, 99, 175] // headings, rules, table header
-const ACCENT_TINT: Rgb = [237, 243, 252] // balance panel, zebra rows
+const ACCENT_TINT: Rgb = [237, 243, 252] // zebra rows
 const INK: Rgb = [17, 24, 33] // primary text
 const MUTED: Rgb = [110, 122, 138] // field labels, secondary lines
 const RULE: Rgb = [226, 232, 240] // hairlines
+
+// Balance due keeps the original green rather than the document accent: it is
+// the one figure a reader hunts for, and a colour of its own is what makes it
+// findable at a glance instead of blending into the blue.
+const BALANCE_FILL: Rgb = [220, 237, 200]
+const BALANCE_TEXT: Rgb = [20, 90, 50]
 
 /**
  * Status chips. Only the three states with real meaning to a reader of the
@@ -204,7 +210,18 @@ const STATUS_NEUTRAL = { fill: [237, 240, 244] as Rgb, text: [55, 65, 81] as Rgb
 // Vertical rhythm for a stacked label/value pair: the label sits above its
 // value rather than sharing a line, so each field reads as its own unit.
 const LABEL_TO_VALUE = 15
+// Each meta field (Date, Status, Location) gets its own full-width line rather
+// than sharing a row of columns — one fact per line, top to bottom.
+const META_ROW = 38
 const FIELD_BLOCK = 46
+
+// Status pill geometry. `STATUS_CAP_HEIGHT` is Helvetica's cap height at the
+// pill's font size (~0.72 em) — the distance from baseline to the visual top of
+// the glyphs, which is what centring the text vertically actually depends on.
+const STATUS_FONT_SIZE = 9.5
+const STATUS_CAP_HEIGHT = STATUS_FONT_SIZE * 0.72
+const STATUS_PAD_X = 10
+const CHIP_HEIGHT = 18
 
 /**
  * Render and download the PDF. jsPDF and the autotable plugin load here, at
@@ -261,27 +278,41 @@ export async function generateInvoicesPdf(
     doc.setFillColor(...ACCENT)
     doc.rect(MARGIN, 80, contentWidth, 2.5, 'F')
 
-    // ---- Meta fields, each label stacked above its value.
+    // ---- Meta fields: one per line, each label stacked above its value.
     const metaY = 112
-    const colWidth = contentWidth / 3
     drawLabel(PDF_LABELS.date, MARGIN, metaY)
     drawValue(page.date, MARGIN, metaY + LABEL_TO_VALUE)
 
-    drawLabel(PDF_LABELS.status, MARGIN + colWidth, metaY)
+    const statusY = metaY + META_ROW
+    drawLabel(PDF_LABELS.status, MARGIN, statusY)
     const chip = STATUS_COLORS[page.status] ?? STATUS_NEUTRAL
-    const chipWidth = doc.getTextWidth(page.status) + 18
-    doc.setFillColor(...chip.fill)
-    doc.roundedRect(MARGIN + colWidth, metaY + LABEL_TO_VALUE - 9, chipWidth, 16, 8, 8, 'F')
+    // Measure at the size the text is actually drawn at. Measuring before
+    // setFontSize used the 7.5pt label metrics, so the pill came out too narrow
+    // for its 9.5pt text and the label sat off-centre inside it.
     doc.setFont('helvetica', 'bold')
-    doc.setFontSize(9.5)
+    doc.setFontSize(STATUS_FONT_SIZE)
+    const chipWidth = doc.getTextWidth(page.status) + STATUS_PAD_X * 2
+    const chipTop = statusY + LABEL_TO_VALUE - CHIP_HEIGHT / 2 - STATUS_CAP_HEIGHT / 2
+    doc.setFillColor(...chip.fill)
+    doc.roundedRect(MARGIN, chipTop, chipWidth, CHIP_HEIGHT, CHIP_HEIGHT / 2, CHIP_HEIGHT / 2, 'F')
     doc.setTextColor(...chip.text)
-    doc.text(page.status, MARGIN + colWidth + 9, metaY + LABEL_TO_VALUE + 2)
+    // Centred on both axes: `align: 'center'` about the pill's mid-x, and a
+    // baseline set half a cap-height below the pill's mid-y.
+    doc.text(
+      page.status,
+      MARGIN + chipWidth / 2,
+      chipTop + CHIP_HEIGHT / 2 + STATUS_CAP_HEIGHT / 2,
+      {
+        align: 'center',
+      },
+    )
 
-    drawLabel(PDF_LABELS.location, MARGIN + colWidth * 2, metaY)
-    drawValue(page.location, MARGIN + colWidth * 2, metaY + LABEL_TO_VALUE)
+    const locationY = statusY + META_ROW
+    drawLabel(PDF_LABELS.location, MARGIN, locationY)
+    drawValue(page.location, MARGIN, locationY + LABEL_TO_VALUE)
 
     // ---- Parties, same stacked treatment, separated by a hairline.
-    const partiesY = metaY + FIELD_BLOCK
+    const partiesY = locationY + FIELD_BLOCK
     doc.setDrawColor(...RULE)
     doc.setLineWidth(0.75)
     doc.line(MARGIN, partiesY - 16, pageWidth - MARGIN, partiesY - 16)
@@ -343,15 +374,21 @@ export async function generateInvoicesPdf(
     const boxHeight = 40
     const boxX = pageWidth - MARGIN - boxWidth
     const boxY = finalY + 20
-    doc.setFillColor(...ACCENT_TINT)
+    doc.setFillColor(...BALANCE_FILL)
     doc.rect(boxX, boxY, boxWidth, boxHeight, 'F')
-    doc.setFillColor(...ACCENT)
-    doc.rect(boxX, boxY, 3, boxHeight, 'F') // accent spine
+    doc.setFillColor(...BALANCE_TEXT)
+    doc.rect(boxX, boxY, 3, boxHeight, 'F') // spine, in the same green family
 
-    drawLabel(PDF_LABELS.balanceDue, boxX + 14, boxY + 15)
+    // The label takes the green too, so the panel reads as one unit rather than
+    // a green box with a grey caption.
     doc.setFont('helvetica', 'bold')
+    doc.setFontSize(7.5)
+    doc.setTextColor(...BALANCE_TEXT)
+    doc.setCharSpace(1.1)
+    doc.text(PDF_LABELS.balanceDue.toUpperCase(), boxX + 14, boxY + 15)
+    doc.setCharSpace(0)
+
     doc.setFontSize(15)
-    doc.setTextColor(...ACCENT)
     doc.text(page.balanceDue, pageWidth - MARGIN - 14, boxY + 31, { align: 'right' })
 
     // Leave the graphics state neutral for the next page.
