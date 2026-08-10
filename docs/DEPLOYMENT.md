@@ -287,6 +287,11 @@ first, and using the link signs that account out everywhere.
 Against production this reads and writes the live database — the same care as
 any other script run with the production `DATABASE_URL`.
 
+`RESET_LINK_KEY` in your local `.env` must be the **same value** as the target
+environment's, or every link you issue is rejected as invalid with no
+distinguishing error. Rotating `RESET_LINK_KEY` invalidates every outstanding
+link.
+
 ## 4. Seed the landlord (one-off, strong password)
 
 The seed upserts the landlord login and **fails closed** if `LANDLORD_PASSWORD` is unset, and
@@ -324,7 +329,7 @@ previews hit a DB). Mark secrets **Sensitive**.
 | `LANDLORD_EMAIL` | the seeded email | |
 | `COOKIE_SECURE` | `true` | sends the session cookie only over HTTPS — **set for Preview too** |
 | `VENDOR_LINK_KEY` | a random string ≥32 chars | **REQUIRED** — every vendor submission link is derived from it (DEC-034). Sensitive: it is the only thing between a database dump and a working link. **Unset ⇒ the vendors page and every `/submit/:token` request throw.** Changing it invalidates every outstanding link. Generate with `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"` |
-| `RESET_LINK_KEY` | signing key for operator-issued password-reset links; ≥32 chars, generate with `openssl rand -base64 32`. Must NOT reuse `VENDOR_LINK_KEY` — separate purposes must not share a key. Unset ⇒ `POST /api/auth/reset-password` fails with `RESET_LINK_KEY_INVALID` (500) and no link can be issued. |
+| `RESET_LINK_KEY` | a random string ≥32 chars | Signing key for operator-issued password-reset links; generate with `openssl rand -base64 32`. Must NOT reuse `VENDOR_LINK_KEY` — separate purposes must not share a key. Unset ⇒ `POST /api/auth/reset-password` fails with `RESET_LINK_KEY_INVALID` (500) and no link can be issued. Must match the target environment's value — see "Issuing a password reset" above. |
 | `NODE_ENV` | *(do **not** set)* | Vercel sets `production` in the function runtime automatically; adding it as a project env var makes the build's `npm install` skip devDependencies → the web build fails with exit 2 |
 | `VITE_API_URL` | *(empty / unset)* | same-origin; baked into the SPA at build |
 
