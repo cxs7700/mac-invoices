@@ -257,7 +257,7 @@ export default function VendorSubmit() {
                         type="button"
                         aria-label={t('vendorSubmit.items.remove', { index: index + 1 })}
                         onClick={() => removeItem(row.id)}
-                        className="mb-1 rounded p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                        className="mb-1 rounded p-1.5 text-destructive hover:bg-destructive/10"
                       >
                         <X className="h-4 w-4" aria-hidden="true" />
                       </button>
