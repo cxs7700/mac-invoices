@@ -59,4 +59,21 @@ describe('normalizeSpreadsheetId', () => {
   it('rejects a spreadsheets URL whose id segment is too short', () => {
     expect(normalizeSpreadsheetId('https://docs.google.com/spreadsheets/d/abc/edit')).toBeNull()
   })
+
+  // The URL Google's address bar shows for anyone signed into more than one
+  // Google account — routine, not exotic.
+  it('extracts the id from a multi-account URL (/u/0/d/)', () => {
+    expect(normalizeSpreadsheetId(`https://docs.google.com/spreadsheets/u/0/d/${ID}/edit`)).toBe(ID)
+  })
+
+  it('extracts the id from a multi-account URL with a double-digit account index (/u/12/d/)', () => {
+    expect(normalizeSpreadsheetId(`https://docs.google.com/spreadsheets/u/12/d/${ID}/edit`)).toBe(ID)
+  })
+
+  // A mangled/percent-encoded id must be rejected, not silently truncated to
+  // a shorter prefix that happens to pass BARE_ID and gets stored as the
+  // wrong value.
+  it('rejects a mangled/percent-encoded id in a URL rather than truncating it', () => {
+    expect(normalizeSpreadsheetId(`https://docs.google.com/spreadsheets/d/${ID}%2Fextra/edit`)).toBeNull()
+  })
 })

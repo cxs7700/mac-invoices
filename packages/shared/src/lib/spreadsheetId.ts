@@ -19,9 +19,22 @@ const BARE_ID = /^[A-Za-z0-9_-]{20,200}$/
 
 /**
  * Every Sheets URL carries the id in a `/spreadsheets/d/<id>` path segment,
- * whatever follows it (`/edit`, `#gid=0`, `?usp=sharing`, nothing at all).
+ * optionally preceded by `/u/<n>/` (the account-index segment Google's
+ * address bar shows for anyone signed into more than one Google account —
+ * routine, not exotic), whatever follows the id (`/edit`, `#gid=0`,
+ * `?usp=sharing`, nothing at all). The trailing lookahead requires the id to
+ * end at a real delimiter (`/`, `?`, `#`, or end-of-string) rather than just
+ * stopping at the first non-id character — otherwise a mangled or
+ * percent-encoded id would yield a ≥20-char *prefix* that still passes
+ * `BARE_ID` and gets silently stored as the wrong value.
+ *
+ * This does not verify the host — any `…/spreadsheets/d/<id>` path matches,
+ * genuine Sheets URL or not. That is harmless: it only ever collapses toward
+ * the canonical bare id, which is exactly what the uniqueness constraint
+ * wants, and a non-Sheets host still has to produce a plausible-looking id to
+ * pass `BARE_ID` at all.
  */
-const URL_ID = /\/spreadsheets\/d\/([A-Za-z0-9_-]+)/
+const URL_ID = /\/spreadsheets\/(?:u\/\d+\/)?d\/([A-Za-z0-9_-]+)(?=[/?#]|$)/
 
 /**
  * The canonical bare id for `input`, or `null` if it is not a plausible
