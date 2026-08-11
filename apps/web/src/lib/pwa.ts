@@ -48,7 +48,9 @@ export function installManifest(name: string): Cleanup {
   if (typeof document === 'undefined') return () => {}
 
   const url = window.location.pathname
-  const blob = new Blob([JSON.stringify(manifestFor(url, name))], { type: 'application/manifest+json' })
+  const blob = new Blob([JSON.stringify(manifestFor(url, name))], {
+    type: 'application/manifest+json',
+  })
   const href = URL.createObjectURL(blob)
 
   const link = document.createElement('link')

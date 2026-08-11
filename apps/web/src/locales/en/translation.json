@@ -101,6 +101,7 @@
   },
   "sync": {
     "label": { "not-exported": "No", "exported": "Yes", "drifted": "No" },
+    "labelLong": { "not-exported": "Not exported", "exported": "Exported", "drifted": "Drifted" },
     "hint": {
       "not-exported": "Not yet exported to the Google Sheet",
       "exported": "Synced to the Google Sheet",

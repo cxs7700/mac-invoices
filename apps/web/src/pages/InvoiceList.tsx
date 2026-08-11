@@ -156,9 +156,11 @@ export default function InvoiceList() {
 
   return (
     <div>
-      <div className="mb-2 flex items-center justify-between">
+      {/* Wraps on a phone: the three actions total ~395px and ran off the right
+          edge of a 375px screen, putting "New invoice" out of reach. */}
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-2xl font-bold text-foreground">{t('invoiceList.heading')}</h1>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             variant="outline"
             disabled={exportM.isPending || selectionMode}

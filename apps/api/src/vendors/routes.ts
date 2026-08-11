@@ -22,11 +22,7 @@ async function vendorRoutes(fastify: FastifyInstance) {
     auth,
     handlers.listVendorProperties,
   )
-  fastify.put<{ Params: Params }>(
-    '/api/vendors/:id/properties',
-    auth,
-    handlers.setVendorProperties,
-  )
+  fastify.put<{ Params: Params }>('/api/vendors/:id/properties', auth, handlers.setVendorProperties)
   fastify.post<{ Params: Params }>('/api/vendors/:id/revoke', auth, handlers.revokeLink)
   fastify.post<{ Params: Params }>('/api/vendors/:id/regenerate', auth, handlers.regenerateLink)
 }

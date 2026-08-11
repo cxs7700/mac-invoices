@@ -90,14 +90,16 @@ export function AppShell({ children }: { children: ReactNode }) {
             </button>
             <span className="font-bold text-foreground">{t('app.name')}</span>
           </div>
-          <div className="flex items-center gap-3">
+          {/* The theme switcher lives in the drawer on mobile, not here: five
+              controls do not fit across 375px, and the squeeze clipped its own
+              last segment. `shrink-0` keeps the rest from being squeezed too. */}
+          <div className="flex shrink-0 items-center gap-3">
             <LanguageSwitcher persist />
-            <ThemeSwitcher />
             <NotificationsBell />
             <button
               type="button"
               onClick={doLogout}
-              className="text-xs text-muted-foreground hover:text-foreground"
+              className="shrink-0 text-xs text-muted-foreground hover:text-foreground"
             >
               {t('common.logOut')}
             </button>
@@ -129,6 +131,9 @@ export function AppShell({ children }: { children: ReactNode }) {
                 </button>
               </div>
               <NavLinks onNavigate={() => setDrawerOpen(false)} />
+              <div className="border-t border-sidebar-border p-3">
+                <ThemeSwitcher />
+              </div>
               <div className="border-t border-sidebar-border p-3">
                 <button
                   type="button"

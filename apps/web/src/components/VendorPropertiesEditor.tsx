@@ -89,7 +89,11 @@ export function VendorPropertiesEditor({ vendorId }: { vendorId: string }) {
       )}
 
       <div className="mt-3 flex items-center gap-2">
-        <Button size="sm" disabled={!dirty || save.isPending} onClick={() => save.mutate([...selected])}>
+        <Button
+          size="sm"
+          disabled={!dirty || save.isPending}
+          onClick={() => save.mutate([...selected])}
+        >
           {save.isPending ? t('common.saving') : t('common.save')}
         </Button>
         {!dirty && !save.isPending && (

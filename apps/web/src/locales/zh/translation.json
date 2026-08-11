@@ -118,6 +118,11 @@
       "exported": "是",
       "drifted": "否"
     },
+    "labelLong": {
+      "not-exported": "未匯出",
+      "exported": "已匯出",
+      "drifted": "有改動"
+    },
     "hint": {
       "not-exported": "仲未匯出去 Google 試算表",
       "exported": "已經同步咗去 Google 試算表",

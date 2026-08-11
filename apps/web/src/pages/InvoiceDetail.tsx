@@ -53,14 +53,20 @@ export default function InvoiceDetail() {
       <div className="mt-3 grid gap-6 md:grid-cols-[1.6fr_1fr]">
         {/* Record */}
         <div className="rounded-lg border border-border bg-card p-6">
-          <div className="mb-4 flex items-center justify-between">
-            <h1 className="text-xl font-bold text-foreground">
+          {/* Wraps on a phone rather than squeezing the badges: the number is
+              long, and the badges now carry spelled-out labels. */}
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+            <h1 className="min-w-0 break-words text-xl font-bold text-foreground">
               {invoice.invoiceNumber
                 ? `${t('invoiceDetail.invoice')} ${invoice.invoiceNumber}`
                 : t('invoiceDetail.submission')}
             </h1>
-            <div className="flex items-center gap-2">
-              <SyncBadge sheetsSyncedAt={invoice.sheetsSyncedAt} updatedAt={invoice.updatedAt} />
+            <div className="flex shrink-0 items-center gap-2">
+              <SyncBadge
+                sheetsSyncedAt={invoice.sheetsSyncedAt}
+                updatedAt={invoice.updatedAt}
+                long
+              />
               <StatusBadge status={invoice.status} />
             </div>
           </div>

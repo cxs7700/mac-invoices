@@ -4,6 +4,15 @@ import { syncState, type SyncState } from '@/lib/format'
 type Props = {
   sheetsSyncedAt: string | null | undefined
   updatedAt: string
+  /**
+   * Spell the state out ("Not exported") instead of the terse "No".
+   *
+   * The invoice table has a "Sheet" column header to give "No" its meaning, and
+   * a whole column of long labels would crowd it. A single invoice's header has
+   * no such column heading, so the bare "No" there reads as an answer to a
+   * question nobody asked.
+   */
+  long?: boolean
 }
 
 const tone: Record<SyncState, string> = {
@@ -13,23 +22,29 @@ const tone: Record<SyncState, string> = {
 }
 
 /**
- * Per-invoice Google Sheets sync state, shown as a plain Yes/No: is the sheet
- * currently accurate for this invoice? "Drifted" (edited after its last sync,
- * so the sheet row is momentarily stale) reads "No" alongside never-exported —
- * the two stay distinct states only for the hover hint. Continuous sync
- * re-mirrors a drifted invoice on the next cron pass (~15 min), or immediately
- * via "Sync now".
+ * Per-invoice Google Sheets sync state. By default a plain Yes/No answering "is
+ * the sheet currently accurate for this invoice?", which is what the table's
+ * "Sheet" column wants; `long` spells the state out for the single-invoice
+ * header, where there is no column heading to supply the question.
+ *
+ * "Drifted" (edited after its last sync, so the sheet row is momentarily stale)
+ * collapses into "No" alongside never-exported in the short form — there the
+ * two are distinguished only by the hover hint. The long form keeps them
+ * apart. Continuous sync re-mirrors a drifted invoice on the next cron pass
+ * (~15 min), or immediately via "Sync now".
  */
-export function SyncBadge({ sheetsSyncedAt, updatedAt }: Props) {
+export function SyncBadge({ sheetsSyncedAt, updatedAt, long }: Props) {
   const { t } = useTranslation()
   const state = syncState(sheetsSyncedAt, updatedAt)
-  const label = t(`sync.label.${state}`)
+  const label = t(`sync.${long ? 'labelLong' : 'label'}.${state}`)
   return (
     <span
       role="status"
-      aria-label={t('sync.aria', { label })}
+      // The aria label always spells the state out, so a screen reader never
+      // hears a bare "No" regardless of which visual form is rendered.
+      aria-label={t('sync.aria', { label: t(`sync.labelLong.${state}`) })}
       title={t(`sync.hint.${state}`)}
-      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${tone[state]}`}
+      className={`inline-flex items-center whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium ${tone[state]}`}
     >
       {label}
     </span>
