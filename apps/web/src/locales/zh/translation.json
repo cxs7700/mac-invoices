@@ -200,6 +200,7 @@
     "filterByVendor": "按供應商篩選",
     "searchVendorPlaceholder": "搜尋供應商…",
     "sortBy": "排序",
+    "sortNumber": "單號",
     "sortDate": "日期",
     "sortAmount": "金額",
     "sortStatus": "狀態",

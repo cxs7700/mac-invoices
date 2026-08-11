@@ -11,6 +11,7 @@ import {
   InvoiceStatus,
   InvoiceCategory,
   InvoiceSortField,
+  compareInvoiceOrder,
 } from '@mac-invoices/shared'
 import { AppError } from '../middleware/errorHandler'
 import { parseBody } from '../lib/validate'
@@ -54,6 +55,62 @@ export async function createInvoice(request: FastifyRequest, reply: FastifyReply
   }
 }
 
+const listInclude = {
+  user: userSelect,
+  items: { orderBy: { sortOrder: 'asc' } },
+  // Two distinct relations, deliberately both surfaced under their own
+  // keys (see writeService.resolveVendorId / createSubmission):
+  //  - `vendor` is ATTRIBUTION (Invoice.vendorId) — "who this invoice is
+  //    from". Set on every landlord-entered invoice with a resolved/
+  //    auto-created vendor, and on a self-submission too. This is what
+  //    the PDF "Sender" block (U8) consumes.
+  //  - `submittedByVendor` is PROVENANCE — who submitted it via their
+  //    no-login link, if anyone. Null for a landlord-entered invoice.
+  // Do not flatten one into the other: a landlord-entered invoice has
+  // vendor set and submittedByVendor null, while a self-submission has
+  // both set to the same vendor.
+  vendor: { select: { name: true, phone: true, email: true } },
+  submittedByVendor: { select: { name: true, phone: true, email: true } },
+  _count: { select: { images: true } },
+} satisfies Prisma.InvoiceInclude
+
+/**
+ * One page of invoices ordered by invoice number, natural (numeric-aware) —
+ * DEC-023 keeps the column a nullable string, so a SQL `ORDER BY` would put
+ * "10" before "9" and scatter the un-numbered submissions. Ordering therefore
+ * runs in memory over an id/number/date projection of the filtered set, using
+ * the same `compareInvoiceOrder` the Sheets mirror and the PDF export use, so
+ * the three surfaces can never disagree; only the page's rows are then fetched
+ * with the full include. The projection is bounded by the tenant's own invoice
+ * count (the same bound `nextInvoiceNumber` already scans).
+ *
+ * `desc` is the exact reverse of `asc`, which puts the un-numbered submissions
+ * (numbered on first APPROVED, KTD-11) first rather than last.
+ */
+async function listPageByInvoiceNumber(
+  prisma: FastifyRequest['server']['prisma'],
+  where: Prisma.InvoiceWhereInput,
+  q: { order: 'asc' | 'desc'; limit: number; offset: number },
+) {
+  const keys = await prisma.invoice.findMany({
+    where,
+    select: { id: true, invoiceNumber: true, invoiceDate: true },
+  })
+  keys.sort(compareInvoiceOrder)
+  if (q.order === 'desc') keys.reverse()
+
+  const pageIds = keys.slice(q.offset, q.offset + q.limit).map((k) => k.id)
+  // Scope is already enforced: these ids come out of the caller's own `where`.
+  const rows = await prisma.invoice.findMany({
+    where: { id: { in: pageIds } },
+    include: listInclude,
+  })
+  // `IN` returns rows in no particular order — restore the sorted order.
+  const byId = new Map(rows.map((r) => [r.id, r]))
+  const page = pageIds.flatMap((id) => byId.get(id) ?? [])
+  return [page, keys.length] as const
+}
+
 /**
  * GET /api/invoices — list the session user's invoices: status / date-range
  * (invoiceDate) / vendor (contains) filtering, whitelisted sort, and strict
@@ -87,44 +144,30 @@ export async function listInvoices(
   if (q.propertyId) where.propertyId = q.propertyId === 'none' ? null : q.propertyId
 
   // Exhaustive map (not a computed-key cast) so a new sort field is a compile
-  // error here. invoiceDate desc is the secondary tiebreaker.
-  const sortClause: Record<InvoiceSortField, Prisma.InvoiceOrderByWithRelationInput> = {
+  // error here. invoiceDate desc is the secondary tiebreaker. `invoiceNumber`
+  // has no SQL clause on purpose — it is ordered in memory below.
+  const sortClause: Record<
+    Exclude<InvoiceSortField, 'invoiceNumber'>,
+    Prisma.InvoiceOrderByWithRelationInput
+  > = {
     invoiceDate: { invoiceDate: q.order },
     amount: { amount: q.order },
     status: { status: q.order },
   }
-  const orderBy: Prisma.InvoiceOrderByWithRelationInput[] = [
-    sortClause[q.sort],
-    { invoiceDate: 'desc' },
-  ]
 
-  const [invoices, total] = await Promise.all([
-    request.server.prisma.invoice.findMany({
-      where,
-      include: {
-        user: userSelect,
-        items: { orderBy: { sortOrder: 'asc' } },
-        // Two distinct relations, deliberately both surfaced under their own
-        // keys (see writeService.resolveVendorId / createSubmission):
-        //  - `vendor` is ATTRIBUTION (Invoice.vendorId) — "who this invoice is
-        //    from". Set on every landlord-entered invoice with a resolved/
-        //    auto-created vendor, and on a self-submission too. This is what
-        //    the PDF "Sender" block (U8) consumes.
-        //  - `submittedByVendor` is PROVENANCE — who submitted it via their
-        //    no-login link, if anyone. Null for a landlord-entered invoice.
-        // Do not flatten one into the other: a landlord-entered invoice has
-        // vendor set and submittedByVendor null, while a self-submission has
-        // both set to the same vendor.
-        vendor: { select: { name: true, phone: true, email: true } },
-        submittedByVendor: { select: { name: true, phone: true, email: true } },
-        _count: { select: { images: true } },
-      },
-      take: q.limit,
-      skip: q.offset,
-      orderBy,
-    }),
-    request.server.prisma.invoice.count({ where }),
-  ])
+  const [invoices, total] =
+    q.sort === 'invoiceNumber'
+      ? await listPageByInvoiceNumber(request.server.prisma, where, q)
+      : await Promise.all([
+          request.server.prisma.invoice.findMany({
+            where,
+            include: listInclude,
+            take: q.limit,
+            skip: q.offset,
+            orderBy: [sortClause[q.sort], { invoiceDate: 'desc' }],
+          }),
+          request.server.prisma.invoice.count({ where }),
+        ])
 
   // Expose imageCount (cheap _count, no N+1) so the list can render the add-photo
   // indicator without fetching each invoice's image rows. Drop the raw _count.

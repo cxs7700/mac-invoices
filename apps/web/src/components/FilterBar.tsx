@@ -8,6 +8,7 @@ const field =
   'rounded-md border border-input bg-card px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring'
 
 const SORT_LABEL_KEYS: Record<InvoiceSortField, string> = {
+  invoiceNumber: 'filterBar.sortNumber',
   invoiceDate: 'filterBar.sortDate',
   amount: 'filterBar.sortAmount',
   status: 'filterBar.sortStatus',
@@ -178,7 +179,7 @@ export function FilterBar({ filters, onChange, onClear }: Props) {
           filters.order === 'asc' ? t('filterBar.sortAscending') : t('filterBar.sortDescending')
         }
         title={filters.order === 'asc' ? t('filterBar.ascending') : t('filterBar.descending')}
-        className={`${field} md:self-stretch`}
+        className={`${field} md:self-end`}
         onClick={() => onChange({ order: filters.order === 'asc' ? 'desc' : 'asc' })}
       >
         {filters.order === 'asc' ? t('filterBar.ascShort') : t('filterBar.descShort')}

@@ -181,6 +181,7 @@
     "filterByVendor": "Filter by vendor",
     "searchVendorPlaceholder": "Search vendor…",
     "sortBy": "Sort by",
+    "sortNumber": "Invoice #",
     "sortDate": "Date",
     "sortAmount": "Amount",
     "sortStatus": "Status",

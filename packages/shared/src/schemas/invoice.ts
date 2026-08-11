@@ -132,7 +132,10 @@ export const UpdateInvoiceSchema = CreateInvoiceSchema.partial().extend({
 })
 
 // Sort is a whitelist so the API never builds an `orderBy` from a raw string.
-export const InvoiceSortField = z.enum(['invoiceDate', 'amount', 'status'])
+// `invoiceNumber` is sorted in natural (numeric-aware) order by the list
+// handler, not by SQL — DEC-023 keeps the column a string, so "10" would sort
+// before "9". See `compareInvoiceOrder`.
+export const InvoiceSortField = z.enum(['invoiceNumber', 'invoiceDate', 'amount', 'status'])
 export const SortOrder = z.enum(['asc', 'desc'])
 
 /**

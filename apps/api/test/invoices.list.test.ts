@@ -187,6 +187,91 @@ describe('GET /api/invoices — filter + sort', () => {
     }
   })
 
+  it('sort=invoiceNumber orders numerically ("9" before "10"), and desc reverses', async () => {
+    const SUB = `${NONCE}NUM-`
+    const mk = (n: string) =>
+      app.inject({
+        method: 'POST',
+        url: '/api/invoices',
+        headers: { cookie },
+        payload: {
+          invoiceNumber: `${SUB}${n}`,
+          vendorName: `${SUB}v`,
+          items: [{ description: 'Work', quantity: 1, total: 10 }],
+          category: 'OTHER',
+          invoiceDate: '2026-01-01',
+        },
+      })
+    const list = (query: string) =>
+      app.inject({
+        method: 'GET',
+        url: `/api/invoices?vendor=${encodeURIComponent(SUB)}&${query}`,
+        headers: { cookie },
+      })
+    try {
+      // Created out of order, so passing can't come from insertion order.
+      for (const n of ['10', '9', '100']) await mk(n)
+
+      const asc = await list('sort=invoiceNumber&order=asc')
+      const ascNums = asc.json().data.map((i: { invoiceNumber: string }) => i.invoiceNumber)
+      // A lexicographic sort would give 10, 100, 9.
+      expect(ascNums).toEqual([`${SUB}9`, `${SUB}10`, `${SUB}100`])
+
+      const desc = await list('sort=invoiceNumber&order=desc')
+      const descNums = desc.json().data.map((i: { invoiceNumber: string }) => i.invoiceNumber)
+      expect(descNums).toEqual([`${SUB}100`, `${SUB}10`, `${SUB}9`])
+
+      // The in-memory ordering still pages and still reports the full total.
+      const page2 = await list('sort=invoiceNumber&order=asc&limit=1&offset=1')
+      const pageNums = page2.json().data.map((i: { invoiceNumber: string }) => i.invoiceNumber)
+      expect(pageNums).toEqual([`${SUB}10`])
+      expect(page2.json().pagination.total).toBe(3)
+    } finally {
+      await app.prisma.invoice.deleteMany({ where: { invoiceNumber: { startsWith: SUB } } })
+    }
+  })
+
+  it('sort=invoiceNumber puts un-numbered submissions last ascending', async () => {
+    const SUB = `${NONCE}UNNUM-`
+    const numbered = await app.inject({
+      method: 'POST',
+      url: '/api/invoices',
+      headers: { cookie },
+      payload: {
+        invoiceNumber: `${SUB}1`,
+        vendorName: `${SUB}v`,
+        items: [{ description: 'Work', quantity: 1, total: 10 }],
+        category: 'OTHER',
+        invoiceDate: '2026-01-01',
+      },
+    })
+    expect(numbered.statusCode).toBe(201)
+    const { id, userId } = numbered.json() as { id: string; userId: string }
+    // A submission carries no number until it is approved (KTD-11); written
+    // directly because the vendor-link flow is out of scope for this suite.
+    const unnumbered = await app.prisma.invoice.create({
+      data: {
+        invoiceNumber: null,
+        vendorName: `${SUB}v`,
+        amount: '10',
+        invoiceDate: new Date('2026-01-01'),
+        status: 'SUBMITTED',
+        userId,
+      },
+    })
+    try {
+      const res = await app.inject({
+        method: 'GET',
+        url: `/api/invoices?vendor=${encodeURIComponent(SUB)}&sort=invoiceNumber&order=asc`,
+        headers: { cookie },
+      })
+      const ids = res.json().data.map((i: { id: string }) => i.id)
+      expect(ids).toEqual([id, unnumbered.id])
+    } finally {
+      await app.prisma.invoice.deleteMany({ where: { vendorName: `${SUB}v` } })
+    }
+  })
+
   it('sort=amount&order=asc orders ascending by amount', async () => {
     const res = await listMine('sort=amount&order=asc')
     const amounts = res.json().data.map((i: { amount: string }) => Number(i.amount))
