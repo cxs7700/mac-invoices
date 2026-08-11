@@ -5,7 +5,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vites
 // applyColumnDropdowns cover the dropdown-validation step of every mirror.
 const { overwriteRows, resolveSheetTab, applyColumnDropdowns } = vi.hoisted(() => ({
   overwriteRows: vi.fn(async () => {}),
-  resolveSheetTab: vi.fn(async () => ({ sheetId: 123, typedColumnIndexes: [] })),
+  resolveSheetTab: vi.fn(async () => ({ sheetId: 123, typedColumnIndexes: [], table: null })),
   applyColumnDropdowns: vi.fn(async () => {}),
 }))
 vi.mock('../src/integrations/sheets', () => ({
@@ -69,7 +69,7 @@ beforeAll(async () => {
 })
 beforeEach(() => {
   overwriteRows.mockReset().mockResolvedValue(undefined)
-  resolveSheetTab.mockReset().mockResolvedValue({ sheetId: 123, typedColumnIndexes: [] })
+  resolveSheetTab.mockReset().mockResolvedValue({ sheetId: 123, typedColumnIndexes: [], table: null })
   applyColumnDropdowns.mockReset().mockResolvedValue(undefined)
 })
 afterAll(async () => {
@@ -191,7 +191,7 @@ describe('continuous Sheets sync flush', () => {
       await runSheetsSyncFlush(app.prisma)
 
       const call = applyColumnDropdowns.mock.calls.find((c) => c[0] === l.target)!
-      expect(call[1]).toEqual({ sheetId: 123, typedColumnIndexes: [] }) // the resolved tab
+      expect(call[1]).toEqual({ sheetId: 123, typedColumnIndexes: [], table: null }) // the resolved tab
       const specs = call[2] as Array<{ columnIndex: number; values: string[] }>
       expect(specs.find((s) => s.values.includes('PENDING'))?.values).toEqual([
         'PENDING',

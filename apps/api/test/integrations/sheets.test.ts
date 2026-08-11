@@ -215,17 +215,23 @@ describe('sheets.resolveSheetTab', () => {
     await expect(resolveSheetTab('SHEET-1')).resolves.toEqual({
       sheetId: 123,
       typedColumnIndexes: [],
+      table: null,
     })
     expect(getMock.mock.calls[0][0]).toEqual({
       spreadsheetId: 'SHEET-1',
-      fields: 'sheets(properties(sheetId,title),tables.columnProperties(columnIndex,columnType))',
+      fields:
+        'sheets(properties(sheetId,title),tables(tableId,range,columnProperties(columnIndex,columnType)))',
     })
     expect(getMock.mock.calls[0][1]).toMatchObject({ timeout: 30000 })
   })
 
   it('resolves a first-tab match whose sheetId is 0 (falsy) without throwing', async () => {
     getMock.mockResolvedValue(tabs([{ sheetId: 0, title: 'Invoices' }]))
-    await expect(resolveSheetTab('S')).resolves.toEqual({ sheetId: 0, typedColumnIndexes: [] })
+    await expect(resolveSheetTab('S')).resolves.toEqual({
+      sheetId: 0,
+      typedColumnIndexes: [],
+      table: null,
+    })
   })
 
   it('title match is exact and case-sensitive', async () => {
@@ -271,6 +277,7 @@ describe('sheets.resolveSheetTab', () => {
     await expect(resolveSheetTab('S')).resolves.toEqual({
       sheetId: 0,
       typedColumnIndexes: [0, 1, 5, 6],
+      table: null,
     })
   })
 
@@ -285,11 +292,126 @@ describe('sheets.resolveSheetTab', () => {
     await expect(resolveSheetTab('S')).rejects.toMatchObject({ code: 'SHEET_ERROR' })
     expect(getMock).toHaveBeenCalledTimes(1)
   })
+
+  it('returns the A1-anchored table — start indexes OMITTED is the anchored case', async () => {
+    // The API omits startRowIndex/startColumnIndex when they are 0 (proto3
+    // default), so an absent anchor is the table we manage, not a miss.
+    getMock.mockResolvedValue({
+      data: {
+        sheets: [
+          {
+            properties: { sheetId: 4, title: 'Invoices' },
+            tables: [{ tableId: 'tbl-1', range: { sheetId: 4, endRowIndex: 41, endColumnIndex: 10 } }],
+          },
+        ],
+      },
+    })
+    await expect(resolveSheetTab('S')).resolves.toEqual({
+      sheetId: 4,
+      typedColumnIndexes: [],
+      table: { tableId: 'tbl-1', endColumnIndex: 10 },
+    })
+  })
+
+  it('requests the table range in the fields mask', async () => {
+    getMock.mockResolvedValue(tabs([{ sheetId: 1, title: 'Invoices' }]))
+    await resolveSheetTab('SHEET-1')
+    expect(getMock.mock.calls[0][0]).toEqual({
+      spreadsheetId: 'SHEET-1',
+      fields:
+        'sheets(properties(sheetId,title),tables(tableId,range,columnProperties(columnIndex,columnType)))',
+    })
+  })
+
+  it('accepts an anchor written out explicitly as 0', async () => {
+    getMock.mockResolvedValue({
+      data: {
+        sheets: [
+          {
+            properties: { sheetId: 0, title: 'Invoices' },
+            tables: [
+              {
+                tableId: 'tbl-2',
+                range: { startRowIndex: 0, startColumnIndex: 0, endRowIndex: 9, endColumnIndex: 10 },
+              },
+            ],
+          },
+        ],
+      },
+    })
+    await expect(resolveSheetTab('S')).resolves.toMatchObject({
+      table: { tableId: 'tbl-2', endColumnIndex: 10 },
+    })
+  })
+
+  it('ignores a table that is not anchored at A1', async () => {
+    getMock.mockResolvedValue({
+      data: {
+        sheets: [
+          {
+            properties: { sheetId: 0, title: 'Invoices' },
+            tables: [
+              {
+                tableId: 'tbl-3',
+                range: { startRowIndex: 4, startColumnIndex: 2, endRowIndex: 40, endColumnIndex: 12 },
+              },
+            ],
+          },
+        ],
+      },
+    })
+    await expect(resolveSheetTab('S')).resolves.toMatchObject({ table: null })
+  })
+
+  it('picks the anchored table when the tab holds more than one', async () => {
+    getMock.mockResolvedValue({
+      data: {
+        sheets: [
+          {
+            properties: { sheetId: 0, title: 'Invoices' },
+            tables: [
+              { tableId: 'lower', range: { startRowIndex: 50, endRowIndex: 60, endColumnIndex: 4 } },
+              { tableId: 'anchored', range: { endRowIndex: 20, endColumnIndex: 10 } },
+            ],
+          },
+        ],
+      },
+    })
+    await expect(resolveSheetTab('S')).resolves.toMatchObject({
+      table: { tableId: 'anchored', endColumnIndex: 10 },
+    })
+  })
+
+  it('ignores an anchored table with no id or no column extent — it cannot be resized', async () => {
+    getMock.mockResolvedValue({
+      data: {
+        sheets: [
+          {
+            properties: { sheetId: 0, title: 'Invoices' },
+            tables: [
+              { range: { endRowIndex: 20, endColumnIndex: 10 } }, // no tableId
+              { tableId: 'no-width', range: { endRowIndex: 20 } }, // no endColumnIndex
+            ],
+          },
+        ],
+      },
+    })
+    await expect(resolveSheetTab('S')).resolves.toMatchObject({ table: null })
+  })
+
+  it('a tab with no tables at all resolves table: null', async () => {
+    getMock.mockResolvedValue(tabs([{ sheetId: 3, title: 'Invoices' }]))
+    await expect(resolveSheetTab('S')).resolves.toEqual({
+      sheetId: 3,
+      typedColumnIndexes: [],
+      table: null,
+    })
+  })
 })
 
 describe('sheets.applyColumnDropdowns', () => {
   it('sends one batchUpdate: a leading rows-2+ validation clear, then a ONE_OF_LIST rule per spec', async () => {
-    await applyColumnDropdowns('SHEET-1', { sheetId: 123, typedColumnIndexes: [] }, [
+    await applyColumnDropdowns('SHEET-1', { sheetId: 123, typedColumnIndexes: [], table: null }, [
       { columnIndex: 6, values: ['PENDING', 'APPROVED', 'PAID'] },
       { columnIndex: 3, values: ['12 Main St'] },
     ])
@@ -333,7 +455,7 @@ describe('sheets.applyColumnDropdowns', () => {
   })
 
   it('a spec with an empty values list sets no rule — the leading clear still fires', async () => {
-    await applyColumnDropdowns('S', { sheetId: 0, typedColumnIndexes: [] }, [
+    await applyColumnDropdowns('S', { sheetId: 0, typedColumnIndexes: [], table: null }, [
       { columnIndex: 3, values: [] },
     ])
     const requests = batchUpdateMock.mock.calls[0][0].requestBody.requests
@@ -345,7 +467,7 @@ describe('sheets.applyColumnDropdowns', () => {
       code: 403,
       message: 'denied for PRIVATE-SECRET-123',
     })
-    const err = await applyColumnDropdowns('S', { sheetId: 1, typedColumnIndexes: [] }, []).catch(
+    const err = await applyColumnDropdowns('S', { sheetId: 1, typedColumnIndexes: [], table: null }, []).catch(
       (e) => e,
     )
     expect(err).toMatchObject({ code: 'SHEET_PERMISSION_DENIED', statusCode: 502 })
@@ -354,14 +476,14 @@ describe('sheets.applyColumnDropdowns', () => {
 
   it('retries a transient 503 on batchUpdate then resolves', async () => {
     batchUpdateMock.mockReset().mockRejectedValueOnce({ code: 503 }).mockResolvedValueOnce({})
-    await applyColumnDropdowns('S', { sheetId: 1, typedColumnIndexes: [] }, [
+    await applyColumnDropdowns('S', { sheetId: 1, typedColumnIndexes: [], table: null }, [
       { columnIndex: 0, values: ['A'] },
     ])
     expect(batchUpdateMock).toHaveBeenCalledTimes(2)
   })
 
   it('skips specs on Table-typed columns — Google rejects classic validation there', async () => {
-    await applyColumnDropdowns('S', { sheetId: 0, typedColumnIndexes: [5, 6] }, [
+    await applyColumnDropdowns('S', { sheetId: 0, typedColumnIndexes: [5, 6], table: null }, [
       { columnIndex: 6, values: ['PENDING', 'APPROVED', 'PAID'] }, // typed → skipped
       { columnIndex: 3, values: ['12 Main St'] }, // untyped → set
     ])

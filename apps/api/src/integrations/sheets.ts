@@ -154,11 +154,43 @@ async function withRetry<T>(call: () => Promise<T>): Promise<T> {
   throw sanitize(undefined)
 }
 
-/** The pinned tab's grid id plus the column indexes a Sheets "Table" has given
- * a type (DOUBLE, DATE, DROPDOWN, …). Typed columns reject classic data
- * validation ("not allowed on cells in typed columns"), so rule specs for them
- * are skipped — their dropdowns come from the table's own column type. */
-export type SheetTab = { sheetId: number; typedColumnIndexes: number[] }
+/** The pinned tab's grid id, the column indexes a Sheets "Table" has given a
+ * type (DOUBLE, DATE, DROPDOWN, …), and the table itself when one is anchored
+ * at A1. Typed columns reject classic data validation ("not allowed on cells in
+ * typed columns"), so rule specs for them are skipped — their dropdowns come
+ * from the table's own column type. */
+export type SheetTable = { tableId: string; endColumnIndex: number }
+export type SheetTab = {
+  sheetId: number
+  typedColumnIndexes: number[]
+  table: SheetTable | null
+}
+
+/**
+ * The one table this mirror manages: the table anchored at A1, which is the
+ * only geometry the mirror's `A1` values write aligns with. A table elsewhere
+ * on the tab (or a second table below the data) is left entirely alone.
+ *
+ * A GridRange OMITS startRowIndex/startColumnIndex when they are 0 (proto3
+ * default) — so an absent anchor IS the anchored case, not a miss. Reading
+ * absence as "not anchored" would silently disable the resize for precisely
+ * the tables it exists to serve. Same trap as `columnIndex ?? 0` below.
+ *
+ * A table with no id, or no column extent, cannot be addressed or resized, so
+ * it is treated as absent.
+ */
+function anchoredTable(
+  tables: NonNullable<sheets_v4.Schema$Sheet['tables']>,
+): SheetTable | null {
+  for (const t of tables) {
+    const range = t.range
+    if (!range) continue
+    if ((range.startRowIndex ?? 0) !== 0 || (range.startColumnIndex ?? 0) !== 0) continue
+    if (typeof t.tableId !== 'string' || typeof range.endColumnIndex !== 'number') continue
+    return { tableId: t.tableId, endColumnIndex: range.endColumnIndex }
+  }
+  return null
+}
 
 /**
  * Resolve the pinned tab — its numeric grid sheetId (gid, required by
@@ -177,7 +209,8 @@ export async function resolveSheetTab(spreadsheetId: string): Promise<SheetTab> 
     sheets.spreadsheets.get(
       {
         spreadsheetId,
-        fields: 'sheets(properties(sheetId,title),tables.columnProperties(columnIndex,columnType))',
+        fields:
+          'sheets(properties(sheetId,title),tables(tableId,range,columnProperties(columnIndex,columnType)))',
       },
       { timeout: 30_000 },
     ),
@@ -195,7 +228,7 @@ export async function resolveSheetTab(spreadsheetId: string): Promise<SheetTab> 
   const typedColumnIndexes = (match?.tables ?? []).flatMap((t) =>
     (t.columnProperties ?? []).filter((c) => c.columnType != null).map((c) => c.columnIndex ?? 0),
   )
-  return { sheetId, typedColumnIndexes }
+  return { sheetId, typedColumnIndexes, table: anchoredTable(match?.tables ?? []) }
 }
 
 /**

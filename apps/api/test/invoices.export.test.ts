@@ -15,7 +15,7 @@ const {
   appendRows: vi.fn(async () => {}),
   checkAccess: vi.fn(async () => {}),
   serviceAccountEmail: vi.fn(() => 'svc@x.iam.gserviceaccount.com'),
-  resolveSheetTab: vi.fn(async () => ({ sheetId: 123, typedColumnIndexes: [] })),
+  resolveSheetTab: vi.fn(async () => ({ sheetId: 123, typedColumnIndexes: [], table: null })),
   applyColumnDropdowns: vi.fn(async () => {}),
 }))
 vi.mock('../src/integrations/sheets', () => ({
