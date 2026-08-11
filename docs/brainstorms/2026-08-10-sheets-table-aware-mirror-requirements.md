@@ -115,7 +115,7 @@ default), so **absent is the anchored case**. This is the same trap the existing
 New export in `integrations/sheets.ts`:
 
 ```ts
-resizeTableRows(spreadsheetId, table, dataRowCount): Promise<void>
+resizeTableRows(spreadsheetId: string, tab: SheetTab, dataRowCount: number): Promise<void>
 ```
 
 One `batchUpdate` carrying a single `updateTable` request with `fields: 'range'`,
