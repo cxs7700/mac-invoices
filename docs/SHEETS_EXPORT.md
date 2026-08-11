@@ -51,6 +51,10 @@ env matrix in `docs/DEPLOYMENT.md`. The cron schedule lives in `.github/workflow
   not allowed on typed columns) and only applies rules to untyped columns. Picking a value in the sheet does NOT update the app —
   the next mirror overwrites manual edits; the dropdowns are a filtering/consistency aid. Empty rows
   below the data show dropdown chevrons; that's expected (the rules cover future rows).
+- **Tables resize with the mirror.** If the Invoices tab holds a Sheets *Table* starting at cell **A1**,
+  every sync resizes it to fit the exported invoices — new rows arrive already banded and typed, and the
+  table shrinks when invoices are removed. A table that starts anywhere other than A1 is left untouched,
+  and mirrored rows are written outside it; if a table's formatting isn't applying, move the table to A1.
 - **Tab name matters.** The mirror pins the tab named by `GOOGLE_SHEET_TAB` (default `Invoices`),
   matched exactly (case-sensitive). If the tab is renamed or missing, syncs fail with
   `SHEET_TAB_NOT_FOUND` naming the expected tab — recreate/rename the tab and sync again.

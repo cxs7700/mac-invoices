@@ -134,10 +134,14 @@ Shrinking needs no branch — it is the same request with a smaller row count.
 
 1. `resolveSheetTab` — gid, typed columns, table (unchanged position: still
    before anything destructive, so a missing tab fails before the clear)
-2. `values.clear`
-3. **`resizeTableRows`** — skipped entirely when `table` is `null`
-4. `values.update` at `A1`
-5. `applyColumnDropdowns`
+2. `overwriteRows(…, tab)` — internally: `values.clear`, then
+   `resizeTableRows` (skipped entirely when `table` is `null`), then
+   `values.update` at `A1`
+3. `applyColumnDropdowns`
+
+The resize lives *inside* `overwriteRows` rather than as a separate step in
+`mirrorUserSheet`, so the clear/resize/write sequence stays owned by one
+function.
 
 **The resize precedes the write.** It mirrors what a person does in the UI —
 extend the table, then type into rows that are born formatted. More concretely,
