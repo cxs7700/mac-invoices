@@ -493,7 +493,12 @@ export async function exportInvoices(request: FastifyRequest, reply: FastifyRepl
     )
   }
 
-  const exported = await mirrorUserSheet(request.server.prisma, request.user.id, spreadsheetId)
+  const exported = await mirrorUserSheet(
+    request.server.prisma,
+    request.user.id,
+    spreadsheetId,
+    request.log,
+  )
   return reply.send({ exported })
 }
 

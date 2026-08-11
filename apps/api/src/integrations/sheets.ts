@@ -349,6 +349,16 @@ export async function appendRows(spreadsheetId: string, rows: SheetCell[][]): Pr
 }
 
 /**
+ * The outcome of a full-mirror write. `resizeError` is the sanitized failure of
+ * the best-effort Sheets Table resize, or null when it succeeded (or there was
+ * no table to resize). It is a RETURN value, not a throw, precisely because the
+ * values write must still happen — see `overwriteRows`. Callers should surface
+ * it: a persistent non-null value means the landlord's rows are landing outside
+ * their table and a human needs to grow the tab's grid.
+ */
+export type OverwriteResult = { resizeError: AppError | null }
+
+/**
  * Replace the pinned tab's entire contents with `rows` — the continuous-sync
  * full mirror. Clears the tab, sizes the tab's Sheets Table to fit (a no-op when
  * there is no anchored table), THEN writes (`values.update` at A1), so deleted
@@ -360,29 +370,41 @@ export async function appendRows(spreadsheetId: string, rows: SheetCell[][]): Pr
  * than asking Google to retro-fit a type onto text it never validated.
  *
  * Each Google call carries the shared retry/backoff + sanitize policy. NOT
- * atomic across the calls: a failure after the clear leaves the tab empty, but
- * the caller is the cron mirror which re-runs idempotently (the user stays
- * "dirty" until a full pass succeeds) — for a transient failure (429/5xx/
- * transport) on any call, including the resize. But `updateTable`, unlike
- * `values.update`, does NOT auto-expand the sheet's grid: if the requested
- * `endRowIndex` exceeds the tab's actual grid row count (e.g. a landlord who
- * trimmed the tab down to the table's height and then crossed that invoice
- * count), Google rejects it with a non-retryable 400. That aborts the pass
- * right after the clear, leaving the tab empty; every later pass repeats the
- * same clear-then-400 until a human grows the tab's grid or shrinks the table.
+ * atomic across the calls: a clear or write failure after the clear leaves the
+ * tab empty, but the caller is the cron mirror which re-runs idempotently (the
+ * user stays "dirty" until a full pass succeeds).
+ *
+ * The RESIZE is the one exception — it is best-effort and never aborts the
+ * pass, because it is an enhancement to rows that must land either way.
+ * `updateTable`, unlike `values.update`, does NOT auto-expand the sheet's grid:
+ * if the requested `endRowIndex` exceeds the tab's actual grid row count (a
+ * landlord who trimmed the tab down to the table's height, then crossed that
+ * invoice count), Google rejects it with a NON-retryable 400. Aborting there
+ * would leave the tab empty and repeat identically on every later pass — a
+ * permanently broken sheet, strictly worse than the pre-resize behavior. So a
+ * failed resize degrades to exactly that behavior: the rows land, outside the
+ * table, and the error is RETURNED for the caller to log rather than thrown.
  */
 export async function overwriteRows(
   spreadsheetId: string,
   rows: SheetCell[][],
   tab: SheetTab,
-): Promise<void> {
+): Promise<OverwriteResult> {
   const sheets = getSheetsClient()
   const safeRows = rows.map((row) => row.map(safeCell))
   await withRetry(() =>
     sheets.spreadsheets.values.clear({ spreadsheetId, range: tabName() }, { timeout: 30_000 }),
   )
-  // rows[0] is the header, which lives inside the table but is not a data row.
-  await resizeTableRows(spreadsheetId, tab, Math.max(safeRows.length - 1, 0))
+  // BEST-EFFORT, and deliberately so — see OverwriteResult. rows[0] is the
+  // header, which lives inside the table but is not a data row.
+  let resizeError: AppError | null = null
+  try {
+    await resizeTableRows(spreadsheetId, tab, Math.max(safeRows.length - 1, 0))
+  } catch (err) {
+    // withRetry has already retried anything transient and sanitized the rest,
+    // so there is nothing left to retry and nothing unsafe to hold onto.
+    resizeError = err instanceof AppError ? err : sanitize(err)
+  }
   await withRetry(() =>
     sheets.spreadsheets.values.update(
       {
@@ -394,4 +416,5 @@ export async function overwriteRows(
       { timeout: 30_000 },
     ),
   )
+  return { resizeError }
 }

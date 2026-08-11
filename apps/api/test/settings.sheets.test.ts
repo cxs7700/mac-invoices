@@ -8,7 +8,7 @@ const sheets = vi.hoisted(() => ({
   serviceAccountEmail: vi.fn(() => 'svc@project.iam.gserviceaccount.com'),
   checkAccess: vi.fn(async () => {}),
   appendRows: vi.fn(async () => {}),
-  overwriteRows: vi.fn(async () => {}),
+  overwriteRows: vi.fn(async () => ({ resizeError: null })),
   resolveSheetTab: vi.fn(async () => ({ sheetId: 123, typedColumnIndexes: [], table: null })),
   applyColumnDropdowns: vi.fn(async () => {}),
 }))

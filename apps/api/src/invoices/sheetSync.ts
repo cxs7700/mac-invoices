@@ -70,12 +70,16 @@ async function lastChangeAt(prisma: PrismaClient, userId: string): Promise<Date 
  * (at-least-once). Stamping to `flushStart` (not now) keeps the SyncBadge
  * honest: an invoice edited during the flush has `updatedAt > sheetsSyncedAt`
  * and shows "drifted" until the next pass. Returns the number of data rows
- * written. Throws a sanitized AppError on a Sheets failure.
+ * written. Throws a sanitized AppError on a Sheets failure — EXCEPT the table
+ * resize, which is best-effort: it cannot abort a pass whose rows must land
+ * either way, so its failure is logged through `log` and the mirror continues
+ * (see `overwriteRows`).
  */
 export async function mirrorUserSheet(
   prisma: PrismaClient,
   userId: string,
   spreadsheetId: string,
+  log?: SyncFlushLogger,
 ): Promise<number> {
   const flushStart = new Date()
   const tab = await resolveSheetTab(spreadsheetId)
@@ -97,7 +101,17 @@ export async function mirrorUserSheet(
   // Ledger order: ascending invoice number (natural order), un-numbered rows last.
   invoices.sort(compareForExport)
   const dataRows = invoices.map(invoiceToRow)
-  await overwriteRows(spreadsheetId, [EXPORT_HEADER, ...dataRows], tab)
+  const { resizeError } = await overwriteRows(spreadsheetId, [EXPORT_HEADER, ...dataRows], tab)
+  // The rows landed either way — the resize is best-effort by design. But a
+  // resize that keeps failing means they are landing OUTSIDE the landlord's
+  // table, which is invisible from here and needs a human to widen/grow the
+  // tab's grid. Log it rather than let it degrade silently forever.
+  if (resizeError) {
+    log?.warn(
+      { userId, code: resizeError.code, message: resizeError.message },
+      'sheets table resize failed; rows written outside the table',
+    )
+  }
   await applyColumnDropdowns(spreadsheetId, tab, dropdownSpecs(properties.map((p) => p.address)))
 
   await prisma.$transaction([
@@ -171,7 +185,7 @@ export async function runSheetsSyncFlush(
         continue
       }
       // sheetSpreadsheetId is non-null by the query filter above.
-      await mirrorUserSheet(prisma, u.id, u.sheetSpreadsheetId as string)
+      await mirrorUserSheet(prisma, u.id, u.sheetSpreadsheetId as string, log)
       synced++
     } catch (err) {
       failed++

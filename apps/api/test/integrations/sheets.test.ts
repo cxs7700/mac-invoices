@@ -236,12 +236,45 @@ describe('sheets.overwriteRows (full mirror)', () => {
     expect(batchUpdateMock).not.toHaveBeenCalled()
   })
 
-  it('a resize failure aborts before the write', async () => {
+  // The resize is an enhancement, never a gate. `updateTable` — unlike
+  // `values.update` — does not auto-expand the grid, so a tab whose grid is
+  // shorter than the export rejects with a NON-retryable 400. Aborting there
+  // would leave the tab empty (the clear already ran) and repeat on every pass,
+  // which is strictly worse than the pre-resize behavior. So a failed resize
+  // degrades to exactly that behavior: the rows still land, just outside the
+  // table.
+  it('a resize failure does NOT abort — the rows still land', async () => {
+    batchUpdateMock.mockReset().mockRejectedValue({ code: 400 })
+    await expect(overwriteRows('S', [['h'], ['a']], tabWithTable)).resolves.toBeTruthy()
+    expect(updateMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('returns the swallowed resize error so the caller can warn about it', async () => {
     batchUpdateMock.mockReset().mockRejectedValue({ code: 403 })
+    const res = await overwriteRows('S', [['h'], ['a']], tabWithTable)
+    expect(res.resizeError).toMatchObject({ code: 'SHEET_PERMISSION_DENIED' })
+    // Sanitized on the way out — never the raw provider error.
+    expect(
+      JSON.stringify(res.resizeError, Object.getOwnPropertyNames(res.resizeError)),
+    ).not.toContain('PRIVATE-SECRET-123')
+  })
+
+  it('reports no resize error on the happy path, and none when there is no table', async () => {
+    expect((await overwriteRows('S', [['h'], ['a']], tabWithTable)).resizeError).toBeNull()
+    expect((await overwriteRows('S', [['h'], ['a']], noTable)).resizeError).toBeNull()
+  })
+
+  it('a CLEAR or WRITE failure still aborts — only the resize is best-effort', async () => {
+    clearMock.mockReset().mockRejectedValue({ code: 403 })
     await expect(overwriteRows('S', [['h'], ['a']], tabWithTable)).rejects.toMatchObject({
       code: 'SHEET_PERMISSION_DENIED',
     })
-    expect(updateMock).not.toHaveBeenCalled()
+
+    clearMock.mockReset().mockResolvedValue({})
+    updateMock.mockReset().mockRejectedValue({ code: 500 })
+    await expect(overwriteRows('S', [['h'], ['a']], tabWithTable)).rejects.toMatchObject({
+      code: 'SHEET_ERROR',
+    })
   })
 })
 

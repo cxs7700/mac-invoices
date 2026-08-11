@@ -11,7 +11,7 @@ const {
   resolveSheetTab,
   applyColumnDropdowns,
 } = vi.hoisted(() => ({
-  overwriteRows: vi.fn(async () => {}),
+  overwriteRows: vi.fn(async () => ({ resizeError: null })),
   appendRows: vi.fn(async () => {}),
   checkAccess: vi.fn(async () => {}),
   serviceAccountEmail: vi.fn(() => 'svc@x.iam.gserviceaccount.com'),
@@ -90,7 +90,7 @@ afterAll(async () => {
   delete process.env.EXPORT_RATE_LIMIT_MAX
 })
 beforeEach(() => {
-  overwriteRows.mockReset().mockResolvedValue(undefined)
+  overwriteRows.mockReset().mockResolvedValue({ resizeError: null })
 })
 afterEach(async () => {
   const invs = await app.prisma.invoice.findMany({
@@ -267,7 +267,7 @@ describe('POST /api/invoices/export — rate limit', () => {
   })
 
   it('429s with TOO_MANY_REQUESTS after the cap', async () => {
-    overwriteRows.mockResolvedValue(undefined)
+    overwriteRows.mockResolvedValue({ resizeError: null })
     const ex = () =>
       rlApp.inject({
         method: 'POST',

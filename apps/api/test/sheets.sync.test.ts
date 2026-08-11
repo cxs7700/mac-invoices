@@ -4,7 +4,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vites
 // which users got a full mirror and with what rows; resolveSheetTab and
 // applyColumnDropdowns cover the dropdown-validation step of every mirror.
 const { overwriteRows, resolveSheetTab, applyColumnDropdowns } = vi.hoisted(() => ({
-  overwriteRows: vi.fn(async () => {}),
+  overwriteRows: vi.fn(async () => ({ resizeError: null })),
   resolveSheetTab: vi.fn(async () => ({ sheetId: 123, typedColumnIndexes: [], table: null })),
   applyColumnDropdowns: vi.fn(async () => {}),
 }))
@@ -68,7 +68,7 @@ beforeAll(async () => {
   await app.ready()
 })
 beforeEach(() => {
-  overwriteRows.mockReset().mockResolvedValue(undefined)
+  overwriteRows.mockReset().mockResolvedValue({ resizeError: null })
   resolveSheetTab
     .mockReset()
     .mockResolvedValue({ sheetId: 123, typedColumnIndexes: [], table: null })
@@ -138,6 +138,32 @@ describe('continuous Sheets sync flush', () => {
     expect(after.sheetsSyncedAt).not.toBeNull()
     // The row was never edited, so its last-edit time must be exactly what it was.
     expect(after.updatedAt.getTime()).toBe(inv.updatedAt.getTime())
+  })
+
+  it('completes and stamps when the table resize failed — the rows still landed', async () => {
+    const l = await makeLandlord()
+    await makeInvoice(l.id)
+    // overwriteRows swallows a resize failure and reports it; the values write
+    // itself succeeded, so the mirror must NOT be treated as failed. Scoped to
+    // our own target — the flush is global and other tests' landlords are still
+    // connected, so a `…Once` would land on whichever ran first.
+    overwriteRows.mockImplementation(async (target: string) =>
+      target === l.target
+        ? { resizeError: { code: 'SHEET_ERROR', message: 'Failed to write to Google Sheets' } }
+        : { resizeError: null },
+    )
+    const warn = vi.fn()
+
+    const summary = await runSheetsSyncFlush(app.prisma, { warn })
+
+    expect(callsFor(l.target)).toHaveLength(1)
+    expect(summary.failed).toBe(0)
+    // Stamped: the values mirror succeeded, so the landlord is genuinely synced.
+    expect(await hwOf(l.id)).not.toBeNull()
+    expect(warn).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: l.id, code: 'SHEET_ERROR' }),
+      expect.stringContaining('resize failed'),
+    )
   })
 
   it('re-mirrors after an invoice is edited (drift propagates)', async () => {
@@ -300,6 +326,7 @@ describe('continuous Sheets sync flush', () => {
     await makeInvoice(good.id)
     overwriteRows.mockImplementation(async (target: string) => {
       if (target === bad.target) throw new Error('permission denied')
+      return { resizeError: null }
     })
 
     await runSheetsSyncFlush(app.prisma)
@@ -318,12 +345,13 @@ describe('continuous Sheets sync flush', () => {
     // a one-shot rejection meant for us).
     overwriteRows.mockImplementation(async (target: string) => {
       if (target === l.target) throw new Error('transient')
+      return { resizeError: null }
     })
 
     await runSheetsSyncFlush(app.prisma) // fails for l → not stamped
     expect(await hwOf(l.id)).toBeNull()
 
-    overwriteRows.mockReset().mockResolvedValue(undefined)
+    overwriteRows.mockReset().mockResolvedValue({ resizeError: null })
     await runSheetsSyncFlush(app.prisma) // retries → succeeds
     expect(callsFor(l.target).length).toBeGreaterThanOrEqual(1)
     expect(await hwOf(l.id)).not.toBeNull()
