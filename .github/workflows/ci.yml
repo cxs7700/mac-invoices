@@ -33,6 +33,11 @@ jobs:
       # 'changeme-dev' fallback so the integration tests can log in. NODE_ENV is not
       # 'production' here, so the default-password guard does not trip.
       LANDLORD_PASSWORD: changeme-dev
+      # Throwaway ≥32-char fixture key. Required since DEC-034: every vendor
+      # submission link is derived as HMAC(VENDOR_LINK_KEY, ...), so without it
+      # the submissions and vendors suites all fail with VENDOR_LINK_KEY_INVALID.
+      # Its only job here is to be present and long enough; nothing outlives the run.
+      VENDOR_LINK_KEY: ci-fixture-vendor-link-key-not-a-secret-0123456789
 
     steps:
       - uses: actions/checkout@v4
