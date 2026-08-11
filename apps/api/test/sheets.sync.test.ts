@@ -2,16 +2,16 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vites
 
 // Mock the Sheets seam — no live Google calls. overwriteRows is captured to prove
 // which users got a full mirror and with what rows; resolveSheetTab and
-// applyColumnDropdowns cover the dropdown-validation step of every mirror.
-const { overwriteRows, resolveSheetTab, applyColumnDropdowns } = vi.hoisted(() => ({
+// applyColumnFormatting cover the dropdown-validation step of every mirror.
+const { overwriteRows, resolveSheetTab, applyColumnFormatting } = vi.hoisted(() => ({
   overwriteRows: vi.fn(async () => ({ resizeError: null })),
   resolveSheetTab: vi.fn(async () => ({ sheetId: 123, typedColumnIndexes: [], table: null })),
-  applyColumnDropdowns: vi.fn(async () => {}),
+  applyColumnFormatting: vi.fn(async () => {}),
 }))
 vi.mock('../src/integrations/sheets', () => ({
   overwriteRows,
   resolveSheetTab,
-  applyColumnDropdowns,
+  applyColumnFormatting,
   appendRows: vi.fn(),
   // Resolves (not bare vi.fn()): getSheets — called at the end of saveSheet —
   // awaits `checkAccess(...).then(...)`, which throws on a non-promise return.
@@ -72,7 +72,7 @@ beforeEach(() => {
   resolveSheetTab
     .mockReset()
     .mockResolvedValue({ sheetId: 123, typedColumnIndexes: [], table: null })
-  applyColumnDropdowns.mockReset().mockResolvedValue(undefined)
+  applyColumnFormatting.mockReset().mockResolvedValue(undefined)
 })
 afterAll(async () => {
   for (const id of created) {
@@ -249,7 +249,7 @@ describe('continuous Sheets sync flush', () => {
     try {
       await runSheetsSyncFlush(app.prisma)
 
-      const call = applyColumnDropdowns.mock.calls.find((c) => c[0] === l.target)!
+      const call = applyColumnFormatting.mock.calls.find((c) => c[0] === l.target)!
       expect(call[1]).toEqual({ sheetId: 123, typedColumnIndexes: [], table: null }) // the resolved tab
       const specs = call[2] as Array<{ columnIndex: number; values: string[] }>
       expect(specs.find((s) => s.values.includes('PENDING'))?.values).toEqual([
@@ -262,7 +262,7 @@ describe('continuous Sheets sync flush', () => {
         '12 Main St',
       ])
       // Validation lands after the values write.
-      expect(applyColumnDropdowns.mock.invocationCallOrder[0]).toBeGreaterThan(
+      expect(applyColumnFormatting.mock.invocationCallOrder[0]).toBeGreaterThan(
         overwriteRows.mock.invocationCallOrder[0],
       )
     } finally {
@@ -278,7 +278,7 @@ describe('continuous Sheets sync flush', () => {
     const res = await runSheetsSyncFlush(app.prisma)
     expect(res.failed).toBe(0)
 
-    const call = applyColumnDropdowns.mock.calls.find((c) => c[0] === l.target)!
+    const call = applyColumnFormatting.mock.calls.find((c) => c[0] === l.target)!
     const specs = call[2] as Array<{ columnIndex: number; values: string[] }>
     const property = specs.find((s) => !s.values.includes('PENDING') && !s.values.includes('OTHER'))
     expect(property?.values).toEqual([])
@@ -308,7 +308,7 @@ describe('continuous Sheets sync flush', () => {
   it('a validation failure after the values write keeps the user dirty (no stamp, counted failed)', async () => {
     const l = await makeLandlord()
     await makeInvoice(l.id)
-    applyColumnDropdowns.mockImplementation(async (target: string) => {
+    applyColumnFormatting.mockImplementation(async (target: string) => {
       if (target === l.target) throw new Error('validation boom')
     })
 

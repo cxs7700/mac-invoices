@@ -9,14 +9,14 @@ const {
   checkAccess,
   serviceAccountEmail,
   resolveSheetTab,
-  applyColumnDropdowns,
+  applyColumnFormatting,
 } = vi.hoisted(() => ({
   overwriteRows: vi.fn(async () => ({ resizeError: null })),
   appendRows: vi.fn(async () => {}),
   checkAccess: vi.fn(async () => {}),
   serviceAccountEmail: vi.fn(() => 'svc@x.iam.gserviceaccount.com'),
   resolveSheetTab: vi.fn(async () => ({ sheetId: 123, typedColumnIndexes: [], table: null })),
-  applyColumnDropdowns: vi.fn(async () => {}),
+  applyColumnFormatting: vi.fn(async () => {}),
 }))
 vi.mock('../src/integrations/sheets', () => ({
   overwriteRows,
@@ -24,7 +24,7 @@ vi.mock('../src/integrations/sheets', () => ({
   checkAccess,
   serviceAccountEmail,
   resolveSheetTab,
-  applyColumnDropdowns,
+  applyColumnFormatting,
 }))
 
 import { buildApp } from '../src/app'

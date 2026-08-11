@@ -1,11 +1,12 @@
 import type { PrismaClient } from '../../prisma/generated/client.ts'
-import { applyColumnDropdowns, overwriteRows, resolveSheetTab } from '../integrations/sheets'
+import { applyColumnFormatting, overwriteRows, resolveSheetTab } from '../integrations/sheets'
 import {
   compareForExport,
   dropdownSpecs,
   EXPORT_HEADER,
   invoiceToRow,
   NON_EXPORTABLE_STATUSES,
+  WRAP_COLUMNS,
 } from './sheetRows'
 
 // Continuous Google Sheets sync — the connected sheet is a FULL MIRROR of a
@@ -112,7 +113,12 @@ export async function mirrorUserSheet(
       'sheets table resize failed; rows written outside the table',
     )
   }
-  await applyColumnDropdowns(spreadsheetId, tab, dropdownSpecs(properties.map((p) => p.address)))
+  await applyColumnFormatting(
+    spreadsheetId,
+    tab,
+    dropdownSpecs(properties.map((p) => p.address)),
+    WRAP_COLUMNS,
+  )
 
   await prisma.$transaction([
     // Guarded on the target we actually mirrored. A landlord can save a NEW

@@ -10,7 +10,7 @@ const sheets = vi.hoisted(() => ({
   appendRows: vi.fn(async () => {}),
   overwriteRows: vi.fn(async () => ({ resizeError: null })),
   resolveSheetTab: vi.fn(async () => ({ sheetId: 123, typedColumnIndexes: [], table: null })),
-  applyColumnDropdowns: vi.fn(async () => {}),
+  applyColumnFormatting: vi.fn(async () => {}),
 }))
 vi.mock('../src/integrations/sheets', () => sheets)
 

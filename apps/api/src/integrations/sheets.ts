@@ -241,15 +241,31 @@ export async function resolveSheetTab(spreadsheetId: string): Promise<SheetTab> 
  * (e.g. DROPDOWN) already provides the dropdown. `strict` only affects
  * interactive edits; the mirror's own `values.update` writes bypass validation.
  */
-export async function applyColumnDropdowns(
+export async function applyColumnFormatting(
   spreadsheetId: string,
   tab: SheetTab,
   specs: ColumnDropdownSpec[],
+  wrapColumnIndexes: number[] = [],
 ): Promise<void> {
   const sheets = getSheetsClient()
   const { sheetId } = tab
   const requests: sheets_v4.Schema$Request[] = [
     { setDataValidation: { range: { sheetId, startRowIndex: 1 } } },
+    // WRAP so a Description cell's embedded newlines (one line per invoice item)
+    // render as real line breaks instead of clipping to the first line. Unlike
+    // validation this IS allowed on Table-typed columns, so it is not filtered.
+    ...wrapColumnIndexes.map((columnIndex) => ({
+      repeatCell: {
+        range: {
+          sheetId,
+          startRowIndex: 1,
+          startColumnIndex: columnIndex,
+          endColumnIndex: columnIndex + 1,
+        },
+        cell: { userEnteredFormat: { wrapStrategy: 'WRAP' } },
+        fields: 'userEnteredFormat.wrapStrategy',
+      },
+    })),
     ...specs
       .filter(
         (spec) => spec.values.length > 0 && !tab.typedColumnIndexes.includes(spec.columnIndex),

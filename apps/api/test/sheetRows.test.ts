@@ -62,7 +62,7 @@ describe('export layout', () => {
     expect(row[8]).toBe('PVC elbow') // partsOrdered
   })
 
-  it('joins every item description for a multi-item invoice, in sortOrder', () => {
+  it('puts each item on its own LINE of the one Description cell, in sortOrder', () => {
     const row = invoiceToRow({
       ...inv,
       items: [
@@ -70,7 +70,33 @@ describe('export layout', () => {
         { description: 'Ceiling drywall', sortOrder: 1 },
       ],
     })
-    expect(row[2]).toBe('Paint, Ceiling drywall')
+    // A newline inside a single cell value — NOT a row separator. The mirror
+    // writes one row per invoice; a multi-item invoice must not become two.
+    expect(row[2]).toBe('Paint\nCeiling drywall')
+  })
+
+  it('orders the lines by sortOrder even when the input is out of order', () => {
+    const row = invoiceToRow({
+      ...inv,
+      items: [
+        { description: 'Second', sortOrder: 1 },
+        { description: 'First', sortOrder: 0 },
+      ],
+    })
+    expect(row[2]).toBe('First\nSecond')
+  })
+
+  it('never truncates or adds a "+N more" suffix — the sheet cell holds them all', () => {
+    const row = invoiceToRow({
+      ...inv,
+      items: Array.from({ length: 6 }, (_, i) => ({ description: `Item ${i}`, sortOrder: i })),
+    })
+    expect(row[2]).toBe('Item 0\nItem 1\nItem 2\nItem 3\nItem 4\nItem 5')
+    expect(row[2]).not.toContain('more')
+  })
+
+  it('is an empty cell when the invoice has no items', () => {
+    expect(invoiceToRow({ ...inv, items: [] })[2]).toBe('')
   })
 
   it('renders null notes/category/partsOrdered/number as empty strings', () => {

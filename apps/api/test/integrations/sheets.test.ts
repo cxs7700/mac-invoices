@@ -23,7 +23,7 @@ import {
   appendRows,
   overwriteRows,
   resolveSheetTab,
-  applyColumnDropdowns,
+  applyColumnFormatting,
   resizeTableRows,
 } from '../../src/integrations/sheets'
 import { SheetFormula } from '../../src/integrations/sheetCells'
@@ -492,9 +492,47 @@ describe('sheets.resolveSheetTab', () => {
   })
 })
 
-describe('sheets.applyColumnDropdowns', () => {
+describe('sheets.applyColumnFormatting — wrap', () => {
+  const tab = { sheetId: 123, typedColumnIndexes: [], table: null }
+
+  it('sets WRAP on each wrap column, in the SAME batchUpdate as the validation', async () => {
+    await applyColumnFormatting('SHEET-1', tab, [], [2])
+    expect(batchUpdateMock).toHaveBeenCalledTimes(1)
+    const requests = batchUpdateMock.mock.calls[0][0].requestBody.requests
+    expect(requests).toContainEqual({
+      repeatCell: {
+        range: { sheetId: 123, startRowIndex: 1, startColumnIndex: 2, endColumnIndex: 3 },
+        cell: { userEnteredFormat: { wrapStrategy: 'WRAP' } },
+        fields: 'userEnteredFormat.wrapStrategy',
+      },
+    })
+  })
+
+  it('wraps from row 2 down, unbounded, so rows added by later syncs stay covered', async () => {
+    await applyColumnFormatting('S', tab, [], [2])
+    const range = batchUpdateMock.mock.calls[0][0].requestBody.requests.find(
+      (r: { repeatCell?: unknown }) => r.repeatCell,
+    ).repeatCell.range
+    expect(range.startRowIndex).toBe(1)
+    expect(range).not.toHaveProperty('endRowIndex')
+  })
+
+  it('applies wrap even on a Table-typed column — only VALIDATION is rejected there', async () => {
+    await applyColumnFormatting('S', { ...tab, typedColumnIndexes: [2] }, [], [2])
+    const requests = batchUpdateMock.mock.calls[0][0].requestBody.requests
+    expect(requests.filter((r: { repeatCell?: unknown }) => r.repeatCell)).toHaveLength(1)
+  })
+
+  it('emits no repeatCell when there are no wrap columns', async () => {
+    await applyColumnFormatting('S', tab, [], [])
+    const requests = batchUpdateMock.mock.calls[0][0].requestBody.requests
+    expect(requests.filter((r: { repeatCell?: unknown }) => r.repeatCell)).toHaveLength(0)
+  })
+})
+
+describe('sheets.applyColumnFormatting', () => {
   it('sends one batchUpdate: a leading rows-2+ validation clear, then a ONE_OF_LIST rule per spec', async () => {
-    await applyColumnDropdowns('SHEET-1', { sheetId: 123, typedColumnIndexes: [], table: null }, [
+    await applyColumnFormatting('SHEET-1', { sheetId: 123, typedColumnIndexes: [], table: null }, [
       { columnIndex: 6, values: ['PENDING', 'APPROVED', 'PAID'] },
       { columnIndex: 3, values: ['12 Main St'] },
     ])
@@ -538,7 +576,7 @@ describe('sheets.applyColumnDropdowns', () => {
   })
 
   it('a spec with an empty values list sets no rule — the leading clear still fires', async () => {
-    await applyColumnDropdowns('S', { sheetId: 0, typedColumnIndexes: [], table: null }, [
+    await applyColumnFormatting('S', { sheetId: 0, typedColumnIndexes: [], table: null }, [
       { columnIndex: 3, values: [] },
     ])
     const requests = batchUpdateMock.mock.calls[0][0].requestBody.requests
@@ -550,7 +588,7 @@ describe('sheets.applyColumnDropdowns', () => {
       code: 403,
       message: 'denied for PRIVATE-SECRET-123',
     })
-    const err = await applyColumnDropdowns(
+    const err = await applyColumnFormatting(
       'S',
       { sheetId: 1, typedColumnIndexes: [], table: null },
       [],
@@ -561,14 +599,14 @@ describe('sheets.applyColumnDropdowns', () => {
 
   it('retries a transient 503 on batchUpdate then resolves', async () => {
     batchUpdateMock.mockReset().mockRejectedValueOnce({ code: 503 }).mockResolvedValueOnce({})
-    await applyColumnDropdowns('S', { sheetId: 1, typedColumnIndexes: [], table: null }, [
+    await applyColumnFormatting('S', { sheetId: 1, typedColumnIndexes: [], table: null }, [
       { columnIndex: 0, values: ['A'] },
     ])
     expect(batchUpdateMock).toHaveBeenCalledTimes(2)
   })
 
   it('skips specs on Table-typed columns — Google rejects classic validation there', async () => {
-    await applyColumnDropdowns('S', { sheetId: 0, typedColumnIndexes: [5, 6], table: null }, [
+    await applyColumnFormatting('S', { sheetId: 0, typedColumnIndexes: [5, 6], table: null }, [
       { columnIndex: 6, values: ['PENDING', 'APPROVED', 'PAID'] }, // typed → skipped
       { columnIndex: 3, values: ['12 Main St'] }, // untyped → set
     ])

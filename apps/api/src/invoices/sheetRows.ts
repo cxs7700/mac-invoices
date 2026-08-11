@@ -2,12 +2,7 @@
 // "Sync now" handler and the continuous-sync cron mirror so the two can never
 // drift. Pure (no DB / no Google client) and trivially unit-testable.
 
-import {
-  compareInvoiceOrder,
-  summarizeItems,
-  InvoiceCategory,
-  InvoiceStatus,
-} from '@mac-invoices/shared'
+import { compareInvoiceOrder, InvoiceCategory, InvoiceStatus } from '@mac-invoices/shared'
 import { SheetFormula, type ColumnDropdownSpec, type SheetCell } from '../integrations/sheetCells'
 
 // The operator's ledger layout (DEC-026). `id` and `vendorName` are
@@ -108,6 +103,15 @@ const columnIndex = (c: (typeof EXPORT_COLUMNS)[number]) => EXPORT_COLUMNS.index
  * list tracks the properties table. Column indices derive from EXPORT_COLUMNS,
  * so the specs can never drift from the layout.
  */
+/**
+ * Columns whose cells must render embedded newlines as real line breaks. Only
+ * Description carries them (one line per invoice item — see `invoiceToRow`);
+ * without an explicit WRAP the cell clips to its first line and every item
+ * after the first is invisible in the sheet. Derived from EXPORT_COLUMNS so it
+ * cannot drift from the layout.
+ */
+export const WRAP_COLUMNS: number[] = [EXPORT_COLUMNS.indexOf('description')]
+
 export function dropdownSpecs(propertyAddresses: string[]): ColumnDropdownSpec[] {
   const properties = [
     ...new Set(propertyAddresses.map((a) => a.trim()).filter((a) => a !== '')),
@@ -124,9 +128,17 @@ export function invoiceToRow(inv: InvoiceRowInput): SheetCell[] {
   const cell: Record<(typeof EXPORT_COLUMNS)[number], SheetCell> = {
     invoiceNumber: inv.invoiceNumber ?? '',
     invoiceDate: ymd(inv.invoiceDate),
-    // Unbounded join — a Sheets cell has room for the full item list, unlike
-    // the UI table's default-capped summary.
-    description: summarizeItems(inv.items, inv.items.length),
+    // One line per item, inside ONE cell — a newline in a `values.update` value
+    // is a line break within the cell, not a row separator, so a multi-item
+    // invoice stays a single row. Deliberately not `summarizeItems`: that builds
+    // the UI's one-line, capped "A, B +2 more" summary, whereas the sheet is the
+    // accounting record and shows every item in full. `applyColumnFormatting`
+    // sets WRAP on this column so Sheets renders the breaks instead of clipping
+    // to the first line.
+    description: [...inv.items]
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .map((i) => i.description)
+      .join('\n'),
     propertyAddress: inv.property?.address ?? '',
     amount: inv.amount.toNumber(),
     category: inv.category ?? '',
