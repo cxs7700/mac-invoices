@@ -148,11 +148,22 @@ describe('sheets.appendRows', () => {
 })
 
 describe('sheets.overwriteRows (full mirror)', () => {
+  const noTable = { sheetId: 0, typedColumnIndexes: [], table: null }
+  const tabWithTable = {
+    sheetId: 123,
+    typedColumnIndexes: [],
+    table: { tableId: 'tbl-1', endColumnIndex: 10 },
+  }
+
   it('clears the whole tab then writes the rows at A1 (USER_ENTERED, timeouts)', async () => {
-    await overwriteRows('SHEET-1', [
-      ['id', 'invoiceNumber'],
-      ['abc', 'INV-1'],
-    ])
+    await overwriteRows(
+      'SHEET-1',
+      [
+        ['id', 'invoiceNumber'],
+        ['abc', 'INV-1'],
+      ],
+      noTable,
+    )
     expect(clearMock.mock.calls[0][0]).toEqual({ spreadsheetId: 'SHEET-1', range: 'Invoices' })
     expect(clearMock.mock.calls[0][1]).toMatchObject({ timeout: 30000 })
     expect(updateMock.mock.calls[0][0]).toEqual({
@@ -170,7 +181,7 @@ describe('sheets.overwriteRows (full mirror)', () => {
   })
 
   it('neutralizes formula-injection in mirrored cells', async () => {
-    await overwriteRows('S', [['=HYPERLINK("http://evil")', 'safe']])
+    await overwriteRows('S', [['=HYPERLINK("http://evil")', 'safe']], noTable)
     expect(updateMock.mock.calls[0][0].requestBody.values[0]).toEqual([
       '\'=HYPERLINK("http://evil")',
       'safe',
@@ -179,7 +190,7 @@ describe('sheets.overwriteRows (full mirror)', () => {
 
   it('retries a transient 429 on the clear step then resolves', async () => {
     clearMock.mockReset().mockRejectedValueOnce({ code: 429 }).mockResolvedValueOnce({})
-    await overwriteRows('S', [['x']])
+    await overwriteRows('S', [['x']], noTable)
     expect(clearMock).toHaveBeenCalledTimes(2)
     expect(updateMock).toHaveBeenCalledTimes(1)
   })
@@ -188,16 +199,49 @@ describe('sheets.overwriteRows (full mirror)', () => {
     updateMock
       .mockReset()
       .mockRejectedValue({ code: 403, message: 'no access to PRIVATE-SECRET-123' })
-    const err = await overwriteRows('S', [['x']]).catch((e) => e)
+    const err = await overwriteRows('S', [['x']], noTable).catch((e) => e)
     expect(err).toMatchObject({ code: 'SHEET_PERMISSION_DENIED', statusCode: 502 })
     expect(JSON.stringify(err, Object.getOwnPropertyNames(err))).not.toContain('PRIVATE-SECRET-123')
   })
 
   it('uses GOOGLE_SHEET_TAB for both the clear range and the update anchor', async () => {
     process.env.GOOGLE_SHEET_TAB = 'Exports'
-    await overwriteRows('S', [['x']])
+    await overwriteRows('S', [['x']], noTable)
     expect(clearMock.mock.calls[0][0].range).toBe('Exports')
     expect(updateMock.mock.calls[0][0].range).toBe('Exports!A1')
+  })
+
+  it('resizes the table AFTER the clear and BEFORE the write', async () => {
+    // Order is the whole point: growing a table over cells that already hold
+    // values asks Google to retro-fit a typed column onto unvalidated text.
+    await overwriteRows('S', [['h'], ['a'], ['b']], tabWithTable)
+    expect(clearMock.mock.invocationCallOrder[0]).toBeLessThan(
+      batchUpdateMock.mock.invocationCallOrder[0],
+    )
+    expect(batchUpdateMock.mock.invocationCallOrder[0]).toBeLessThan(
+      updateMock.mock.invocationCallOrder[0],
+    )
+  })
+
+  it('sizes the table to the DATA rows, excluding the header row', async () => {
+    await overwriteRows('S', [['h'], ['a'], ['b']], tabWithTable)
+    const range = batchUpdateMock.mock.calls[0][0].requestBody.requests[0].updateTable.table.range
+    expect(range.endRowIndex).toBe(3) // header + 2 data rows
+  })
+
+  it('clears and writes exactly as before when the tab has no table', async () => {
+    await overwriteRows('S', [['h'], ['a']], { sheetId: 0, typedColumnIndexes: [], table: null })
+    expect(clearMock).toHaveBeenCalledTimes(1)
+    expect(updateMock).toHaveBeenCalledTimes(1)
+    expect(batchUpdateMock).not.toHaveBeenCalled()
+  })
+
+  it('a resize failure aborts before the write', async () => {
+    batchUpdateMock.mockReset().mockRejectedValue({ code: 403 })
+    await expect(overwriteRows('S', [['h'], ['a']], tabWithTable)).rejects.toMatchObject({
+      code: 'SHEET_PERMISSION_DENIED',
+    })
+    expect(updateMock).not.toHaveBeenCalled()
   })
 })
 

@@ -375,4 +375,19 @@ describe('continuous Sheets sync flush', () => {
     // (Other users may have synced; we only assert this user produced none.)
     expect(overwriteRows.mock.calls.length).toBeGreaterThanOrEqual(before)
   })
+
+  it('hands the resolved tab to overwriteRows so the table is resized in the same pass', async () => {
+    const l = await makeLandlord()
+    await makeInvoice(l.id)
+    const tab = {
+      sheetId: 123,
+      typedColumnIndexes: [],
+      table: { tableId: 'tbl-1', endColumnIndex: 10 },
+    }
+    resolveSheetTab.mockResolvedValue(tab)
+
+    await runSheetsSyncFlush(app.prisma)
+
+    expect(callsFor(l.target)[0][2]).toEqual(tab)
+  })
 })

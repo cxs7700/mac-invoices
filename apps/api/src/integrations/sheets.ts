@@ -352,19 +352,32 @@ export async function appendRows(spreadsheetId: string, rows: SheetCell[][]): Pr
 
 /**
  * Replace the pinned tab's entire contents with `rows` — the continuous-sync
- * full mirror. Clears the tab THEN writes (`values.update` at A1), so deleted
+ * full mirror. Clears the tab, sizes the tab's Sheets Table to fit (a no-op when
+ * there is no anchored table), THEN writes (`values.update` at A1), so deleted
  * invoices vanish and edits land in place; pass a header row as `rows[0]` since
- * the clear wipes any operator-added header. Each Google call carries the shared
- * retry/backoff + sanitize policy. NOT atomic across the two calls: a failure
- * after the clear leaves the tab empty, but the caller is the cron mirror which
- * re-runs idempotently (the user stays "dirty" until a full pass succeeds).
+ * the clear wipes any operator-added header. The resize sits BETWEEN the clear
+ * and the write on purpose: it mirrors what a person does in the UI — extend the
+ * table, then type into rows that are born formatted — and it means
+ * `values.update` writes into columns that already carry their types, rather
+ * than asking Google to retro-fit a type onto text it never validated.
+ *
+ * Each Google call carries the shared retry/backoff + sanitize policy. NOT
+ * atomic across the calls: a failure after the clear leaves the tab empty, but
+ * the caller is the cron mirror which re-runs idempotently (the user stays
+ * "dirty" until a full pass succeeds).
  */
-export async function overwriteRows(spreadsheetId: string, rows: SheetCell[][]): Promise<void> {
+export async function overwriteRows(
+  spreadsheetId: string,
+  rows: SheetCell[][],
+  tab: SheetTab,
+): Promise<void> {
   const sheets = getSheetsClient()
   const safeRows = rows.map((row) => row.map(safeCell))
   await withRetry(() =>
     sheets.spreadsheets.values.clear({ spreadsheetId, range: tabName() }, { timeout: 30_000 }),
   )
+  // rows[0] is the header, which lives inside the table but is not a data row.
+  await resizeTableRows(spreadsheetId, tab, Math.max(safeRows.length - 1, 0))
   await withRetry(() =>
     sheets.spreadsheets.values.update(
       {

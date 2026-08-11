@@ -56,8 +56,9 @@ async function lastChangeAt(prisma: PrismaClient, userId: string): Promise<Date 
 
 /**
  * Full-mirror one user's invoices into `spreadsheetId`: resolve the tab's grid
- * id, clear the tab, write the header + every exportable invoice row (ascending
- * by invoice number), re-apply the dropdown validation rules, then stamp
+ * id, clear the tab, size the tab's Sheets Table to the rows about to land,
+ * write the header + every exportable invoice row (ascending by invoice
+ * number), re-apply the dropdown validation rules, then stamp
  * `User.sheetSyncedAt` and the mirrored invoices' `sheetsSyncedAt` to a
  * timestamp captured BEFORE the read.
  *
@@ -96,7 +97,7 @@ export async function mirrorUserSheet(
   // Ledger order: ascending invoice number (natural order), un-numbered rows last.
   invoices.sort(compareForExport)
   const dataRows = invoices.map(invoiceToRow)
-  await overwriteRows(spreadsheetId, [EXPORT_HEADER, ...dataRows])
+  await overwriteRows(spreadsheetId, [EXPORT_HEADER, ...dataRows], tab)
   await applyColumnDropdowns(spreadsheetId, tab, dropdownSpecs(properties.map((p) => p.address)))
 
   await prisma.$transaction([
