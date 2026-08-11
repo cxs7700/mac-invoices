@@ -55,6 +55,16 @@ env matrix in `docs/DEPLOYMENT.md`. The cron schedule lives in `.github/workflow
   every sync resizes it to fit the exported invoices — new rows arrive already banded and typed, and the
   table shrinks when invoices are removed. A table that starts anywhere other than A1 is left untouched,
   and mirrored rows are written outside it; if a table's formatting isn't applying, move the table to A1.
+  The resize only grows/shrinks the table's rows — it never changes its columns — so a table also needs
+  to be at least 10 columns wide (matching the export layout above) or the mirror's right-hand columns
+  will land outside it.
+- **Newly-visible validation on typed columns.** Rows that used to fall past a narrow or short table
+  land inside it now that the table resizes to fit. If a DROPDOWN-typed table column's option list
+  doesn't cover every value the mirror writes (the pre-existing gap noted above — the mirror can't push
+  its Status/Property options into a table's own typed columns), those cells will start showing Google's
+  invalid-value flag across the whole table, not just the rows that used to be inside it. That's the
+  table's own validation catching up to data it was already receiving — update the table column's
+  option list to match, or leave the column untyped and let the mirror's own dropdown manage it.
 - **Tab name matters.** The mirror pins the tab named by `GOOGLE_SHEET_TAB` (default `Invoices`),
   matched exactly (case-sensitive). If the tab is renamed or missing, syncs fail with
   `SHEET_TAB_NOT_FOUND` naming the expected tab — recreate/rename the tab and sync again.

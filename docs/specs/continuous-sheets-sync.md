@@ -87,9 +87,9 @@ delete signal. A user with zero invoices and no deletes since last sync is not d
 3. Read exportable invoices (filter + `include: { property: { address } }`) and the
    landlord's property addresses; sort invoices with `compareForExport` (invoice number
    ascending, natural order, nulls last).
-4. Build rows: `[header, ...dataRows]`. `overwriteRows(target, rows)` = **clear the tab, then
-   `values.update` at `A1`** (formula-injection-guarded, retry/backoff on 429/5xx reused from
-   the append path). Then `applyColumnDropdowns(target, sheetId, dropdownSpecs(addresses))`
+4. Build rows: `[header, ...dataRows]`. `overwriteRows(target, rows, tab)` = **clear the tab,
+   resize the tab's Sheets Table to fit, then `values.update` at `A1`** (formula-injection-guarded,
+   retry/backoff on 429/5xx reused from the append path). Then `applyColumnDropdowns(target, sheetId, dropdownSpecs(addresses))`
    re-applies the validation rules (idempotent; a failure here also keeps the user dirty).
 5. Stamp: `User.sheetSyncedAt = flushStart` and `Invoice.sheetsSyncedAt = flushStart` for the
    mirrored ids. Stamping to `flushStart` (not `now()`) keeps the `SyncBadge` honest: an
