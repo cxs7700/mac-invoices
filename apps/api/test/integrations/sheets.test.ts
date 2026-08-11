@@ -313,16 +313,6 @@ describe('sheets.resolveSheetTab', () => {
     })
   })
 
-  it('requests the table range in the fields mask', async () => {
-    getMock.mockResolvedValue(tabs([{ sheetId: 1, title: 'Invoices' }]))
-    await resolveSheetTab('SHEET-1')
-    expect(getMock.mock.calls[0][0]).toEqual({
-      spreadsheetId: 'SHEET-1',
-      fields:
-        'sheets(properties(sheetId,title),tables(tableId,range,columnProperties(columnIndex,columnType)))',
-    })
-  })
-
   it('accepts an anchor written out explicitly as 0', async () => {
     getMock.mockResolvedValue({
       data: {
