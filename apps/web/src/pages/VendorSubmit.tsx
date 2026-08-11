@@ -56,16 +56,16 @@ export default function VendorSubmit() {
   const { token } = useParams()
   const { t, i18n } = useTranslation()
 
-  // Vendors read Cantonese, so the submission link opens in Cantonese whatever
-  // the browser (or a previous visitor on this device) asked for. Once per
-  // visit only — the in-page switcher still wins afterwards, and a landlord who
-  // follows a vendor link gets their own locale back from the server on their
-  // next login (AuthGuard reconciles it).
+  // The submission link opens in English whatever the browser (or a previous
+  // visitor on this device) asked for. Once per visit only — the in-page
+  // switcher still wins afterwards, and a landlord who follows a vendor link
+  // gets their own locale back from the server on their next login (AuthGuard
+  // reconciles it).
   const localeForced = useRef(false)
   useEffect(() => {
     if (localeForced.current) return
     localeForced.current = true
-    if (i18n.language !== 'zh') i18n.changeLanguage('zh')
+    if (i18n.language !== 'en') i18n.changeLanguage('en')
   }, [i18n])
 
   // Installable to the vendor's home screen. The manifest is torn down on

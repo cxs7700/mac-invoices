@@ -46,15 +46,14 @@ function fillFirstLine(description: string, total: string) {
 
 const submitMock = { mutate: vi.fn(), isPending: false, error: null as unknown }
 
-// Opening the link switches the app to Cantonese, so every assertion below is
-// against the zh catalog. Reset afterwards so sibling suites still see English.
+// The two locale tests below leave the app in zh; reset afterwards so sibling
+// suites still see English.
 afterEach(() => i18n.changeLanguage('en'))
 
 describe('VendorSubmit', () => {
-  // The page forces Cantonese on mount for real vendors. These tests are about
-  // behaviour, not copy, so the switch is stubbed out and everything is asserted
-  // against the English catalogue — otherwise every query here would have to be
-  // rewritten in zh and would break again on any wording change.
+  // The page forces English on mount. The switch is stubbed out so a stray zh
+  // state from another suite can't leak in, and everything is asserted against
+  // the English catalogue.
   beforeEach(() => {
     vi.spyOn(i18n, 'changeLanguage').mockResolvedValue(((key: string) => key) as never)
     vi.clearAllMocks()
@@ -66,25 +65,25 @@ describe('VendorSubmit', () => {
     })
   })
 
-  it('opens in Cantonese even when the app was last used in English', async () => {
+  it('opens in English even when the app was last used in Cantonese', async () => {
     vi.mocked(i18n.changeLanguage).mockRestore()
-    await i18n.changeLanguage('en')
+    await i18n.changeLanguage('zh')
     useSubmissionStatus.mockReturnValue({ isPending: false, isError: false, data: { data: [] } })
     renderPage()
-    await waitFor(() => expect(i18n.language).toBe('zh'))
-    expect(screen.getByRole('heading', { name: '交發票' })).toBeDefined()
+    await waitFor(() => expect(i18n.language).toBe('en'))
+    expect(screen.getByRole('heading', { name: 'Submit an invoice' })).toBeDefined()
   })
 
-  it('leaves the vendor on English if they pick it from the in-page switcher', async () => {
+  it('leaves the vendor on Cantonese if they pick it from the in-page switcher', async () => {
     vi.mocked(i18n.changeLanguage).mockRestore()
     useSubmissionStatus.mockReturnValue({ isPending: false, isError: false, data: { data: [] } })
     renderPage()
-    await waitFor(() => expect(i18n.language).toBe('zh'))
-
-    fireEvent.click(screen.getByRole('button', { name: 'EN' }))
     await waitFor(() => expect(i18n.language).toBe('en'))
+
+    fireEvent.click(screen.getByRole('button', { name: '粵語' }))
+    await waitFor(() => expect(i18n.language).toBe('zh'))
     // The forced switch is once-per-visit, so it must not stomp the choice back.
-    expect(screen.getByRole('heading', { name: 'Submit an invoice' })).toBeDefined()
+    expect(screen.getByRole('heading', { name: '交發票' })).toBeDefined()
   })
 
   it('shows a loading state while the token resolves', () => {
