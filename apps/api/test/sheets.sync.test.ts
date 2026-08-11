@@ -21,7 +21,7 @@ vi.mock('../src/integrations/sheets', () => ({
 
 import { buildApp } from '../src/app'
 import { hashPassword } from '../src/auth/password'
-import { runSheetsSyncFlush } from '../src/invoices/sheetSync'
+import { mirrorUserSheet, runSheetsSyncFlush } from '../src/invoices/sheetSync'
 import * as writeService from '../src/invoices/writeService'
 import { createSecondUser } from './helpers/auth'
 
@@ -107,6 +107,37 @@ describe('continuous Sheets sync flush', () => {
 
     await runSheetsSyncFlush(app.prisma)
     expect(callsFor(l.target)).toHaveLength(0)
+  })
+
+  // The export stamp is bookkeeping, not an edit. Prisma's `@updatedAt` fires on
+  // ANY write, so stamping `sheetsSyncedAt` through `update`/`updateMany` bumps
+  // `updatedAt` too — which re-dirties the row the mirror just cleaned. These two
+  // tests pin the consequences: the cron would re-mirror every landlord on every
+  // pass forever, and the per-invoice SyncBadge would read "No" on a row that is
+  // in fact in the sheet.
+  it('leaves a landlord CLEAN after a successful mirror — the stamp must not re-dirty them', async () => {
+    const l = await makeLandlord()
+    await makeInvoice(l.id)
+
+    await runSheetsSyncFlush(app.prisma)
+    expect(callsFor(l.target)).toHaveLength(1)
+
+    // Nothing changed in between, so the second pass must skip this landlord.
+    overwriteRows.mockClear()
+    await runSheetsSyncFlush(app.prisma)
+    expect(callsFor(l.target)).toHaveLength(0)
+  })
+
+  it('does not bump an invoice’s updatedAt when stamping sheetsSyncedAt', async () => {
+    const l = await makeLandlord()
+    const inv = await makeInvoice(l.id)
+
+    await mirrorUserSheet(app.prisma, l.id, l.target)
+
+    const after = await app.prisma.invoice.findUniqueOrThrow({ where: { id: inv.id } })
+    expect(after.sheetsSyncedAt).not.toBeNull()
+    // The row was never edited, so its last-edit time must be exactly what it was.
+    expect(after.updatedAt.getTime()).toBe(inv.updatedAt.getTime())
   })
 
   it('re-mirrors after an invoice is edited (drift propagates)', async () => {

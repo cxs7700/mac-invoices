@@ -28,13 +28,18 @@ describe('syncState', () => {
     expect(syncState(null, '2026-06-01T00:00:00.000Z')).toBe('not-exported')
   })
 
-  it('is exported when last edited at/just-after the sync (within tolerance)', () => {
-    // The export stamp bumps updatedAt ~the same instant — must not read as drifted.
-    expect(syncState('2026-06-01T00:00:00.000Z', '2026-06-01T00:00:00.500Z')).toBe('exported')
+  it('is exported when the row was last edited at or before the export', () => {
+    // The mirror stamps sheetsSyncedAt to the instant the pass STARTED and no
+    // longer touches updatedAt, so an untouched row's updatedAt sits at or
+    // before the stamp.
     expect(syncState('2026-06-01T00:00:00.000Z', '2026-06-01T00:00:00.000Z')).toBe('exported')
+    expect(syncState('2026-06-01T00:05:00.000Z', '2026-06-01T00:00:00.000Z')).toBe('exported')
   })
 
-  it('is drifted when edited well after the last export', () => {
+  it('is drifted when edited after the last export — with no tolerance window', () => {
     expect(syncState('2026-06-01T00:00:00.000Z', '2026-06-01T00:05:00.000Z')).toBe('drifted')
+    // An edit moments after the export is still an edit: the sheet is stale.
+    // This read 'exported' under the old 2s fudge.
+    expect(syncState('2026-06-01T00:00:00.000Z', '2026-06-01T00:00:00.500Z')).toBe('drifted')
   })
 })

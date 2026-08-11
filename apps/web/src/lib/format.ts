@@ -27,18 +27,25 @@ export function formatDate(value: string | Date | null | undefined): string {
 
 export type SyncState = 'not-exported' | 'exported' | 'drifted'
 
-// The Sheets export stamp also bumps the row's updatedAt (~the same instant), so
-// only treat an invoice as "drifted" once it was edited more than this long
-// after its last export — otherwise freshly-exported rows would flicker drifted.
-const DRIFT_TOLERANCE_MS = 2000
-
 /**
  * Per-invoice Sheets export state: not yet exported, exported, or drifted
  * (edited after the last export, so the sheet is now stale). Read-only — the app
  * never re-pushes (export is one-way); "drifted" prompts a manual re-export.
+ *
+ * The comparison is exact — no tolerance window. It once needed one, because the
+ * mirror's `sheetsSyncedAt` stamp went through Prisma and so bumped `updatedAt`
+ * with it, leaving every freshly-exported row looking edited-after-export by the
+ * duration of the whole pass; the stamp is now a raw UPDATE that leaves
+ * `updatedAt` alone (see `mirrorUserSheet`). A tolerance here would only hide a
+ * genuine edit made moments after an export.
+ *
+ * `sheetsSyncedAt` is stamped to the instant the pass STARTED, so an invoice
+ * edited mid-pass reads drifted until the next one — which is correct: the sheet
+ * was written from the pre-edit read.
  */
 export function syncState(sheetsSyncedAt: string | null | undefined, updatedAt: string): SyncState {
   if (!sheetsSyncedAt) return 'not-exported'
-  const drift = new Date(updatedAt).getTime() - new Date(sheetsSyncedAt).getTime()
-  return drift > DRIFT_TOLERANCE_MS ? 'drifted' : 'exported'
+  return new Date(updatedAt).getTime() > new Date(sheetsSyncedAt).getTime()
+    ? 'drifted'
+    : 'exported'
 }

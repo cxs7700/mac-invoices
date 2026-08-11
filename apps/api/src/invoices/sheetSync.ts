@@ -111,10 +111,19 @@ export async function mirrorUserSheet(
       where: { id: userId, sheetSpreadsheetId: spreadsheetId },
       data: { sheetSyncedAt: flushStart },
     }),
-    prisma.invoice.updateMany({
-      where: { id: { in: invoices.map((i) => i.id) }, userId },
-      data: { sheetsSyncedAt: flushStart },
-    }),
+    // RAW, deliberately: `Invoice.updatedAt` is `@updatedAt`, so a Prisma
+    // `updateMany` would bump it — and the export stamp is bookkeeping, not an
+    // edit by the landlord. Bumping it re-dirties the very rows this pass just
+    // cleaned, which made `lastChangeAt` report every landlord dirty forever
+    // (the cron re-mirrored all of them every pass) and made the per-invoice
+    // SyncBadge read "not synced" on rows that were in fact in the sheet. This
+    // statement touches `sheetsSyncedAt` and nothing else, so `updatedAt`
+    // keeps meaning "when the landlord last edited this invoice".
+    prisma.$executeRaw`
+      UPDATE "invoices"
+      SET "sheetsSyncedAt" = ${flushStart}
+      WHERE "userId" = ${userId} AND "id" = ANY(${invoices.map((i) => i.id)}::text[])
+    `,
   ])
 
   return dataRows.length
