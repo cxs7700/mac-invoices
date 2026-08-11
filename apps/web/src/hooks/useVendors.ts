@@ -6,6 +6,7 @@ import type {
   UpdateVendorInput,
 } from '@mac-invoices/shared'
 import { apiClient } from '@/lib/apiClient'
+import type { SubmissionProperty } from '@/hooks/useSubmission'
 
 // Landlord-side vendor management. Every vendor response carries the current
 // submission link, derived server-side (DEC-034), so the list can offer copy
@@ -51,6 +52,37 @@ export function useDeleteVendor() {
   return useMutation({
     mutationFn: (id: string) => apiClient<void>(`/api/vendors/${id}`, { method: 'DELETE' }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['vendors'] }),
+  })
+}
+
+/**
+ * The properties assigned to one vendor — the exact set their submission link
+ * offers. Enabled-gated so the list page only fetches for the row the landlord
+ * actually expands.
+ */
+export function useVendorProperties(id: string, enabled = true) {
+  return useQuery<{ data: SubmissionProperty[] }>({
+    queryKey: ['vendors', id, 'properties'],
+    queryFn: () => apiClient(`/api/vendors/${id}/properties`),
+    enabled,
+    retry: false,
+  })
+}
+
+/** Replace a vendor's whole property assignment (see SetVendorPropertiesSchema). */
+export function useSetVendorProperties(id: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (propertyIds: string[]) =>
+      apiClient<{ data: SubmissionProperty[] }>(`/api/vendors/${id}/properties`, {
+        method: 'PUT',
+        body: JSON.stringify({ propertyIds }),
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['vendors', id, 'properties'] })
+      // The list row shows propertyCount, so it has to refetch too.
+      void qc.invalidateQueries({ queryKey: ['vendors'] })
+    },
   })
 }
 

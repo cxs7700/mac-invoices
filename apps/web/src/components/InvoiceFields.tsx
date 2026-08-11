@@ -2,6 +2,7 @@ import { Minus, Plus, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { InvoiceCategory, propertyLabel } from '@mac-invoices/shared'
 import { formatMoney } from '@/lib/format'
+import { fieldClass, itemFieldClass } from '@/lib/fieldClass'
 
 /**
  * The fields both invoice forms share, in one order and one design.
@@ -19,9 +20,6 @@ import { formatMoney } from '@/lib/format'
  */
 
 export type ItemRowValue = { id: string; description: string; quantity: string; total: string }
-
-const fieldClass = 'mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm'
-const itemFieldClass = 'w-full rounded-md border border-input bg-background px-2 py-2 text-sm'
 
 /** Quantity as a number; a half-typed or empty box reads 1. */
 function quantityOf(row: Pick<ItemRowValue, 'quantity'>): number {
@@ -121,7 +119,7 @@ export function InvoiceFields({
                       type="button"
                       aria-label={t('invoiceFields.items.decrement', { index: index + 1 })}
                       onClick={() => stepQuantity(row, -1)}
-                      className="rounded-l-md border border-input px-2 text-muted-foreground hover:bg-accent disabled:opacity-40"
+                      className="min-h-11 min-w-11 rounded-l-md border border-input px-2 text-muted-foreground hover:bg-accent disabled:opacity-40 md:min-h-0 md:min-w-0"
                       disabled={quantityOf(row) <= 1}
                     >
                       <Minus className="h-3.5 w-3.5" aria-hidden="true" />
@@ -133,13 +131,13 @@ export function InvoiceFields({
                       min="1"
                       value={row.quantity}
                       onChange={(e) => onItemChange(row.id, { quantity: e.target.value })}
-                      className="w-14 border-y border-input bg-background px-1 py-2 text-center text-sm"
+                      className="min-h-11 w-14 border-y border-input bg-background px-1 py-2 text-center text-base md:min-h-0 md:text-sm"
                     />
                     <button
                       type="button"
                       aria-label={t('invoiceFields.items.increment', { index: index + 1 })}
                       onClick={() => stepQuantity(row, 1)}
-                      className="rounded-r-md border border-input px-2 text-muted-foreground hover:bg-accent"
+                      className="min-h-11 min-w-11 rounded-r-md border border-input px-2 text-muted-foreground hover:bg-accent md:min-h-0 md:min-w-0"
                     >
                       <Plus className="h-3.5 w-3.5" aria-hidden="true" />
                     </button>
@@ -171,7 +169,7 @@ export function InvoiceFields({
                     type="button"
                     aria-label={t('invoiceFields.items.remove', { index: index + 1 })}
                     onClick={() => onItemRemove(row.id)}
-                    className="mb-1 rounded p-1.5 text-destructive hover:bg-destructive/10"
+                    className="mb-1 flex min-h-11 min-w-11 items-center justify-center rounded text-destructive hover:bg-destructive/10 md:min-h-0 md:min-w-0 md:p-1.5"
                   >
                     <X className="h-4 w-4" aria-hidden="true" />
                   </button>
@@ -182,7 +180,7 @@ export function InvoiceFields({
           <button
             type="button"
             onClick={onItemAdd}
-            className="flex w-full items-center justify-center gap-1.5 rounded-md border border-dashed border-input py-2 text-sm text-primary hover:bg-accent"
+            className="flex min-h-11 w-full items-center justify-center gap-1.5 rounded-md border border-dashed border-input py-2 text-sm text-primary hover:bg-accent md:min-h-0"
           >
             <Plus className="h-4 w-4" aria-hidden="true" />
             {t('invoiceFields.items.add')}

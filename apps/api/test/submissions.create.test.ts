@@ -46,6 +46,10 @@ async function makeVendor(name = `Joe-${Date.now()}-${Math.random().toString(36)
   return { id: body.id, token: tokenOf(body.link), blobOwner: `c_${body.id}` }
 }
 
+/** Assign a property to a vendor — the link only offers (and accepts) these. */
+const assign = (vendorId: string, propertyId: string) =>
+  app.prisma.vendorProperty.create({ data: { vendorId, propertyId } })
+
 const submitBody = (over: Record<string, unknown> = {}, blobOwner = 'c_x') => ({
   items: [{ description: 'Fixed a leak', quantity: 1, total: 120.5 }],
   invoiceDate: '2026-06-01',
@@ -246,11 +250,12 @@ describe('POST /api/submissions/:token/upload-token', () => {
 })
 
 describe('vendor-supplied category and property', () => {
-  it('stores a category and a property the landlord owns', async () => {
+  it('stores a category and a property assigned to the vendor', async () => {
     const c = await makeVendor('Classifier')
     const property = await app.prisma.property.create({
       data: { landlordId: landlord.user.id, name: 'Maple', address: '12 Main St' },
     })
+    await assign(c.id, property.id)
 
     const res = await submit(
       c.token,
@@ -291,25 +296,55 @@ describe('vendor-supplied category and property', () => {
     expect(inv.propertyId).toBeNull()
   })
 
-  it('lists only the link’s own landlord properties', async () => {
+  it('rejects a property the landlord owns but has not assigned to this vendor', async () => {
+    const c = await makeVendor('Unassigned')
+    const property = await app.prisma.property.create({
+      data: { landlordId: landlord.user.id, name: 'Off Limits', address: '7 Other Rd' },
+    })
+    // Deliberately NOT assigned. The dropdown would never offer this id, but the
+    // vendor posts it, so the narrowing has to hold server-side too.
+    const res = await submit(c.token, submitBody({ propertyId: property.id }, c.blobOwner))
+    expect(res.statusCode).toBe(404)
+    expect(await app.prisma.invoice.count({ where: { propertyId: property.id } })).toBe(0)
+
+    await app.prisma.property.delete({ where: { id: property.id } }).catch(() => {})
+  })
+
+  it('lists only the properties assigned to this vendor', async () => {
     const other = await createSecondUser(app)
     const mine = await app.prisma.property.create({
       data: { landlordId: landlord.user.id, name: 'Mine', address: '1 Ours' },
+    })
+    // Same landlord, but not assigned to this vendor — the link must not see it.
+    const unassigned = await app.prisma.property.create({
+      data: { landlordId: landlord.user.id, name: 'Unassigned', address: '3 Ours Too' },
     })
     const theirs = await app.prisma.property.create({
       data: { landlordId: other.user.id, name: 'Theirs', address: '2 Foreign' },
     })
     const c = await makeVendor('Lister')
+    await assign(c.id, mine.id)
 
     const res = await app.inject({ method: 'GET', url: `/api/submissions/${c.token}/properties` })
     expect(res.statusCode).toBe(200)
     const ids = res.json().data.map((p: { id: string }) => p.id)
     expect(ids).toContain(mine.id)
+    expect(ids).not.toContain(unassigned.id)
     expect(ids).not.toContain(theirs.id)
     // Notes are never disclosed to a link holder.
     expect(Object.keys(res.json().data[0])).toEqual(['id', 'name', 'address'])
 
     await app.prisma.property.delete({ where: { id: theirs.id } }).catch(() => {})
+    await app.prisma.property.delete({ where: { id: unassigned.id } }).catch(() => {})
     await other.cleanup()
+  })
+
+  it('lists nothing when the vendor has no properties assigned', async () => {
+    const c = await makeVendor('Nobody')
+    const res = await app.inject({ method: 'GET', url: `/api/submissions/${c.token}/properties` })
+    // An empty list, not an error — the page turns this into a "contact your
+    // landlord" panel rather than a form that could never be completed.
+    expect(res.statusCode).toBe(200)
+    expect(res.json().data).toEqual([])
   })
 })

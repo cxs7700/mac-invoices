@@ -95,6 +95,7 @@ model Vendor {
   updatedAt     DateTime  @updatedAt
   submissions   Invoice[] @relation("InvoiceSubmittedByVendor")
   invoices      Invoice[] @relation("InvoiceVendor")
+  properties    VendorProperty[]
 
   @@index([landlordId])
   @@map("vendors")
@@ -186,9 +187,36 @@ model Property {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
   invoices   Invoice[]
+  vendors    VendorProperty[]
 
   @@index([landlordId])
   @@map("properties")
+}
+
+// Which properties a landlord has assigned to a vendor. The vendor's no-login
+// submission link offers exactly this set, and a submission naming a property
+// outside it is rejected server-side (the dropdown alone is only a hint).
+//
+// An explicit join model rather than Prisma's implicit m-n so the migration is
+// legible and the row can carry `createdAt`.
+//
+// Cascade on both sides: unassigning is not a data-loss event. `Invoice.propertyId`
+// is an independent column, so an invoice already filed against a property keeps
+// its spend history whether or not the vendor is still assigned to it.
+//
+// The composite PK does NOT enforce the tenant boundary — nothing here stops
+// pairing landlord A's property with landlord B's vendor. That is checked in the
+// handler (both rows must share a landlordId), as everywhere else in this schema.
+model VendorProperty {
+  vendorId   String
+  propertyId String
+  vendor     Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@id([vendorId, propertyId])
+  @@index([propertyId])
+  @@map("vendor_properties")
 }
 
 // One itemized line on an invoice (description, quantity, total). `total` is

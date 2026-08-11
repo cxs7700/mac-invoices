@@ -43,8 +43,10 @@ export function useSubmissionStatus(token: string) {
 
 export type SubmissionProperty = { id: string; name: string; address: string }
 
-/** The landlord's properties, so a vendor can file against one. Disclosed to
- * link holders by design — see the handler's note. */
+/** The properties assigned to THIS vendor, so they can file against one.
+ * Scoped to the assignment, not the landlord's whole portfolio; an empty array
+ * is a normal result and the page renders a "contact your landlord" panel.
+ * Disclosed to link holders by design — see the handler's note. */
 export function useSubmissionProperties(token: string) {
   return useQuery<{ data: SubmissionProperty[] }>({
     queryKey: ['submission-properties', token],

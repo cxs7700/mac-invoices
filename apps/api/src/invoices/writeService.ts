@@ -415,11 +415,17 @@ export async function createSubmission(
   for (const image of images) gateImageRef(image.url, blobOwner)
   return prisma.$transaction(async (tx) => {
     // A property named by the vendor must belong to the landlord who owns the
-    // link. Without this a token could attach any property id it guessed, and
-    // the invoice would show up filed against another landlord's address.
+    // link AND be assigned to this vendor. Without the ownership half a token
+    // could attach any property id it guessed and the invoice would show up
+    // filed against another landlord's address; without the assignment half the
+    // dropdown's narrowing would be cosmetic, since the vendor posts the id.
     if (input.propertyId != null) {
       const owned = await tx.property.findFirst({
-        where: { id: input.propertyId, landlordId: args.ownerUserId },
+        where: {
+          id: input.propertyId,
+          landlordId: args.ownerUserId,
+          vendors: { some: { vendorId: args.vendorId } },
+        },
       })
       if (!owned) throw new AppError('NOT_FOUND', 'Property not found', 404)
     }

@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Check, Copy, Pencil, X } from 'lucide-react'
+import { Building2, Check, ChevronDown, ChevronRight, Copy, Pencil, X } from 'lucide-react'
 import { formatPhone, type Vendor, type UpdateVendorInput } from '@mac-invoices/shared'
 import { Button } from '@/components/ui/button'
+import { fieldClass } from '@/lib/fieldClass'
+import { VendorPropertiesEditor } from '@/components/VendorPropertiesEditor'
 
 type Props = {
   vendor: Vendor
@@ -14,8 +16,6 @@ type Props = {
   saving?: boolean
   saveError?: string | null
 }
-
-const fieldClass = 'mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm'
 
 /**
  * A vendor row: contact details (editable in place) and their submission link.
@@ -38,6 +38,7 @@ export function VendorLinkCard({
   const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
   const [editing, setEditing] = useState(false)
+  const [propertiesOpen, setPropertiesOpen] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [name, setName] = useState(vendor.name)
   const [phone, setPhone] = useState(vendor.phone ?? '')
@@ -78,6 +79,11 @@ export function VendorLinkCard({
           <div className="text-xs text-muted-foreground">
             {contact || t('vendorCard.noContact')}
           </div>
+          {vendor.propertyCount === 0 && (
+            <div className="mt-1 inline-flex items-center rounded-full bg-status-overdue px-2 py-0.5 text-xs text-status-overdue-foreground">
+              {t('vendorCard.noPropertiesWarning')}
+            </div>
+          )}
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <span
@@ -197,6 +203,29 @@ export function VendorLinkCard({
           </div>
         </div>
       )}
+
+      {/* Which properties this vendor may file against. Collapsed by default —
+          the editor mounts (and fetches) only once opened. */}
+      <div className="mt-3 border-t border-border pt-3">
+        <button
+          type="button"
+          className="flex min-h-11 w-full items-center gap-2 text-sm font-medium text-foreground"
+          aria-expanded={propertiesOpen}
+          onClick={() => setPropertiesOpen((open) => !open)}
+        >
+          {propertiesOpen ? (
+            <ChevronDown className="h-4 w-4 shrink-0" aria-hidden="true" />
+          ) : (
+            <ChevronRight className="h-4 w-4 shrink-0" aria-hidden="true" />
+          )}
+          <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+          <span>{t('vendorCard.propertiesHeading')}</span>
+          <span className="text-xs font-normal text-muted-foreground">
+            {t('vendorCard.propertiesCount', { count: vendor.propertyCount })}
+          </span>
+        </button>
+        {propertiesOpen && <VendorPropertiesEditor vendorId={vendor.id} />}
+      </div>
 
       {vendor.link ? (
         <div className="mt-3 space-y-2">

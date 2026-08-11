@@ -115,6 +115,48 @@ describe('VendorSubmit', () => {
     )
   })
 
+  it('offers exactly the properties assigned to this vendor', () => {
+    useSubmissionProperties.mockReturnValue({
+      isSuccess: true,
+      data: {
+        data: [
+          { id: 'p1', name: 'Maple', address: '12 Main St' },
+          { id: 'p2', name: 'Oak', address: '30 Elm Ave' },
+        ],
+      },
+    })
+    useSubmissionStatus.mockReturnValue({ isPending: false, isError: false, data: { data: [] } })
+    renderPage()
+
+    const select = screen.getByLabelText(/property/i) as HTMLSelectElement
+    // The placeholder plus the two assigned properties, and nothing else — the
+    // endpoint is scoped, so the landlord's other addresses never reach here.
+    expect([...select.options].map((o) => o.value)).toEqual(['', 'p1', 'p2'])
+  })
+
+  it('replaces the form with a "contact your landlord" panel when none are assigned', () => {
+    useSubmissionProperties.mockReturnValue({ isSuccess: true, data: { data: [] } })
+    useSubmissionStatus.mockReturnValue({ isPending: false, isError: false, data: { data: [] } })
+    renderPage()
+
+    expect(screen.getByText('No properties assigned yet')).toBeDefined()
+    // A property is required to submit, so the form would be a dead end.
+    expect(screen.queryByLabelText('Description')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Submit' })).toBeNull()
+    // The vendor can still see their history.
+    expect(screen.getByText(/your submissions/i)).toBeDefined()
+  })
+
+  it('keeps the form when the property fetch fails, rather than blaming the landlord', () => {
+    // isSuccess false — a failed request must not be misread as "none assigned".
+    useSubmissionProperties.mockReturnValue({ isSuccess: false, isError: true, data: undefined })
+    useSubmissionStatus.mockReturnValue({ isPending: false, isError: false, data: { data: [] } })
+    renderPage()
+
+    expect(screen.queryByText('No properties assigned yet')).toBeNull()
+    expect(screen.getByLabelText('Description')).toBeDefined()
+  })
+
   it('renders submissions with statuses and a resubmit affordance on rejected ones', () => {
     useSubmissionStatus.mockReturnValue({
       isPending: false,

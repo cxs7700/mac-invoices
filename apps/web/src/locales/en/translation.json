@@ -8,8 +8,17 @@
     "settings": "Settings",
     "soon": "Soon"
   },
+  "install": {
+    "appName": "Submit Invoice",
+    "title": "Add this to your home screen",
+    "body": "Install it once and open your invoice form like an app — no link to find.",
+    "action": "Add to home screen",
+    "iosStep1": "Tap",
+    "iosStep2": "then \"Add to Home Screen\"."
+  },
   "common": {
     "logOut": "Log out",
+    "dismiss": "Dismiss",
     "loading": "Loading…",
     "save": "Save changes",
     "cancel": "Cancel",
@@ -429,7 +438,18 @@
     "reusableHint": "Send this same link any time — it doesn't expire.",
     "revokedHint": "Revoked. Issuing a new link replaces the old one for good.",
     "reissueLink": "Issue new link",
-    "revoke": "Revoke"
+    "revoke": "Revoke",
+    "noPropertiesWarning": "No properties assigned — can't submit",
+    "propertiesHeading": "Properties",
+    "propertiesCount_one": "{{count}} assigned",
+    "propertiesCount_other": "{{count}} assigned"
+  },
+  "vendorProperties": {
+    "loading": "Loading properties…",
+    "loadError": "Couldn't load properties.",
+    "noneExist": "You haven't added any properties yet. Add one on the Properties page first.",
+    "noneSelectedWarning": "With nothing selected this vendor can't submit an invoice.",
+    "upToDate": "Saved"
   },
   "notifications": {
     "title": "Notifications",
@@ -446,6 +466,8 @@
     "genericError": "Something went wrong — please try again.",
     "submittedTitle": "Your invoice has been submitted",
     "submittedBody": "We'll let you know once it's been reviewed.",
+    "noPropertiesTitle": "No properties assigned yet",
+    "noPropertiesBody": "Your landlord hasn't assigned any properties to you yet. Please contact them — you'll be able to submit once they have.",
     "submitAnother": "Submit another invoice",
     "amount": "Amount",
     "date": "Date",

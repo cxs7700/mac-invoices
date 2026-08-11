@@ -117,8 +117,23 @@ export const VendorSchema = z.object({
   email: z.string().nullable(),
   linkActive: z.boolean(),
   link: z.string().nullable(),
+  // How many properties the landlord has assigned. Zero means the vendor's link
+  // loads but cannot submit — a property is required — so the list surfaces it
+  // as a warning rather than letting the vendor discover it.
+  propertyCount: z.number().int().nonnegative(),
   lastUsedAt: z.coerce.date().nullable(),
   createdAt: z.coerce.date(),
+})
+
+/**
+ * PUT /api/vendors/:id/properties — the landlord's whole assignment for this
+ * vendor, replacing whatever was there. A set, not a patch: the UI is a
+ * checkbox list that always knows the full intended state, and replace-in-one
+ * -transaction avoids the add/remove interleaving that a pair of endpoints
+ * would invite. An empty array is legal and means "unassign everything".
+ */
+export const SetVendorPropertiesSchema = z.object({
+  propertyIds: z.array(z.string().min(1)).max(500),
 })
 
 /**
@@ -127,6 +142,7 @@ export const VendorSchema = z.object({
  */
 export const VendorWithLinkSchema = VendorSchema
 
+export type SetVendorPropertiesInput = z.infer<typeof SetVendorPropertiesSchema>
 export type CreateVendorInput = z.infer<typeof CreateVendorSchema>
 export type UpdateVendorInput = z.infer<typeof UpdateVendorSchema>
 export type Vendor = z.infer<typeof VendorSchema>

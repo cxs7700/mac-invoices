@@ -1,5 +1,10 @@
 import type { FastifyRequest, FastifyReply } from 'fastify'
-import { CreateVendorSchema, UpdateVendorSchema, formatPhone } from '@mac-invoices/shared'
+import {
+  CreateVendorSchema,
+  UpdateVendorSchema,
+  SetVendorPropertiesSchema,
+  formatPhone,
+} from '@mac-invoices/shared'
 import { AppError } from '../middleware/errorHandler'
 import { parseBody } from '../lib/validate'
 import { buildLinkToken, newLookupId } from './token'
@@ -15,7 +20,13 @@ type VendorRow = {
   revokedAt: Date | null
   lastUsedAt: Date | null
   createdAt: Date
+  // Present only on the reads that ask for it; a freshly created vendor has no
+  // assignments yet, so its absence correctly reads as zero.
+  _count?: { properties: number }
 }
+
+/** Counts the vendor's assigned properties on any read that includes it. */
+const withPropertyCount = { _count: { select: { properties: true } } } as const
 
 /**
  * Landlord-facing shape. `link` is derived on every read so the landlord can
@@ -35,6 +46,7 @@ function toVendor(v: VendorRow) {
     email: v.email,
     linkActive: active,
     link: active ? linkUrl(buildLinkToken(v.tokenLookupId, v.tokenVersion)) : null,
+    propertyCount: v._count?.properties ?? 0,
     lastUsedAt: v.lastUsedAt,
     createdAt: v.createdAt,
   }
@@ -97,13 +109,18 @@ export async function listVendors(request: FastifyRequest, reply: FastifyReply) 
   const rows = await request.server.prisma.vendor.findMany({
     where: { landlordId: request.user.id },
     orderBy: { createdAt: 'desc' },
+    include: withPropertyCount,
   })
   return reply.send({ data: rows.map(toVendor) })
 }
 
 /** GET /api/vendors/:id — one own vendor, or 404. */
 export async function getVendor(request: FastifyRequest<{ Params: Params }>, reply: FastifyReply) {
-  const v = await ownVendor(request.server.prisma, request.params.id, request.user.id)
+  await ownVendor(request.server.prisma, request.params.id, request.user.id)
+  const v = await request.server.prisma.vendor.findUniqueOrThrow({
+    where: { id: request.params.id },
+    include: withPropertyCount,
+  })
   return reply.send(toVendor(v))
 }
 
@@ -121,6 +138,7 @@ export async function updateVendor(
       ...(input.phone !== undefined && { phone: input.phone }),
       ...(input.email !== undefined && { email: input.email }),
     },
+    include: withPropertyCount,
   })
   return reply.send(toVendor(v))
 }
@@ -143,6 +161,74 @@ export async function deleteVendor(
 }
 
 /**
+ * GET /api/vendors/:id/properties — the properties assigned to this vendor.
+ *
+ * This is the set the vendor's submission link offers. Same id/name/address
+ * shape the properties list uses, so the checkbox UI can diff the two directly.
+ */
+export async function listVendorProperties(
+  request: FastifyRequest<{ Params: Params }>,
+  reply: FastifyReply,
+) {
+  await ownVendor(request.server.prisma, request.params.id, request.user.id)
+  const rows = await request.server.prisma.property.findMany({
+    where: { landlordId: request.user.id, vendors: { some: { vendorId: request.params.id } } },
+    orderBy: { name: 'asc' },
+    select: { id: true, name: true, address: true },
+  })
+  return reply.send({ data: rows })
+}
+
+/**
+ * PUT /api/vendors/:id/properties — replace this vendor's whole assignment.
+ *
+ * A set, not a patch: the UI is a checkbox list that always knows the full
+ * intended state, so replacing in one transaction avoids the interleaving an
+ * add/remove pair would invite. An empty array unassigns everything, which is
+ * legal — and means the vendor's link can no longer submit.
+ *
+ * Every id is re-checked against the caller's own properties before the write.
+ * The join table's composite PK does not encode the tenant boundary, so without
+ * this a landlord could pair another landlord's property to their own vendor
+ * and, through the submission link, learn that property's name and address.
+ */
+export async function setVendorProperties(
+  request: FastifyRequest<{ Params: Params }>,
+  reply: FastifyReply,
+) {
+  const vendorId = request.params.id
+  const landlordId = request.user.id
+  await ownVendor(request.server.prisma, vendorId, landlordId)
+  const { propertyIds } = parseBody(SetVendorPropertiesSchema, request.body)
+  // Duplicates in the payload would make createMany trip the composite PK.
+  const ids = [...new Set(propertyIds)]
+
+  await request.server.prisma.$transaction(async (tx) => {
+    if (ids.length > 0) {
+      const owned = await tx.property.count({ where: { id: { in: ids }, landlordId } })
+      // A count mismatch covers both "not yours" and "doesn't exist" with one
+      // message, so this can't be used to probe for another landlord's ids.
+      if (owned !== ids.length) {
+        throw new AppError('VALIDATION_ERROR', 'One or more properties were not found', 400)
+      }
+    }
+    await tx.vendorProperty.deleteMany({ where: { vendorId } })
+    if (ids.length > 0) {
+      await tx.vendorProperty.createMany({
+        data: ids.map((propertyId) => ({ vendorId, propertyId })),
+      })
+    }
+  })
+
+  const rows = await request.server.prisma.property.findMany({
+    where: { landlordId, vendors: { some: { vendorId } } },
+    orderBy: { name: 'asc' },
+    select: { id: true, name: true, address: true },
+  })
+  return reply.send({ data: rows })
+}
+
+/**
  * POST /api/vendors/:id/revoke — invalidate the link (idempotent). A revoked
  * link can neither submit nor read; the vendor's existing (landlord-owned)
  * submissions are untouched.
@@ -152,6 +238,7 @@ export async function revokeLink(request: FastifyRequest<{ Params: Params }>, re
   const v = await request.server.prisma.vendor.update({
     where: { id: request.params.id },
     data: { revokedAt: new Date() },
+    include: withPropertyCount,
   })
   return reply.send(toVendor(v))
 }
@@ -173,6 +260,7 @@ export async function regenerateLink(
   const v = await request.server.prisma.vendor.update({
     where: { id: request.params.id },
     data: { tokenVersion: { increment: 1 }, revokedAt: null },
+    include: withPropertyCount,
   })
   return reply.send(toVendor(v))
 }

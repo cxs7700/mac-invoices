@@ -71,27 +71,32 @@ export async function createUploadToken(
  * another vendor's or the landlord's invoices (no existence leak, AE4).
  */
 /**
- * GET /api/submissions/:token/properties — the landlord's properties, so the
- * vendor can file their submission against one.
+ * GET /api/submissions/:token/properties — the properties the landlord has
+ * assigned to THIS vendor, so they can file their submission against one.
  *
- * NOTE, deliberately: this discloses the landlord's property names and
- * addresses to anyone holding a live submission link. That is a real widening
- * of what a link reveals — previously it exposed only the vendor's own
- * submissions. It is accepted because the alternative is a vendor guessing at
- * an address in free text and the landlord re-keying it, and because a link is
- * already a bearer credential the landlord chooses who to hand to. Revoking
- * the link closes this along with everything else.
+ * Previously this returned every property the landlord owned. It is now scoped
+ * to the vendor's assignment, which narrows what a link discloses: a vendor
+ * working on one building no longer learns the addresses of the rest of the
+ * portfolio. What remains disclosed — the name and address of properties the
+ * landlord deliberately assigned to this vendor — is accepted, because the
+ * alternative is the vendor typing an address in free text for the landlord to
+ * re-key, and a link is already a bearer credential the landlord chooses who to
+ * hand to. Revoking the link closes this along with everything else.
  *
- * Only id/name/address are returned — never notes, and never another
- * landlord's properties.
+ * An empty array is a normal result (nothing assigned yet), not an error; the
+ * page renders a "contact your landlord" panel rather than an unusable form.
+ *
+ * Only id/name/address are returned — never notes.
  */
 export async function listProperties(
   request: FastifyRequest<{ Params: TokenParams }>,
   reply: FastifyReply,
 ) {
-  const { landlordId } = await resolveLink(request)
+  const { landlordId, vendorId } = await resolveLink(request)
   const rows = await request.server.prisma.property.findMany({
-    where: { landlordId },
+    // landlordId is redundant against the join row but kept as a belt-and-braces
+    // tenant assertion: a mispaired assignment can never leak through this read.
+    where: { landlordId, vendors: { some: { vendorId } } },
     orderBy: { name: 'asc' },
     select: { id: true, name: true, address: true },
   })

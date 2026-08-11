@@ -10,8 +10,17 @@
     "settings": "設定",
     "soon": "快將推出"
   },
+  "install": {
+    "appName": "交發票",
+    "title": "加去主畫面",
+    "body": "裝一次之後，就好似一個 app 咁開發票表格，唔使再搵條連結。",
+    "action": "加去主畫面",
+    "iosStep1": "㩒",
+    "iosStep2": "然後揀「加入主畫面」。"
+  },
   "common": {
     "logOut": "登出",
+    "dismiss": "關閉",
     "loading": "載入緊…",
     "save": "儲存更改",
     "cancel": "取消",
@@ -448,7 +457,18 @@
     "reusableHint": "呢條連結可以隨時再發，唔會過期。",
     "revokedHint": "已撤銷。發新連結就會永久取代舊嗰條。",
     "reissueLink": "發新連結",
-    "revoke": "撤銷"
+    "revoke": "撤銷",
+    "noPropertiesWarning": "未指派物業 — 無法提交",
+    "propertiesHeading": "物業",
+    "propertiesCount_one": "已指派 {{count}} 個",
+    "propertiesCount_other": "已指派 {{count}} 個"
+  },
+  "vendorProperties": {
+    "loading": "正在載入物業…",
+    "loadError": "無法載入物業。",
+    "noneExist": "你仲未加過物業。請先喺「物業」頁面加一個。",
+    "noneSelectedWarning": "如果一個都冇揀，呢個供應商就提交唔到發票。",
+    "upToDate": "已儲存"
   },
   "notifications": {
     "title": "通知",
@@ -465,6 +485,8 @@
     "genericError": "出咗問題 — 再試一次。",
     "submittedTitle": "你張發票已經交咗",
     "submittedBody": "審核完我哋會通知你。",
+    "noPropertiesTitle": "仲未指派物業",
+    "noPropertiesBody": "業主仲未指派任何物業畀你。請聯絡業主，指派咗之後你就可以交發票。",
     "submitAnother": "再交多張發票",
     "amount": "金額",
     "date": "日期",

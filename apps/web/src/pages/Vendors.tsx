@@ -14,8 +14,7 @@ import {
   useUpdateVendor,
   useDeleteVendor,
 } from '@/hooks/useVendors'
-
-const fieldClass = 'mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm'
+import { fieldClass } from '@/lib/fieldClass'
 
 type FormInput = z.input<typeof CreateVendorSchema>
 

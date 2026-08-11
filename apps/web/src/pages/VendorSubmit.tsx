@@ -5,6 +5,8 @@ import { ApiError } from '@/lib/apiClient'
 import { StatusBadge } from '@/components/StatusBadge'
 import { PhotoAttach } from '@/components/PhotoAttach'
 import { LanguageSwitcher } from '@/components/LanguageSwitcher'
+import { InstallPrompt } from '@/components/InstallPrompt'
+import { installManifest, registerSubmitServiceWorker } from '@/lib/pwa'
 import { Button } from '@/components/ui/button'
 import { InvoiceFields, type ItemRowValue } from '@/components/InvoiceFields'
 import { formatMoney, formatDate } from '@/lib/format'
@@ -29,7 +31,15 @@ function blankItem(): ItemRowValue {
 function Shell({ children }: { children: React.ReactNode }) {
   const { t } = useTranslation()
   return (
-    <div className="min-h-screen bg-background px-4 py-8">
+    // Safe-area padding matters once installed: in standalone mode the page
+    // owns the full screen, including the notch and the home indicator.
+    <div
+      className="min-h-screen bg-background px-4 py-8"
+      style={{
+        paddingTop: 'max(2rem, env(safe-area-inset-top))',
+        paddingBottom: 'max(2rem, env(safe-area-inset-bottom))',
+      }}
+    >
       <div className="mx-auto w-full max-w-md space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-bold text-foreground">{t('vendorSubmit.title')}</h1>
@@ -57,6 +67,12 @@ export default function VendorSubmit() {
     localeForced.current = true
     if (i18n.language !== 'zh') i18n.changeLanguage('zh')
   }, [i18n])
+
+  // Installable to the vendor's home screen. The manifest is torn down on
+  // unmount so the landlord app — same origin — never inherits it.
+  const appName = t('install.appName')
+  useEffect(() => installManifest(appName), [appName])
+  useEffect(() => registerSubmitServiceWorker(), [])
 
   const status = useSubmissionStatus(token!)
   const submit = useSubmit(token!)
@@ -92,9 +108,13 @@ export default function VendorSubmit() {
   }
 
   const submissions = status.data.data
-  // A failed property fetch must never block submitting — the field just has
-  // nothing to offer, and the landlord assigns one on review as before.
   const properties = propertyList.data?.data ?? []
+  // A property is required to submit, and the dropdown only offers the ones the
+  // landlord assigned to this vendor — so with none assigned there is nothing to
+  // pick and the form could never be completed. Show why instead of a dead form.
+  // Only once the fetch has actually succeeded: a failed request must not be
+  // misread as "no properties assigned".
+  const noPropertiesAssigned = propertyList.isSuccess && properties.length === 0
   const atCap = photos.length >= MAX_INVOICE_IMAGES
   const filledItems = items.filter((i) => i.description.trim() && Number(i.total) > 0)
   const computedTotal = filledItems.reduce((sum, i) => sum + Number(i.total), 0)
@@ -169,7 +189,14 @@ export default function VendorSubmit() {
 
   return (
     <Shell>
-      {justSubmitted ? (
+      <InstallPrompt />
+
+      {noPropertiesAssigned ? (
+        <div className="rounded-lg border border-border bg-card p-6 text-center">
+          <p className="font-medium text-foreground">{t('vendorSubmit.noPropertiesTitle')}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{t('vendorSubmit.noPropertiesBody')}</p>
+        </div>
+      ) : justSubmitted ? (
         <div className="rounded-lg border border-status-paid bg-status-paid/30 p-5 text-center">
           <p className="font-medium text-foreground">{t('vendorSubmit.submittedTitle')}</p>
           <p className="mt-1 text-sm text-muted-foreground">{t('vendorSubmit.submittedBody')}</p>
@@ -206,17 +233,23 @@ export default function VendorSubmit() {
                 {photos.map((p, i) => (
                   <li
                     key={p.url}
-                    className="flex items-center justify-between gap-2 rounded-md border border-border bg-background px-3 py-2"
+                    className="flex items-center gap-3 rounded-md border border-border bg-background p-2"
                   >
-                    <span className="text-sm text-foreground">
-                      {t('vendorSubmit.photoN', { n: i + 1 })}
-                    </span>
-                    <div className="flex items-center gap-2">
+                    {/* A thumbnail, not just "Photo 3": after five shots on a
+                        job site the numbers alone don't say which is the
+                        receipt and which is the part. */}
+                    <img
+                      src={p.url}
+                      alt={t('vendorSubmit.photoN', { n: i + 1 })}
+                      loading="lazy"
+                      className="h-14 w-14 shrink-0 rounded object-cover"
+                    />
+                    <div className="flex min-w-0 flex-1 flex-col gap-2">
                       <select
                         aria-label={t('vendorSubmit.photoTypeLabel', { n: i + 1 })}
                         value={p.type}
                         onChange={(e) => setPhotoType(p.url, e.target.value as ImageTypeT)}
-                        className="rounded-md border border-input bg-background px-2 py-1 text-xs"
+                        className="min-h-11 w-full rounded-md border border-input bg-background px-2 py-1 text-base md:min-h-0 md:text-xs"
                       >
                         {ImageType.options.map((opt) => (
                           <option key={opt} value={opt}>
@@ -224,14 +257,14 @@ export default function VendorSubmit() {
                           </option>
                         ))}
                       </select>
-                      <button
-                        type="button"
-                        onClick={() => removePhoto(p.url)}
-                        className="text-xs font-medium text-destructive underline"
-                      >
-                        {t('vendorSubmit.removePhoto')}
-                      </button>
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => removePhoto(p.url)}
+                      className="min-h-11 shrink-0 px-2 text-xs font-medium text-destructive underline"
+                    >
+                      {t('vendorSubmit.removePhoto')}
+                    </button>
                   </li>
                 ))}
               </ul>
