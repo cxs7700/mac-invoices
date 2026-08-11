@@ -69,7 +69,9 @@ beforeAll(async () => {
 })
 beforeEach(() => {
   overwriteRows.mockReset().mockResolvedValue(undefined)
-  resolveSheetTab.mockReset().mockResolvedValue({ sheetId: 123, typedColumnIndexes: [], table: null })
+  resolveSheetTab
+    .mockReset()
+    .mockResolvedValue({ sheetId: 123, typedColumnIndexes: [], table: null })
   applyColumnDropdowns.mockReset().mockResolvedValue(undefined)
 })
 afterAll(async () => {

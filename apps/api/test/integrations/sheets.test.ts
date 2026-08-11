@@ -230,7 +230,7 @@ describe('sheets.overwriteRows (full mirror)', () => {
   })
 
   it('clears and writes exactly as before when the tab has no table', async () => {
-    await overwriteRows('S', [['h'], ['a']], { sheetId: 0, typedColumnIndexes: [], table: null })
+    await overwriteRows('S', [['h'], ['a']], noTable)
     expect(clearMock).toHaveBeenCalledTimes(1)
     expect(updateMock).toHaveBeenCalledTimes(1)
     expect(batchUpdateMock).not.toHaveBeenCalled()
@@ -346,7 +346,9 @@ describe('sheets.resolveSheetTab', () => {
         sheets: [
           {
             properties: { sheetId: 4, title: 'Invoices' },
-            tables: [{ tableId: 'tbl-1', range: { sheetId: 4, endRowIndex: 41, endColumnIndex: 10 } }],
+            tables: [
+              { tableId: 'tbl-1', range: { sheetId: 4, endRowIndex: 41, endColumnIndex: 10 } },
+            ],
           },
         ],
       },
@@ -367,7 +369,12 @@ describe('sheets.resolveSheetTab', () => {
             tables: [
               {
                 tableId: 'tbl-2',
-                range: { startRowIndex: 0, startColumnIndex: 0, endRowIndex: 9, endColumnIndex: 10 },
+                range: {
+                  startRowIndex: 0,
+                  startColumnIndex: 0,
+                  endRowIndex: 9,
+                  endColumnIndex: 10,
+                },
               },
             ],
           },
@@ -388,7 +395,12 @@ describe('sheets.resolveSheetTab', () => {
             tables: [
               {
                 tableId: 'tbl-3',
-                range: { startRowIndex: 4, startColumnIndex: 2, endRowIndex: 40, endColumnIndex: 12 },
+                range: {
+                  startRowIndex: 4,
+                  startColumnIndex: 2,
+                  endRowIndex: 40,
+                  endColumnIndex: 12,
+                },
               },
             ],
           },
@@ -405,7 +417,10 @@ describe('sheets.resolveSheetTab', () => {
           {
             properties: { sheetId: 0, title: 'Invoices' },
             tables: [
-              { tableId: 'lower', range: { startRowIndex: 50, endRowIndex: 60, endColumnIndex: 4 } },
+              {
+                tableId: 'lower',
+                range: { startRowIndex: 50, endRowIndex: 60, endColumnIndex: 4 },
+              },
               { tableId: 'anchored', range: { endRowIndex: 20, endColumnIndex: 10 } },
             ],
           },
@@ -502,9 +517,11 @@ describe('sheets.applyColumnDropdowns', () => {
       code: 403,
       message: 'denied for PRIVATE-SECRET-123',
     })
-    const err = await applyColumnDropdowns('S', { sheetId: 1, typedColumnIndexes: [], table: null }, []).catch(
-      (e) => e,
-    )
+    const err = await applyColumnDropdowns(
+      'S',
+      { sheetId: 1, typedColumnIndexes: [], table: null },
+      [],
+    ).catch((e) => e)
     expect(err).toMatchObject({ code: 'SHEET_PERMISSION_DENIED', statusCode: 502 })
     expect(JSON.stringify(err, Object.getOwnPropertyNames(err))).not.toContain('PRIVATE-SECRET-123')
   })

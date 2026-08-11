@@ -179,9 +179,7 @@ export type SheetTab = {
  * A table with no id, or no column extent, cannot be addressed or resized, so
  * it is treated as absent.
  */
-function anchoredTable(
-  tables: NonNullable<sheets_v4.Schema$Sheet['tables']>,
-): SheetTable | null {
+function anchoredTable(tables: NonNullable<sheets_v4.Schema$Sheet['tables']>): SheetTable | null {
   for (const t of tables) {
     const range = t.range
     if (!range) continue
@@ -364,7 +362,14 @@ export async function appendRows(spreadsheetId: string, rows: SheetCell[][]): Pr
  * Each Google call carries the shared retry/backoff + sanitize policy. NOT
  * atomic across the calls: a failure after the clear leaves the tab empty, but
  * the caller is the cron mirror which re-runs idempotently (the user stays
- * "dirty" until a full pass succeeds).
+ * "dirty" until a full pass succeeds) — for a transient failure (429/5xx/
+ * transport) on any call, including the resize. But `updateTable`, unlike
+ * `values.update`, does NOT auto-expand the sheet's grid: if the requested
+ * `endRowIndex` exceeds the tab's actual grid row count (e.g. a landlord who
+ * trimmed the tab down to the table's height and then crossed that invoice
+ * count), Google rejects it with a non-retryable 400. That aborts the pass
+ * right after the clear, leaving the tab empty; every later pass repeats the
+ * same clear-then-400 until a human grows the tab's grid or shrinks the table.
  */
 export async function overwriteRows(
   spreadsheetId: string,
