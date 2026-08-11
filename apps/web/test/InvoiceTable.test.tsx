@@ -92,7 +92,7 @@ describe('InvoiceTable', () => {
   })
 })
 
-describe('InvoiceTable add-photo indicator (AE3)', () => {
+describe('InvoiceTable export column', () => {
   const make = (over: Partial<InvoiceListItem>): InvoiceListItem => ({
     ...base,
     id: 'x',
@@ -114,19 +114,18 @@ describe('InvoiceTable add-photo indicator (AE3)', () => {
       </MemoryRouter>,
     )
 
-  it('shows an actionable indicator for an active invoice with no photos', () => {
+  it('heads the sync column "Exported" and reads No / Yes', () => {
+    renderRows([
+      make({ id: 'no', sheetsSyncedAt: null }),
+      make({ id: 'yes', updatedAt: '2026-01-15T00:00:00.000Z', sheetsSyncedAt: '2026-01-16T00:00:00.000Z' }),
+    ])
+    expect(screen.getByRole('columnheader', { name: 'Exported' })).toBeDefined()
+    expect(screen.getByText('No')).toBeDefined()
+    expect(screen.getByText('Yes')).toBeDefined()
+  })
+
+  it('no longer offers an add-photo shortcut in the row', () => {
     renderRows([make({ id: 'paid0', status: 'PAID', imageCount: 0 })])
-    const link = screen.getByRole('link', { name: /add a photo to this invoice/i })
-    expect(link.getAttribute('href')).toBe('/invoices/paid0')
-  })
-
-  it('hides the indicator for a terminal (CANCELLED) invoice with no photos', () => {
-    renderRows([make({ id: 'canc', status: 'CANCELLED', imageCount: 0 })])
-    expect(screen.queryByRole('link', { name: /add a photo/i })).toBeNull()
-  })
-
-  it('hides the indicator for an invoice that already has a photo', () => {
-    renderRows([make({ id: 'has', status: 'PAID', imageCount: 2 })])
     expect(screen.queryByRole('link', { name: /add a photo/i })).toBeNull()
   })
 })

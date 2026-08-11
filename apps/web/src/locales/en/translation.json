@@ -91,7 +91,7 @@
     "cta": "No photo yet — add one to document this invoice."
   },
   "sync": {
-    "label": { "not-exported": "Not exported", "exported": "Exported", "drifted": "Drifted" },
+    "label": { "not-exported": "No", "exported": "Yes", "drifted": "No" },
     "hint": {
       "not-exported": "Not yet exported to the Google Sheet",
       "exported": "Synced to the Google Sheet",
@@ -160,9 +160,9 @@
     "partsOrdered": "Parts ordered",
     "vendor": "Vendor",
     "date": "Date",
-    "price": "Price",
+    "total": "Total",
     "status": "Status",
-    "sheet": "Sheet"
+    "exported": "Exported"
   },
   "filterBar": {
     "search": "Search",

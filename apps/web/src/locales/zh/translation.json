@@ -105,9 +105,9 @@
   },
   "sync": {
     "label": {
-      "not-exported": "未匯出",
-      "exported": "已匯出",
-      "drifted": "有改動"
+      "not-exported": "否",
+      "exported": "是",
+      "drifted": "否"
     },
     "hint": {
       "not-exported": "仲未匯出去 Google 試算表",
@@ -179,9 +179,9 @@
     "partsOrdered": "訂咗嘅零件",
     "vendor": "供應商",
     "date": "日期",
-    "price": "金額",
+    "total": "總計",
     "status": "狀態",
-    "sheet": "試算表"
+    "exported": "已匯出"
   },
   "filterBar": {
     "search": "搜尋",

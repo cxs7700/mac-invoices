@@ -15,6 +15,10 @@ import { useProperties } from '@/hooks/useProperties'
 const field =
   'rounded-md border border-input bg-card px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring'
 
+// A native select draws its arrow flush against the padding edge, so the
+// shared px-3 leaves it crowding the border. Extra right padding only.
+const selectField = `${field} pr-8`
+
 const RANGE_LABEL_KEYS: Record<DateRangePreset, string> = {
   '1w': 'filterBar.range1w',
   '1m': 'filterBar.range1m',
@@ -118,7 +122,7 @@ export function FilterBar({ filters, onChange, onClear }: Props) {
         {t('filterBar.status')}
         <select
           aria-label={t('filterBar.filterByStatus')}
-          className={field}
+          className={selectField}
           value={filters.status}
           onChange={(e) => onChange({ status: e.target.value })}
         >
@@ -135,7 +139,7 @@ export function FilterBar({ filters, onChange, onClear }: Props) {
         {t('filterBar.property')}
         <select
           aria-label={t('filterBar.filterByProperty')}
-          className={field}
+          className={selectField}
           value={filters.propertyId}
           onChange={(e) => onChange({ propertyId: e.target.value })}
         >
@@ -219,7 +223,7 @@ export function FilterBar({ filters, onChange, onClear }: Props) {
         {t('filterBar.sortBy')}
         <select
           aria-label={t('filterBar.sortBy')}
-          className={field}
+          className={selectField}
           value={filters.sort}
           onChange={(e) => onChange({ sort: e.target.value })}
         >

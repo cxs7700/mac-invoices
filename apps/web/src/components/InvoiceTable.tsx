@@ -4,8 +4,6 @@ import { summarizeItems } from '@mac-invoices/shared'
 import type { InvoiceListItem } from '@/hooks/useInvoices'
 import { StatusBadge } from './StatusBadge'
 import { SyncBadge } from './SyncBadge'
-import { AddPhotoIndicator } from './AddPhotoIndicator'
-import { needsPhoto } from '@/lib/needsPhoto'
 import { formatMoney, formatDate } from '@/lib/format'
 
 const th = 'px-4 py-2 font-medium'
@@ -51,9 +49,9 @@ export function InvoiceTable({
             <th className={th}>{t('invoiceTable.partsOrdered')}</th>
             <th className={th}>{t('invoiceTable.vendor')}</th>
             <th className={th}>{t('invoiceTable.date')}</th>
-            <th className={`${th} text-right`}>{t('invoiceTable.price')}</th>
+            <th className={`${th} text-right`}>{t('invoiceTable.total')}</th>
             <th className={th}>{t('invoiceTable.status')}</th>
-            <th className={th}>{t('invoiceTable.sheet')}</th>
+            <th className={th}>{t('invoiceTable.exported')}</th>
           </tr>
         </thead>
         <tbody>
@@ -104,12 +102,7 @@ export function InvoiceTable({
               <td className={td}>{formatDate(inv.invoiceDate)}</td>
               <td className={`${td} text-right tabular-nums`}>{formatMoney(inv.amount)}</td>
               <td className={td}>
-                <div className="flex items-center gap-2">
-                  <StatusBadge status={inv.status} />
-                  {needsPhoto(inv.status, inv.imageCount) && (
-                    <AddPhotoIndicator invoiceId={inv.id} />
-                  )}
-                </div>
+                <StatusBadge status={inv.status} />
               </td>
               <td className={td}>
                 <SyncBadge sheetsSyncedAt={inv.sheetsSyncedAt} updatedAt={inv.updatedAt} />

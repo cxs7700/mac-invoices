@@ -7,15 +7,18 @@ type Props = {
 }
 
 const tone: Record<SyncState, string> = {
-  'not-exported': 'bg-muted text-muted-foreground',
+  'not-exported': 'bg-status-overdue text-status-overdue-foreground',
   exported: 'bg-status-paid text-status-paid-foreground',
   drifted: 'bg-status-overdue text-status-overdue-foreground',
 }
 
 /**
- * Per-invoice Google Sheets sync state. "Drifted" means the invoice was edited
- * after its last sync, so the sheet is momentarily stale; continuous sync
- * re-mirrors it on the next cron pass (~15 min), or immediately via "Sync now".
+ * Per-invoice Google Sheets sync state, shown as a plain Yes/No: is the sheet
+ * currently accurate for this invoice? "Drifted" (edited after its last sync,
+ * so the sheet row is momentarily stale) reads "No" alongside never-exported —
+ * the two stay distinct states only for the hover hint. Continuous sync
+ * re-mirrors a drifted invoice on the next cron pass (~15 min), or immediately
+ * via "Sync now".
  */
 export function SyncBadge({ sheetsSyncedAt, updatedAt }: Props) {
   const { t } = useTranslation()
