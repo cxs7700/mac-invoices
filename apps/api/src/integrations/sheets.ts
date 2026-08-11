@@ -283,6 +283,55 @@ export async function applyColumnDropdowns(
   )
 }
 
+/**
+ * Size the tab's anchored Sheets Table to exactly the rows the mirror is about
+ * to write — header + `dataRowCount` — in one `updateTable`. GROWS and SHRINKS:
+ * the sheet is a full mirror that clears the tab every pass (DEC-001), so a
+ * table left stretched over just-cleared rows would render as empty banded rows
+ * carrying stale typed-column validation. Deleted rows remain recoverable from
+ * Google's own version history; Postgres stays the source of truth.
+ *
+ * A no-op when the tab has no A1-anchored table — the mirror then behaves as a
+ * plain values writer, which is the whole behavior for landlords who never made
+ * a table. The column extent is the table's own: this resizes rows, and never
+ * silently re-widens or narrows a landlord's columns.
+ *
+ * `Math.max(dataRowCount, 1)` because a table cannot be header-only — a landlord
+ * with zero exportable invoices would otherwise trigger a Google 400.
+ */
+export async function resizeTableRows(
+  spreadsheetId: string,
+  tab: SheetTab,
+  dataRowCount: number,
+): Promise<void> {
+  const { table } = tab
+  if (!table) return
+  const sheets = getSheetsClient()
+  const requests: sheets_v4.Schema$Request[] = [
+    {
+      updateTable: {
+        table: {
+          tableId: table.tableId,
+          range: {
+            sheetId: tab.sheetId,
+            startRowIndex: 0,
+            endRowIndex: 1 + Math.max(dataRowCount, 1),
+            startColumnIndex: 0,
+            endColumnIndex: table.endColumnIndex,
+          },
+        },
+        fields: 'range',
+      },
+    },
+  ]
+  await withRetry(() =>
+    sheets.spreadsheets.batchUpdate(
+      { spreadsheetId, requestBody: { requests } },
+      { timeout: 30_000 },
+    ),
+  )
+}
+
 /** Append `rows` to the pinned tab, retrying transient 429/5xx with backoff. */
 export async function appendRows(spreadsheetId: string, rows: SheetCell[][]): Promise<void> {
   const sheets = getSheetsClient()

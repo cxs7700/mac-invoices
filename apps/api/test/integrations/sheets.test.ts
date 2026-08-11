@@ -24,6 +24,7 @@ import {
   overwriteRows,
   resolveSheetTab,
   applyColumnDropdowns,
+  resizeTableRows,
 } from '../../src/integrations/sheets'
 import { SheetFormula } from '../../src/integrations/sheetCells'
 
@@ -480,5 +481,65 @@ describe('sheets.applyColumnDropdowns', () => {
     const requests = batchUpdateMock.mock.calls[0][0].requestBody.requests
     expect(requests).toHaveLength(2) // clear + property rule only
     expect(requests[1].setDataValidation.range.startColumnIndex).toBe(3)
+  })
+})
+
+describe('sheets.resizeTableRows', () => {
+  const withTable = {
+    sheetId: 123,
+    typedColumnIndexes: [],
+    table: { tableId: 'tbl-1', endColumnIndex: 10 },
+  }
+
+  it('sizes the table to the header plus N data rows in one updateTable', async () => {
+    await resizeTableRows('SHEET-1', withTable, 60)
+    expect(batchUpdateMock).toHaveBeenCalledTimes(1)
+    expect(batchUpdateMock.mock.calls[0][0]).toEqual({
+      spreadsheetId: 'SHEET-1',
+      requestBody: {
+        requests: [
+          {
+            updateTable: {
+              table: {
+                tableId: 'tbl-1',
+                range: {
+                  sheetId: 123,
+                  startRowIndex: 0,
+                  endRowIndex: 61,
+                  startColumnIndex: 0,
+                  endColumnIndex: 10,
+                },
+              },
+              fields: 'range',
+            },
+          },
+        ],
+      },
+    })
+    expect(batchUpdateMock.mock.calls[0][1]).toMatchObject({ timeout: 30000 })
+  })
+
+  it('SHRINKS with the same request when the invoice count drops', async () => {
+    await resizeTableRows('S', withTable, 3)
+    const range = batchUpdateMock.mock.calls[0][0].requestBody.requests[0].updateTable.table.range
+    expect(range.endRowIndex).toBe(4)
+  })
+
+  it('floors at one data row — a table cannot be header-only', async () => {
+    await resizeTableRows('S', withTable, 0)
+    const range = batchUpdateMock.mock.calls[0][0].requestBody.requests[0].updateTable.table.range
+    expect(range.endRowIndex).toBe(2)
+  })
+
+  it('does nothing at all when the tab has no anchored table', async () => {
+    await resizeTableRows('S', { sheetId: 0, typedColumnIndexes: [], table: null }, 5)
+    expect(batchUpdateMock).not.toHaveBeenCalled()
+  })
+
+  it('sanitizes a Google failure and never leaks the private key', async () => {
+    batchUpdateMock.mockReset().mockRejectedValue({ code: 403, key: 'PRIVATE-SECRET-123' })
+    const err = await resizeTableRows('S', withTable, 5).catch((e) => e)
+    expect(err).toMatchObject({ code: 'SHEET_PERMISSION_DENIED', statusCode: 502 })
+    expect(JSON.stringify(err, Object.getOwnPropertyNames(err))).not.toContain('PRIVATE-SECRET-123')
   })
 })
