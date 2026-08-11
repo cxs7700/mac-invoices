@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { ChevronDown } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { propertyLabel, type InvoiceSortField } from '@mac-invoices/shared'
 import {
@@ -15,9 +16,25 @@ import { useProperties } from '@/hooks/useProperties'
 const field =
   'rounded-md border border-input bg-card px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring'
 
-// A native select draws its arrow flush against the padding edge, so the
-// shared px-3 leaves it crowding the border. Extra right padding only.
-const selectField = `${field} pr-8`
+/**
+ * A native <select> with our own chevron. The browser draws its arrow flush
+ * against the field's right border and ignores padding-right — that only
+ * pushes the label text away from the arrow — so we suppress the native one
+ * and place the icon ourselves, inset from the border.
+ */
+function SelectField({ className, children, ...props }: React.ComponentProps<'select'>) {
+  return (
+    <div className="relative">
+      <select {...props} className={`${field} w-full appearance-none pr-9 ${className ?? ''}`}>
+        {children}
+      </select>
+      <ChevronDown
+        aria-hidden="true"
+        className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+      />
+    </div>
+  )
+}
 
 const RANGE_LABEL_KEYS: Record<DateRangePreset, string> = {
   '1w': 'filterBar.range1w',
@@ -120,9 +137,8 @@ export function FilterBar({ filters, onChange, onClear }: Props) {
 
       <label className="flex flex-col gap-1 text-xs text-muted-foreground">
         {t('filterBar.status')}
-        <select
+        <SelectField
           aria-label={t('filterBar.filterByStatus')}
-          className={selectField}
           value={filters.status}
           onChange={(e) => onChange({ status: e.target.value })}
         >
@@ -132,14 +148,13 @@ export function FilterBar({ filters, onChange, onClear }: Props) {
               {t(`status.${s}`)}
             </option>
           ))}
-        </select>
+        </SelectField>
       </label>
 
       <label className="flex flex-col gap-1 text-xs text-muted-foreground">
         {t('filterBar.property')}
-        <select
+        <SelectField
           aria-label={t('filterBar.filterByProperty')}
-          className={selectField}
           value={filters.propertyId}
           onChange={(e) => onChange({ propertyId: e.target.value })}
         >
@@ -150,7 +165,7 @@ export function FilterBar({ filters, onChange, onClear }: Props) {
               {propertyLabel(p)}
             </option>
           ))}
-        </select>
+        </SelectField>
       </label>
 
       <div className="flex flex-col gap-1 text-xs text-muted-foreground">
@@ -221,9 +236,8 @@ export function FilterBar({ filters, onChange, onClear }: Props) {
 
       <label className="flex flex-col gap-1 text-xs text-muted-foreground">
         {t('filterBar.sortBy')}
-        <select
+        <SelectField
           aria-label={t('filterBar.sortBy')}
-          className={selectField}
           value={filters.sort}
           onChange={(e) => onChange({ sort: e.target.value })}
         >
@@ -232,7 +246,7 @@ export function FilterBar({ filters, onChange, onClear }: Props) {
               {t(SORT_LABEL_KEYS[s])}
             </option>
           ))}
-        </select>
+        </SelectField>
       </label>
 
       <button
