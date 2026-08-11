@@ -39,6 +39,7 @@ export function VendorLinkCard({
   const [copied, setCopied] = useState(false)
   const [editing, setEditing] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [name, setName] = useState(vendor.name)
   const [phone, setPhone] = useState(vendor.phone ?? '')
   const [email, setEmail] = useState(vendor.email ?? '')
 
@@ -49,15 +50,21 @@ export function VendorLinkCard({
   }
 
   const startEditing = () => {
+    setName(vendor.name)
     setPhone(vendor.phone ?? '')
     setEmail(vendor.email ?? '')
     setEditing(true)
   }
 
+  // Unlike phone/email, the name cannot be cleared — it is what the vendor is
+  // filed under, so an empty box just blocks the save.
+  const nameMissing = name.trim().length === 0
+
   const save = () => {
+    if (nameMissing) return
     // Empty means "clear this field" — null rather than undefined, which the
     // schema would read as "leave it alone".
-    onSave({ phone: phone.trim() || null, email: email.trim() || null })
+    onSave({ name: name.trim(), phone: phone.trim() || null, email: email.trim() || null })
     setEditing(false)
   }
 
@@ -86,7 +93,7 @@ export function VendorLinkCard({
             <>
               <button
                 type="button"
-                aria-label={t('vendorCard.editContact', { name: vendor.name })}
+                aria-label={t('vendorCard.editVendor', { name: vendor.name })}
                 className="rounded p-1.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                 onClick={startEditing}
               >
@@ -136,6 +143,20 @@ export function VendorLinkCard({
       {editing && (
         <div className="mt-3 rounded-md border border-border bg-background/60 p-3">
           <div className="grid gap-3 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <label htmlFor={`name-${vendor.id}`} className="text-sm font-medium text-foreground">
+                {t('vendors.nameLabel')}
+              </label>
+              <input
+                id={`name-${vendor.id}`}
+                className={fieldClass}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+              {nameMissing && (
+                <p className="mt-1 text-sm text-destructive">{t('vendorCard.nameRequired')}</p>
+              )}
+            </div>
             <div>
               <label htmlFor={`phone-${vendor.id}`} className="text-sm font-medium text-foreground">
                 {t('vendors.phone')}
@@ -167,7 +188,7 @@ export function VendorLinkCard({
             </p>
           )}
           <div className="mt-3 flex gap-2">
-            <Button size="sm" onClick={save} disabled={saving}>
+            <Button size="sm" onClick={save} disabled={saving || nameMissing}>
               {saving ? t('common.saving') : t('common.save')}
             </Button>
             <Button size="sm" variant="outline" onClick={() => setEditing(false)}>

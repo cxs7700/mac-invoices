@@ -27,6 +27,7 @@ vi.mock('@/hooks/useVendors', () => ({
 }))
 
 const LINK = 'http://app/submit/inv_abc_secret'
+const EDIT_LABEL = "Edit Joe Plumber's name and contact details"
 
 const vendor = (over = {}) => ({
   id: 'c1',
@@ -125,13 +126,50 @@ describe('Vendors page', () => {
     // An auto-created vendor starts with neither field.
     expect(screen.getByText(/no phone or email yet/i)).toBeDefined()
 
-    fireEvent.click(screen.getByRole('button', { name: "Edit Joe Plumber's contact details" }))
+    fireEvent.click(screen.getByRole('button', { name: EDIT_LABEL }))
     fireEvent.change(screen.getByLabelText(/phone/i, { selector: '#phone-c1' }), {
       target: { value: '5551234567' },
     })
     fireEvent.click(screen.getByRole('button', { name: /save changes/i }))
 
-    expect(updateMutate).toHaveBeenCalledWith({ id: 'c1', phone: '5551234567', email: null })
+    expect(updateMutate).toHaveBeenCalledWith({
+      id: 'c1',
+      name: 'Joe Plumber',
+      phone: '5551234567',
+      email: null,
+    })
+  })
+
+  it('renames a vendor from the same edit form', () => {
+    listing([vendor()])
+    render(<Vendors />)
+
+    fireEvent.click(screen.getByRole('button', { name: EDIT_LABEL }))
+    fireEvent.change(screen.getByLabelText(/name/i, { selector: '#name-c1' }), {
+      target: { value: '  Joe the Plumber  ' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /save changes/i }))
+
+    expect(updateMutate).toHaveBeenCalledWith({
+      id: 'c1',
+      name: 'Joe the Plumber',
+      phone: '5551234567',
+      email: null,
+    })
+  })
+
+  it('refuses to save a vendor with an emptied name', () => {
+    listing([vendor()])
+    render(<Vendors />)
+
+    fireEvent.click(screen.getByRole('button', { name: EDIT_LABEL }))
+    fireEvent.change(screen.getByLabelText(/name/i, { selector: '#name-c1' }), {
+      target: { value: '   ' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /save changes/i }))
+
+    expect(screen.getByText(/name is required/i)).toBeDefined()
+    expect(updateMutate).not.toHaveBeenCalled()
   })
 
   it('offers revoke on an active link and no regenerate button', () => {
