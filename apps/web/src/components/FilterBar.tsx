@@ -1,11 +1,33 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { propertyLabel, type InvoiceSortField } from '@mac-invoices/shared'
-import { STATUS_OPTIONS, SORT_OPTIONS, hasActiveFilters, type ListFilters } from '@/lib/listParams'
+import {
+  STATUS_OPTIONS,
+  SORT_OPTIONS,
+  DATE_RANGE_PRESETS,
+  CUSTOM_RANGE,
+  hasActiveFilters,
+  type ListFilters,
+  type DateRangePreset,
+} from '@/lib/listParams'
 import { useProperties } from '@/hooks/useProperties'
 
 const field =
   'rounded-md border border-input bg-card px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring'
+
+const RANGE_LABEL_KEYS: Record<DateRangePreset, string> = {
+  '1w': 'filterBar.range1w',
+  '1m': 'filterBar.range1m',
+  '3m': 'filterBar.range3m',
+  '6m': 'filterBar.range6m',
+  ytd: 'filterBar.rangeYtd',
+  '1y': 'filterBar.range1y',
+}
+
+const RANGE_CHOICES: readonly (DateRangePreset | typeof CUSTOM_RANGE)[] = [
+  ...DATE_RANGE_PRESETS,
+  CUSTOM_RANGE,
+]
 
 const SORT_LABEL_KEYS: Record<InvoiceSortField, string> = {
   invoiceNumber: 'filterBar.sortNumber',
@@ -39,7 +61,7 @@ export function FilterBar({ filters, onChange, onClear }: Props) {
   // committed vendor/search), resync the inputs to the URL value and cancel a
   // pending debounce — otherwise an uncommitted keystroke could resurrect a
   // just-cleared value. Keyed on the full signature, adjusting state in render.
-  const sig = `${filters.status}|${filters.from}|${filters.to}|${filters.vendor}|${filters.search}|${filters.propertyId}|${filters.sort}|${filters.order}|${filters.page}`
+  const sig = `${filters.status}|${filters.range}|${filters.from}|${filters.to}|${filters.vendor}|${filters.search}|${filters.propertyId}|${filters.sort}|${filters.order}|${filters.page}`
   const [syncedSig, setSyncedSig] = useState(sig)
   if (sig !== syncedSig) {
     setSyncedSig(sig)
@@ -70,7 +92,13 @@ export function FilterBar({ filters, onChange, onClear }: Props) {
     searchTimer.current = setTimeout(() => onChange({ search: value }), 300)
   }
 
-  const dateError = filters.from && filters.to && filters.from > filters.to
+  // Leaving the custom range drops its dates, so a stale window can't survive
+  // invisibly behind a preset (or behind no date filter at all).
+  const selectRange = (range: string) =>
+    onChange(range === CUSTOM_RANGE ? { range } : { range, from: '', to: '' })
+
+  const dateError =
+    filters.range === CUSTOM_RANGE && filters.from && filters.to && filters.from > filters.to
 
   return (
     <div className="mb-4 flex flex-col gap-3 md:flex-row md:flex-wrap md:items-end">
@@ -121,29 +149,59 @@ export function FilterBar({ filters, onChange, onClear }: Props) {
         </select>
       </label>
 
-      <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-        {t('filterBar.fromDate')}
-        <input
-          type="date"
-          aria-label={t('filterBar.fromDate')}
-          className={field}
-          value={filters.from}
-          max={filters.to || undefined}
-          onChange={(e) => onChange({ from: e.target.value })}
-        />
-      </label>
+      <div className="flex flex-col gap-1 text-xs text-muted-foreground">
+        {t('filterBar.dateRange')}
+        <div role="group" aria-label={t('filterBar.filterByDateRange')} className="flex gap-1">
+          {RANGE_CHOICES.map((r) => {
+            const active = filters.range === r
+            const label = r === CUSTOM_RANGE ? t('filterBar.rangeCustom') : t(RANGE_LABEL_KEYS[r])
+            return (
+              <button
+                key={r}
+                type="button"
+                aria-pressed={active}
+                // A second click on the active choice clears the date filter.
+                onClick={() => selectRange(active ? '' : r)}
+                className={`rounded-md border px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring ${
+                  active
+                    ? 'border-primary bg-primary text-primary-foreground'
+                    : 'border-input bg-card text-foreground'
+                }`}
+              >
+                {label}
+              </button>
+            )
+          })}
+        </div>
+      </div>
 
-      <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-        {t('filterBar.toDate')}
-        <input
-          type="date"
-          aria-label={t('filterBar.toDate')}
-          className={field}
-          value={filters.to}
-          min={filters.from || undefined}
-          onChange={(e) => onChange({ to: e.target.value })}
-        />
-      </label>
+      {filters.range === CUSTOM_RANGE && (
+        <>
+          <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+            {t('filterBar.fromDate')}
+            <input
+              type="date"
+              aria-label={t('filterBar.fromDate')}
+              className={field}
+              value={filters.from}
+              max={filters.to || undefined}
+              onChange={(e) => onChange({ from: e.target.value })}
+            />
+          </label>
+
+          <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+            {t('filterBar.toDate')}
+            <input
+              type="date"
+              aria-label={t('filterBar.toDate')}
+              className={field}
+              value={filters.to}
+              min={filters.from || undefined}
+              onChange={(e) => onChange({ to: e.target.value })}
+            />
+          </label>
+        </>
+      )}
 
       <label className="flex flex-col gap-1 text-xs text-muted-foreground">
         {t('filterBar.vendor')}

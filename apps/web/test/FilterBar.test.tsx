@@ -9,6 +9,7 @@ vi.mock('@/hooks/useProperties', () => ({
 
 const base: ListFilters = {
   status: '',
+  range: '',
   from: '',
   to: '',
   vendor: '',
@@ -73,10 +74,38 @@ describe('FilterBar', () => {
     expect(screen.getByText('Clear filters')).toBeDefined()
   })
 
+  it('picks a preset range and clears any custom dates', () => {
+    const onChange = vi.fn()
+    render(<FilterBar filters={base} onChange={onChange} onClear={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: '3M' }))
+    expect(onChange).toHaveBeenCalledWith({ range: '3m', from: '', to: '' })
+  })
+
+  it('deselects the active preset on a second click', () => {
+    const onChange = vi.fn()
+    render(<FilterBar filters={{ ...base, range: '1w' }} onChange={onChange} onClear={vi.fn()} />)
+    const btn = screen.getByRole('button', { name: '1W' })
+    expect(btn.getAttribute('aria-pressed')).toBe('true')
+    fireEvent.click(btn)
+    expect(onChange).toHaveBeenCalledWith({ range: '', from: '', to: '' })
+  })
+
+  it('shows the date pickers only for the custom range', () => {
+    const { rerender } = render(<FilterBar filters={base} onChange={vi.fn()} onClear={vi.fn()} />)
+    expect(screen.queryByLabelText('From date')).toBeNull()
+    rerender(<FilterBar filters={{ ...base, range: '6m' }} onChange={vi.fn()} onClear={vi.fn()} />)
+    expect(screen.queryByLabelText('From date')).toBeNull()
+    rerender(
+      <FilterBar filters={{ ...base, range: 'custom' }} onChange={vi.fn()} onClear={vi.fn()} />,
+    )
+    expect(screen.getByLabelText('From date')).toBeDefined()
+    expect(screen.getByLabelText('To date')).toBeDefined()
+  })
+
   it('warns when the from date is after the to date', () => {
     render(
       <FilterBar
-        filters={{ ...base, from: '2026-03-01', to: '2026-01-01' }}
+        filters={{ ...base, range: 'custom', from: '2026-03-01', to: '2026-01-01' }}
         onChange={vi.fn()}
         onClear={vi.fn()}
       />,
