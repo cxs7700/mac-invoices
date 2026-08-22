@@ -61,7 +61,7 @@ A single root `.env` is loaded by both apps (the API resolves it via `apps/api/s
 
 | Variable | Required | Purpose |
 |----------|----------|---------|
-| `DATABASE_URL` | yes | Postgres connection string. Local default matches docker-compose (`postgres:postgres@localhost:5432/invoices`). |
+| `DATABASE_URL` | yes | Postgres connection string. Local default matches docker-compose (`postgres:postgres@localhost:5433/invoices` — the container publishes 5433, since a native Postgres often holds 5432). |
 | `NODE_ENV` | yes | `development` locally; `production` when deployed. |
 | `SESSION_SECRET` | yes | Signs/encrypts session cookies. **Set a long, random value in production.** |
 | `WEB_ORIGIN` | yes | Allowed browser origin for CORS (credentials enabled). Dev: `http://localhost:5173`. |

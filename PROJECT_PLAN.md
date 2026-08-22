@@ -380,7 +380,7 @@ submission portal, Sentry.
 
 ```
 # API
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/invoices
+DATABASE_URL=postgresql://postgres:postgres@localhost:5433/invoices
 NODE_ENV=development
 SESSION_SECRET=change-me
 # Google Sheets
