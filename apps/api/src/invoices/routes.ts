@@ -23,7 +23,11 @@ async function invoiceRoutes(fastify: FastifyInstance) {
   fastify.post('/api/invoices', auth, handlers.createInvoice)
   fastify.get<{ Querystring: ListInvoicesQuery }>('/api/invoices', auth, handlers.listInvoices)
   fastify.get('/api/invoices/stats', auth, handlers.invoiceStats)
-  fastify.get('/api/invoices/summary', auth, handlers.invoiceSummary)
+  fastify.get<{ Querystring: ListInvoicesQuery }>(
+    '/api/invoices/summary',
+    auth,
+    handlers.invoiceSummary,
+  )
   // Sheets export — auth + a modest rate limit so a session can't burn Google quota.
   const exportMax = Number(process.env.EXPORT_RATE_LIMIT_MAX ?? 5)
   fastify.post(

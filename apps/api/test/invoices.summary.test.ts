@@ -128,4 +128,97 @@ describe('GET /api/invoices/summary', () => {
     expect(mine.json().total.amount).toBe('350.00')
     expect(theirs.json().total.amount).not.toBe('350.00')
   })
+
+  it('narrows every figure to a from/to window', async () => {
+    // An older invoice, outside the window used below.
+    const old = await app.prisma.invoice.create({
+      data: {
+        vendorName: 'Vendor',
+        amount: '500.00',
+        invoiceDate: new Date('2025-11-15'),
+        status: 'PENDING',
+        category: 'REPAIRS',
+        userId: user.user.id,
+        invoiceNumber: `${PREFIX}old`,
+      },
+    })
+
+    const all = (
+      await app.inject({ method: 'GET', url: '/api/invoices/summary', headers: { cookie } })
+    ).json()
+    expect(all.total).toEqual({ count: 4, amount: '850.00' })
+
+    const windowed = (
+      await app.inject({
+        method: 'GET',
+        url: '/api/invoices/summary?from=2026-01-01',
+        headers: { cookie },
+      })
+    ).json()
+    expect(windowed.total).toEqual({ count: 3, amount: '350.00' })
+    const cat = Object.fromEntries(
+      windowed.byCategory.map((r: { category: string }) => [r.category, r]),
+    )
+    expect(cat.REPAIRS).toEqual({ category: 'REPAIRS', count: 2, amount: '150.00' })
+    const stat = Object.fromEntries(windowed.byStatus.map((r: { status: string }) => [r.status, r]))
+    expect(stat.PENDING).toEqual({ status: 'PENDING', count: 3, amount: '350.00' })
+
+    // `to` is inclusive of the whole day it names.
+    const throughFeb1 = (
+      await app.inject({
+        method: 'GET',
+        url: '/api/invoices/summary?from=2026-02-01&to=2026-02-01',
+        headers: { cookie },
+      })
+    ).json()
+    expect(throughFeb1.total).toEqual({ count: 3, amount: '350.00' })
+
+    // A window that ends before every invoice is empty, not all-time.
+    const empty = (
+      await app.inject({
+        method: 'GET',
+        url: '/api/invoices/summary?to=2025-01-01',
+        headers: { cookie },
+      })
+    ).json()
+    expect(empty.total).toEqual({ count: 0, amount: '0.00' })
+    expect(empty.byMonth).toEqual([])
+
+    await app.prisma.invoice.delete({ where: { id: old.id } })
+  })
+
+  it('buckets spend by month, zero-filling the quiet months in between', async () => {
+    const old = await app.prisma.invoice.create({
+      data: {
+        vendorName: 'Vendor',
+        amount: '500.00',
+        invoiceDate: new Date('2025-11-15'),
+        status: 'PENDING',
+        category: 'REPAIRS',
+        userId: user.user.id,
+        invoiceNumber: `${PREFIX}old2`,
+      },
+    })
+
+    const data = (
+      await app.inject({ method: 'GET', url: '/api/invoices/summary', headers: { cookie } })
+    ).json()
+    expect(data.byMonth).toEqual([
+      { month: '2025-11', count: 1, amount: '500.00' },
+      { month: '2025-12', count: 0, amount: '0.00' },
+      { month: '2026-01', count: 0, amount: '0.00' },
+      { month: '2026-02', count: 3, amount: '350.00' },
+    ])
+
+    await app.prisma.invoice.delete({ where: { id: old.id } })
+  })
+
+  it('400s on an unparseable date bound', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/invoices/summary?from=not-a-date',
+      headers: { cookie },
+    })
+    expect(res.statusCode).toBe(400)
+  })
 })

@@ -144,7 +144,11 @@
     "byStatus": "按狀態",
     "recentInvoices": "最近嘅發票",
     "viewAll": "睇晒全部",
-    "noInvoices": "冇發票。"
+    "noInvoices": "冇發票。",
+    "allTime": "全部時間",
+    "noInvoicesInRange": "呢段時間冇發票。",
+    "perMonth": "每個活躍月份",
+    "spendOverTime": "支出走勢"
   },
   "statusCounts": {
     "total": "共 {{count}} 張",

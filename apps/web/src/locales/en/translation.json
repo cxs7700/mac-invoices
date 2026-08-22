@@ -123,7 +123,11 @@
     "byStatus": "By status",
     "recentInvoices": "Recent invoices",
     "viewAll": "View all",
-    "noInvoices": "No invoices."
+    "noInvoices": "No invoices.",
+    "allTime": "All time",
+    "noInvoicesInRange": "No invoices in this period.",
+    "perMonth": "Per active month",
+    "spendOverTime": "Spend over time"
   },
   "statusCounts": {
     "total": "{{count}} total",

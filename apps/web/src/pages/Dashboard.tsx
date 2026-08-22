@@ -1,21 +1,73 @@
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link } from 'react-router'
+import { Link, useSearchParams } from 'react-router'
 import { useInvoiceSummary } from '@/hooks/useInvoiceSummary'
 import { useInvoices } from '@/hooks/useInvoices'
 import { SpendBars } from '@/components/SpendBars'
+import { SpendTrendChart } from '@/components/SpendTrendChart'
+import { DateRangePicker } from '@/components/DateRangePicker'
 import { InvoiceTable } from '@/components/InvoiceTable'
 import { Button } from '@/components/ui/button'
 import { formatMoney } from '@/lib/format'
+import { parseListParams, resolvedDates, toSearchParams } from '@/lib/listParams'
 
 export default function Dashboard() {
   const { t } = useTranslation()
-  const { data: summary, isPending, isError } = useInvoiceSummary()
-  const recent = useInvoices({ limit: 5, sort: 'invoiceDate', order: 'desc' })
+  // The dashboard reuses the list's date filter — same parser, same URL keys —
+  // so a lookback means the same window in both places and survives a reload.
+  // Only the date fields are read here; the rest of the filter set is inert.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const filters = parseListParams(searchParams)
+  const { from, to } = resolvedDates(filters)
 
-  if (isPending) return <div className="text-muted-foreground">{t('dashboard.loading')}</div>
+  const setRange = (patch: { range?: string; from?: string; to?: string }) => {
+    const next = toSearchParams({ ...filters, ...patch, page: 1 })
+    setSearchParams(next, { replace: true })
+  }
+
+  const { data: summary, isPending, isError } = useInvoiceSummary({ from, to })
+  const recent = useInvoices({ limit: 5, sort: 'invoiceDate', order: 'desc', from, to })
+
+  const header = (
+    <>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-foreground">{t('dashboard.title')}</h1>
+        <Button asChild>
+          <Link to="/invoices/new">{t('dashboard.newInvoice')}</Link>
+        </Button>
+      </div>
+      <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-end">
+        <DateRangePicker
+          value={{ range: filters.range, from: filters.from, to: filters.to }}
+          onChange={setRange}
+        />
+        {filters.range && (
+          <button
+            type="button"
+            onClick={() => setRange({ range: '', from: '', to: '' })}
+            className="text-sm text-primary md:self-end md:pb-2"
+          >
+            {t('dashboard.allTime')}
+          </button>
+        )}
+      </div>
+    </>
+  )
+
+  if (isPending)
+    return (
+      <div className="space-y-6">
+        {header}
+        <div className="text-muted-foreground">{t('dashboard.loading')}</div>
+      </div>
+    )
   if (isError || !summary)
-    return <div className="text-muted-foreground">{t('dashboard.loadError')}</div>
+    return (
+      <div className="space-y-6">
+        {header}
+        <div className="text-muted-foreground">{t('dashboard.loadError')}</div>
+      </div>
+    )
 
   const outstanding = summary.byStatus
     .filter((s) => s.status === 'PENDING' || s.status === 'APPROVED')
@@ -40,29 +92,37 @@ export default function Dashboard() {
       count: s.count,
     }))
 
+  const months = summary.byMonth ?? []
+  // Per-month average over the months that actually carry spend, so a long
+  // quiet stretch doesn't drag the figure toward zero.
+  const activeMonths = months.filter((m) => parseFloat(m.amount) > 0).length
+  const perMonth = activeMonths > 0 ? parseFloat(summary.total.amount) / activeMonths : 0
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-foreground">{t('dashboard.title')}</h1>
-        <Button asChild>
-          <Link to="/invoices/new">{t('dashboard.newInvoice')}</Link>
-        </Button>
-      </div>
+      {header}
 
       {summary.total.count === 0 ? (
         <div className="rounded-lg border border-border bg-card p-8 text-center">
-          <p className="text-muted-foreground">{t('dashboard.noInvoicesYet')}</p>
+          <p className="text-muted-foreground">
+            {filters.range ? t('dashboard.noInvoicesInRange') : t('dashboard.noInvoicesYet')}
+          </p>
           <Button asChild className="mt-3">
             <Link to="/invoices/new">{t('dashboard.createFirst')}</Link>
           </Button>
         </div>
       ) : (
         <>
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-4">
             <Stat label={t('dashboard.totalSpend')} value={formatMoney(summary.total.amount)} />
             <Stat label={t('dashboard.outstanding')} value={formatMoney(outstanding)} />
             <Stat label={t('dashboard.invoices')} value={String(summary.total.count)} />
+            <Stat label={t('dashboard.perMonth')} value={formatMoney(perMonth)} />
           </div>
+
+          <Card title={t('dashboard.spendOverTime')}>
+            <SpendTrendChart points={months} />
+          </Card>
 
           <div className="grid gap-6 md:grid-cols-2">
             <Card title={t('dashboard.spendByCategory')}>
@@ -76,7 +136,7 @@ export default function Dashboard() {
           <Card
             title={t('dashboard.recentInvoices')}
             action={
-              <Link to="/invoices" className="text-sm text-primary">
+              <Link to={`/invoices?${toSearchParams(filters)}`} className="text-sm text-primary">
                 {t('dashboard.viewAll')}
               </Link>
             }

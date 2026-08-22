@@ -181,6 +181,17 @@ export type InvoiceSortField = z.infer<typeof InvoiceSortField>
 export type SortOrder = z.infer<typeof SortOrder>
 export type ListInvoicesQueryInput = z.infer<typeof ListInvoicesQuerySchema>
 
+/**
+ * Dashboard summary window. The same invoiceDate range the list accepts, so a
+ * lookback chosen on the dashboard means exactly what it means on the list.
+ * Both bounds optional — no bounds is the all-time summary.
+ */
+export const SummaryQuerySchema = z.object({
+  from: z.coerce.date().optional(),
+  to: z.coerce.date().optional(),
+})
+export type SummaryQueryInput = z.infer<typeof SummaryQuerySchema>
+
 // Phase 5 — Google Sheets export. The target sheet is the session user's saved
 // `sheetSpreadsheetId` (Settings) only — no server-side fallback; an optional
 // spreadsheetId override is accepted (not surfaced in the UI).

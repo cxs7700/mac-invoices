@@ -4,6 +4,7 @@ import {
   CreateInvoiceSchema,
   UpdateInvoiceSchema,
   ListInvoicesQuerySchema,
+  SummaryQuerySchema,
   ExportInvoicesSchema,
   AttachImageSchema,
   SetImageTypeSchema,
@@ -112,6 +113,24 @@ async function listPageByInvoiceNumber(
 }
 
 /**
+ * The invoiceDate clause a from/to window resolves to, or undefined for an
+ * unbounded window. `to` is a date-only value coerced to UTC midnight, so the
+ * whole day is included. Shared by the list and the dashboard summary so one
+ * lookback means the same rows in both.
+ */
+function invoiceDateFilter(from?: Date, to?: Date): Prisma.DateTimeFilter | undefined {
+  if (!from && !to) return undefined
+  const invoiceDate: Prisma.DateTimeFilter = {}
+  if (from) invoiceDate.gte = from
+  if (to) {
+    const end = new Date(to)
+    end.setUTCHours(23, 59, 59, 999)
+    invoiceDate.lte = end
+  }
+  return invoiceDate
+}
+
+/**
  * GET /api/invoices — list the session user's invoices: status / date-range
  * (invoiceDate) / vendor (contains) filtering, whitelisted sort, and strict
  * offset pagination. Ownership-scoped to request.user.id.
@@ -124,17 +143,8 @@ export async function listInvoices(
 
   const where: Prisma.InvoiceWhereInput = { userId: request.user.id }
   if (q.status) where.status = q.status
-  if (q.from || q.to) {
-    const invoiceDate: Prisma.DateTimeFilter = {}
-    if (q.from) invoiceDate.gte = q.from
-    if (q.to) {
-      // `to` is a date-only value coerced to UTC midnight; include the whole day.
-      const end = new Date(q.to)
-      end.setUTCHours(23, 59, 59, 999)
-      invoiceDate.lte = end
-    }
-    where.invoiceDate = invoiceDate
-  }
+  const invoiceDate = invoiceDateFilter(q.from, q.to)
+  if (invoiceDate) where.invoiceDate = invoiceDate
   if (q.vendor) where.vendorName = { contains: q.vendor, mode: 'insensitive' }
   // Description moved from a column to items — search matches any item's
   // description on the invoice.
@@ -202,12 +212,22 @@ export async function invoiceStats(request: FastifyRequest, reply: FastifyReply)
 }
 
 /**
- * GET /api/invoices/summary — all-time spend for the dashboard: the grand total
- * (count + summed amount) plus per-category and per-status breakdowns. Amounts are
- * Decimal-safe strings; every category/status is zero-filled for a stable shape.
+ * GET /api/invoices/summary — spend for the dashboard: the grand total (count +
+ * summed amount), per-category and per-status breakdowns, plus a month-by-month
+ * series for the trend chart. Amounts are Decimal-safe strings; every
+ * category/status is zero-filled for a stable shape.
+ *
+ * Optional `from`/`to` narrow every figure to one invoiceDate window — the same
+ * lookback the list offers, so the dashboard and the list agree. No bounds means
+ * all-time (the original behaviour).
  */
-export async function invoiceSummary(request: FastifyRequest, reply: FastifyReply) {
+export async function invoiceSummary(
+  request: FastifyRequest<{ Querystring: ListInvoicesQuery }>,
+  reply: FastifyReply,
+) {
   const prisma = request.server.prisma
+  const q = parseBody(SummaryQuerySchema, request.query, 'Invalid query parameters')
+  const window = invoiceDateFilter(q.from, q.to)
   // "Spend" is real committed money: PENDING / APPROVED / PAID. SUBMITTED
   // (un-vetted), REJECTED (declined) and CANCELLED (withdrawn) are excluded from
   // the grand total and the per-category breakdown — these are exactly the
@@ -215,13 +235,16 @@ export async function invoiceSummary(request: FastifyRequest, reply: FastifyRepl
   // excluding them also keeps byCategory reconciled with the total (no stray
   // null-category bucket). byStatus KEEPS every status — its SUBMITTED count is
   // the landlord's "to review" signal.
-  const owned = { userId: request.user.id }
+  const owned: Prisma.InvoiceWhereInput = {
+    userId: request.user.id,
+    ...(window ? { invoiceDate: window } : {}),
+  }
   const spend: Prisma.InvoiceWhereInput = {
     ...owned,
     status: { notIn: ['SUBMITTED', 'REJECTED', 'CANCELLED'] },
   }
 
-  const [agg, byCat, byStat] = await Promise.all([
+  const [agg, byCat, byStat, spendRows] = await Promise.all([
     prisma.invoice.aggregate({ where: spend, _sum: { amount: true }, _count: { _all: true } }),
     prisma.invoice.groupBy({
       by: ['category'],
@@ -234,6 +257,14 @@ export async function invoiceSummary(request: FastifyRequest, reply: FastifyRepl
       where: owned,
       _sum: { amount: true },
       _count: { _all: true },
+    }),
+    // Prisma can't group by a truncated date, and one landlord's invoices are a
+    // small set — so the monthly buckets are rolled up here from (date, amount)
+    // pairs rather than in a raw SQL date_trunc.
+    prisma.invoice.findMany({
+      where: spend,
+      select: { invoiceDate: true, amount: true },
+      orderBy: { invoiceDate: 'asc' },
     }),
   ])
 
@@ -254,7 +285,47 @@ export async function invoiceSummary(request: FastifyRequest, reply: FastifyRepl
       status,
       ...(statMap.get(status) ?? { count: 0, amount: '0.00' }),
     })),
+    byMonth: monthlySpend(spendRows),
   })
+}
+
+/** UTC `YYYY-MM` for an invoiceDate (stored as UTC midnight — see the list filter). */
+const monthKey = (d: Date) =>
+  `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
+
+/**
+ * Date-ordered spend rows → one bucket per calendar month, gaps zero-filled so a
+ * quiet month reads as a gap in the trend rather than closing up. Amounts are
+ * summed as Decimals (never floats) and rendered 2dp, like every other total.
+ */
+function monthlySpend(
+  rows: { invoiceDate: Date; amount: Prisma.Decimal }[],
+): { month: string; count: number; amount: string }[] {
+  if (rows.length === 0) return []
+  const sums = new Map<string, { count: number; amount: Prisma.Decimal }>()
+  for (const row of rows) {
+    const key = monthKey(row.invoiceDate)
+    const bucket = sums.get(key)
+    if (bucket) {
+      bucket.count += 1
+      bucket.amount = bucket.amount.add(row.amount)
+    } else {
+      sums.set(key, { count: 1, amount: row.amount })
+    }
+  }
+
+  const first = rows[0].invoiceDate
+  const last = rows[rows.length - 1].invoiceDate
+  const out: { month: string; count: number; amount: string }[] = []
+  const cursor = new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth(), 1))
+  const end = Date.UTC(last.getUTCFullYear(), last.getUTCMonth(), 1)
+  while (cursor.getTime() <= end) {
+    const key = monthKey(cursor)
+    const bucket = sums.get(key)
+    out.push({ month: key, count: bucket?.count ?? 0, amount: money(bucket?.amount ?? null) })
+    cursor.setUTCMonth(cursor.getUTCMonth() + 1)
+  }
+  return out
 }
 
 /** GET /api/invoices/:id — own invoice, or 404 (no existence leak for others'). */
