@@ -46,13 +46,18 @@ describe('logger redaction (loggerOptions)', () => {
     expect(out).toContain('[Redacted]')
   })
 
-  it('redacts a response set-cookie header (censored, not dropped)', () => {
+  it('does not log a response set-cookie header (the res serializer drops headers)', () => {
     const { logger, lines } = capture()
     logger.info({ res: { headers: { 'set-cookie': 'session=SECRET-SET' } } }, 'outgoing')
     const out = lines.join('')
     expect(out).not.toContain('SECRET-SET')
-    // Censored to [Redacted], not silently dropped (which a mis-typed path would do).
-    expect(out).toContain('[Redacted]')
+    // This used to assert the `[Redacted]` censor marker, on the reasoning that
+    // a censored value proves the redact path matched where a silent drop could
+    // mean a typo. The `res` serializer now emits ONLY `statusCode`, so headers
+    // never reach the redactor at all — a stronger guarantee that makes the
+    // marker unreachable. `redact.paths` stays as a second line of defense for
+    // anything that logs a response shape by hand.
+    expect(out).not.toContain('headers')
   })
 
   it('redacts bare top-level headers.cookie / headers.authorization', () => {

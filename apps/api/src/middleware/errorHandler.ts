@@ -1,4 +1,65 @@
 import type { FastifyError, FastifyReply, FastifyRequest } from 'fastify'
+import { logEvent } from '../lib/log'
+
+/** How many stack frames are worth keeping to locate a fault. */
+const STACK_FRAMES = 8
+
+/**
+ * The stack's FRAMES, without its first line.
+ *
+ * That first line is `<Name>: <message>`, and error messages are the one part of
+ * an error we must not log: Prisma's validation and query errors embed the
+ * offending arguments, which for this app means vendor names, emails, phone
+ * numbers and invoice amounts. The frames alone locate the fault, which is what
+ * the message was being read for anyway. The message still reaches the caller in
+ * the response body — that goes to the person who made the request, not to a
+ * shared log drain.
+ */
+export function stackFrames(error: unknown): string | undefined {
+  const stack = (error as { stack?: unknown })?.stack
+  if (typeof stack !== 'string') return undefined
+  const frames = stack
+    .split('\n')
+    .filter((line) => /^\s+at\s/.test(line))
+    .slice(0, STACK_FRAMES)
+    .map((line) => line.trim())
+  return frames.length > 0 ? frames.join(' | ') : undefined
+}
+
+/**
+ * Log a failed request as a structured event.
+ *
+ * Client errors (4xx) are `warn` and carry only their stable code — they are
+ * routine and a stack adds nothing. Server errors (5xx) are `error` and carry
+ * stack frames, because someone will need to find them.
+ */
+function logRequestError(error: unknown, request: FastifyRequest): void {
+  const status = (error as { statusCode?: unknown })?.statusCode
+  const statusCode = typeof status === 'number' ? status : 500
+  const code = (error as { code?: unknown })?.code
+  const name = (error as { name?: unknown })?.name
+
+  if (statusCode >= 400 && statusCode < 500) {
+    logEvent(request.log, 'warn', {
+      event: 'request.client_error',
+      outcome: 'denied',
+      statusCode,
+      code: typeof code === 'string' ? code : typeof name === 'string' ? name : undefined,
+    })
+    return
+  }
+
+  logEvent(request.log, 'error', {
+    event: 'request.server_error',
+    outcome: 'failed',
+    statusCode,
+    code: typeof code === 'string' ? code : typeof name === 'string' ? name : undefined,
+  })
+  // Frames go on their own line: `logEvent`'s allow-list has no `stack` key, by
+  // design — it must stay a list of small, opaque values.
+  const frames = stackFrames(error)
+  if (frames) request.log.error({ event: 'request.server_error.stack', frames }, 'stack')
+}
 
 /**
  * Application error carrying a stable client-facing code + HTTP status.
@@ -40,7 +101,7 @@ function body(code: string, message: string, details?: unknown): ErrorBody {
  * §7 shape `{ error: { code, message, details? } }`. Never leaks stack traces.
  */
 export function errorHandler(error: unknown, request: FastifyRequest, reply: FastifyReply) {
-  request.log.error(error)
+  logRequestError(error, request)
 
   if (error instanceof AppError) {
     return reply.code(error.statusCode).send(body(error.code, error.message, error.details))

@@ -24,6 +24,17 @@ import { hashPassword } from '../src/auth/password'
 import { mirrorUserSheet, runSheetsSyncFlush } from '../src/invoices/sheetSync'
 import * as writeService from '../src/invoices/writeService'
 import { createSecondUser } from './helpers/auth'
+import { AppError } from '../src/middleware/errorHandler'
+import type { EventLogger } from '../src/lib/log'
+
+/**
+ * A full four-level logger stub. The flush takes an `EventLogger`, so a
+ * warn-only object no longer satisfies it — and a partial stub would silently
+ * exercise `logEvent`'s degrade path rather than the level under test.
+ */
+function stubLog(overrides: Partial<EventLogger> = {}) {
+  return { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), ...overrides }
+}
 
 const app = buildApp()
 const created: string[] = [] // landlord ids to clean up
@@ -154,15 +165,15 @@ describe('continuous Sheets sync flush', () => {
     )
     const warn = vi.fn()
 
-    const summary = await runSheetsSyncFlush(app.prisma, { warn })
+    const summary = await runSheetsSyncFlush(app.prisma, stubLog({ warn }))
 
     expect(callsFor(l.target)).toHaveLength(1)
     expect(summary.failed).toBe(0)
     // Stamped: the values mirror succeeded, so the landlord is genuinely synced.
     expect(await hwOf(l.id)).not.toBeNull()
     expect(warn).toHaveBeenCalledWith(
-      expect.objectContaining({ userId: l.id, code: 'SHEET_ERROR' }),
-      expect.stringContaining('resize failed'),
+      expect.objectContaining({ event: 'sheets.resize', userId: l.id, code: 'SHEET_ERROR' }),
+      'sheets.resize',
     )
   })
 
@@ -288,11 +299,15 @@ describe('continuous Sheets sync flush', () => {
     const l = await makeLandlord()
     await makeInvoice(l.id)
     resolveSheetTab.mockImplementation(async (target: string) => {
-      if (target === l.target) throw new Error('SHEET_TAB_NOT_FOUND')
+      // The real integration throws an AppError carrying `code` (sheets.ts:219).
+      // A bare Error would only be identifiable by its message, which is exactly
+      // what the logger now refuses to record.
+      if (target === l.target)
+        throw new AppError('SHEET_TAB_NOT_FOUND', 'The target tab was not found', 502)
       return 123
     })
 
-    const log = { warn: vi.fn() }
+    const log = stubLog()
     const res = await runSheetsSyncFlush(app.prisma, log)
 
     expect(res.failed).toBe(1)
@@ -300,8 +315,8 @@ describe('continuous Sheets sync flush', () => {
     expect(await hwOf(l.id)).toBeNull() // no stamp — re-mirrored next pass
     // The failure reason is surfaced to the caller's logger (not swallowed).
     expect(log.warn).toHaveBeenCalledWith(
-      expect.objectContaining({ userId: l.id, message: 'SHEET_TAB_NOT_FOUND' }),
-      'sheets sync failed for user',
+      expect.objectContaining({ event: 'sheets.user', userId: l.id, code: 'SHEET_TAB_NOT_FOUND' }),
+      'sheets.user',
     )
   })
 

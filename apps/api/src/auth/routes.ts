@@ -8,6 +8,7 @@ import { assertValidInviteCode } from './inviteCode'
 import { createSession, invalidateSession, sessionIdFromToken } from './session'
 import { requireAuth, sessionCookieOptions, SESSION_COOKIE } from './requireAuth'
 import { parseResetToken, resetTokenMatches } from './resetToken'
+import { logEvent } from '../lib/log'
 
 async function authRoutes(app: FastifyInstance) {
   // Scoped rate limiting; applied per-route via config.rateLimit below. Match
@@ -31,17 +32,34 @@ async function authRoutes(app: FastifyInstance) {
         // Equalize timing with the wrong-password path so unknown emails aren't
         // distinguishable by response time (no user enumeration).
         await verifyPassword(DUMMY_HASH, password)
+        // `no_account` vs `bad_password` is recorded but NEVER returned — the
+        // response stays identical so the endpoint is not an enumeration oracle
+        // (DEC-018). The distinction only exists for whoever reads the logs.
+        // The email itself is deliberately absent: it is the one identifier a
+        // failed login would otherwise hand to a log reader.
+        logEvent(request.log, 'warn', {
+          event: 'auth.login',
+          outcome: 'denied',
+          reason: 'no_account',
+        })
         throw new AppError('UNAUTHORIZED', 'Invalid email or password', 401)
       }
 
       const ok = await verifyPassword(user.passwordHash, password)
       if (!ok) {
+        logEvent(request.log, 'warn', {
+          event: 'auth.login',
+          outcome: 'denied',
+          reason: 'bad_password',
+          userId: user.id,
+        })
         throw new AppError('UNAUTHORIZED', 'Invalid email or password', 401)
       }
 
       // Rotate any existing session on the incoming cookie (fixation prevention).
       const { token, expiresAt } = await createSession(user.id, request.cookies?.[SESSION_COOKIE])
       reply.setCookie(SESSION_COOKIE, token, sessionCookieOptions(expiresAt))
+      logEvent(request.log, 'info', { event: 'auth.login', outcome: 'ok', userId: user.id })
 
       return reply.send({
         id: user.id,
@@ -98,6 +116,7 @@ async function authRoutes(app: FastifyInstance) {
 
       const { token, expiresAt } = await createSession(user.id, request.cookies?.[SESSION_COOKIE])
       reply.setCookie(SESSION_COOKIE, token, sessionCookieOptions(expiresAt))
+      logEvent(request.log, 'info', { event: 'auth.signup', outcome: 'ok', userId: user.id })
 
       return reply.code(201).send({
         id: user.id,
@@ -135,16 +154,20 @@ async function authRoutes(app: FastifyInstance) {
     { config: { rateLimit: { max: resetMax, timeWindow: '1 hour' } } },
     async (request, reply) => {
       const { token, newPassword } = parseBody(ResetPasswordSchema, request.body)
-      const invalid = () =>
-        new AppError(
+      // Every failure logs the SAME event with a distinguishing `reason`, while
+      // the thrown error stays byte-identical — same reasoning as login above.
+      const invalid = (reason: string) => {
+        logEvent(request.log, 'warn', { event: 'auth.reset', outcome: 'denied', reason })
+        return new AppError(
           'INVALID_RESET_LINK',
           'That reset link is invalid or has expired. Ask for a new one.',
           400,
         )
+      }
 
       const parsed = parseResetToken(token)
-      if (!parsed) throw invalid()
-      if (parsed.expiresAtMs < Date.now()) throw invalid()
+      if (!parsed) throw invalid('malformed')
+      if (parsed.expiresAtMs < Date.now()) throw invalid('expired')
 
       const user = await request.server.prisma.user.findUnique({
         where: { id: parsed.userId },
@@ -159,7 +182,7 @@ async function authRoutes(app: FastifyInstance) {
         user?.passwordHash ?? DUMMY_HASH,
         user?.passwordResetVersion ?? 0,
       )
-      if (!user || !matches) throw invalid()
+      if (!user || !matches) throw invalid(user ? 'bad_signature' : 'no_account')
 
       const passwordHash = await hashPassword(newPassword)
       await request.server.prisma.$transaction(async (tx) => {
@@ -171,12 +194,13 @@ async function authRoutes(app: FastifyInstance) {
           where: { id: user.id, passwordHash: user.passwordHash },
           data: { passwordHash },
         })
-        if (count !== 1) throw invalid()
+        if (count !== 1) throw invalid('lost_race')
         // ALL sessions die — deliberately unlike the Settings password change,
         // which keeps the caller's own alive (KTD-2). There is no caller session
         // here, and if an attacker holds one, this is exactly when it should end.
         await tx.session.deleteMany({ where: { userId: user.id } })
       })
+      logEvent(request.log, 'info', { event: 'auth.reset', outcome: 'ok', userId: user.id })
       return reply.code(204).send()
     },
   )

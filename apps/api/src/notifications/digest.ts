@@ -1,5 +1,6 @@
 import type { PrismaClient } from '../../prisma/generated/client.ts'
 import { sendEmail } from '../integrations/email'
+import { logEvent, type EventLogger } from '../lib/log'
 
 // The landlord digest flush. Reads un-notified, email-eligible vendor events
 // from the InvoiceEvent ledger (no new write-path instrumentation), groups by
@@ -39,7 +40,19 @@ function isWithdrawal(e: Eligible): boolean {
 
 export type FlushSummary = { landlords: number; events: number; sent: number; failed: number }
 
-export async function runDigestFlush(prisma: PrismaClient): Promise<FlushSummary> {
+/** Swallows events when no logger was passed, so the call site stays branch-free. */
+const NOOP_LOG: EventLogger = { debug: () => {}, info: () => {}, warn: () => {}, error: () => {} }
+
+/**
+ * Run the flush. `log` is optional and structural (mirrors `SyncFlushLogger` in
+ * invoices/sheetSync.ts) so this module keeps no Fastify dependency.
+ */
+export async function runDigestFlush(
+  prisma: PrismaClient,
+  log?: EventLogger,
+): Promise<FlushSummary> {
+  // Normalize once so every emit below is unconditional.
+  const out = log ?? NOOP_LOG
   const events = (await prisma.invoiceEvent.findMany({
     where: {
       notifiedAt: null,
@@ -75,19 +88,36 @@ export async function runDigestFlush(prisma: PrismaClient): Promise<FlushSummary
     if (!email) continue
     try {
       const { subject, html } = await buildDigest(prisma, landlordId, group)
-      await sendEmail({ to: email, subject, html }) // SEND first…
+      await sendEmail({ to: email, subject, html }, log) // SEND first…
       await prisma.invoiceEvent.updateMany({
         where: { id: { in: group.map((e) => e.id) }, notifiedAt: null },
         data: { notifiedAt: new Date() }, // …THEN stamp (at-least-once on failure between).
       })
       sent++
-    } catch {
+    } catch (err) {
       // One landlord's provider failure must not crash the job or block others;
-      // its events stay un-notified and are retried next run.
+      // its events stay un-notified and are retried next run. This used to be a
+      // bare `catch {}`: the retry was silent, so a permanently misconfigured
+      // provider looked identical to "no activity to report".
+      //
+      // Only the sanitized AppError CODE is taken — never the raw error, which
+      // for a provider failure can embed the API key or echo the recipient.
       failed++
+      logEvent(out, 'error', {
+        event: 'digest.landlord',
+        outcome: 'failed',
+        userId: landlordId,
+        code: (err as { code?: string })?.code,
+      })
     }
   }
-  return { landlords: byLandlord.size, events: eligible.length, sent, failed }
+  const summary = { landlords: byLandlord.size, events: eligible.length, sent, failed }
+  logEvent(out, failed > 0 ? 'warn' : 'info', {
+    event: 'digest.flush',
+    outcome: failed > 0 ? 'failed' : 'ok',
+    count: summary.events,
+  })
+  return summary
 }
 
 /** Build a landlord's digest (vendor names resolved, scoped to that landlord). */

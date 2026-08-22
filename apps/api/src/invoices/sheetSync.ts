@@ -8,6 +8,10 @@ import {
   NON_EXPORTABLE_STATUSES,
   WRAP_COLUMNS,
 } from './sheetRows'
+import { logEvent, type EventLogger } from '../lib/log'
+
+/** Swallows events when no logger was passed, so every emit stays branch-free. */
+const NOOP_LOG: EventLogger = { debug: () => {}, info: () => {}, warn: () => {}, error: () => {} }
 
 // Continuous Google Sheets sync — the connected sheet is a FULL MIRROR of a
 // landlord's exportable invoices (new + edits + deletes), refreshed by a
@@ -108,10 +112,14 @@ export async function mirrorUserSheet(
   // table, which is invisible from here and needs a human to widen/grow the
   // tab's grid. Log it rather than let it degrade silently forever.
   if (resizeError) {
-    log?.warn(
-      { userId, code: resizeError.code, message: resizeError.message },
-      'sheets table resize failed; rows written outside the table',
-    )
+    // The message is dropped: `logEvent` allows only the code, and a Sheets API
+    // message can quote the offending cell contents — i.e. invoice data.
+    logEvent(log ?? NOOP_LOG, 'warn', {
+      event: 'sheets.resize',
+      outcome: 'failed',
+      userId,
+      code: resizeError.code,
+    })
   }
   await applyColumnFormatting(
     spreadsheetId,
@@ -154,8 +162,11 @@ export type SyncFlushSummary = { users: number; synced: number; skipped: number;
 /**
  * Minimal structural logger so callers can surface per-user sync failures
  * (e.g. Fastify's `request.log`) without this module depending on fastify.
+ *
+ * Now an alias of the shared `EventLogger`, so this job emits through the same
+ * PII allow-list as the rest of the app rather than hand-rolling log objects.
  */
-export type SyncFlushLogger = { warn: (obj: object, msg?: string) => void }
+export type SyncFlushLogger = EventLogger
 
 /**
  * Mirror every connected landlord whose data changed since their last sync.
@@ -195,17 +206,25 @@ export async function runSheetsSyncFlush(
       synced++
     } catch (err) {
       failed++
-      // Only the AppError code/message (already sanitized by the integration
-      // layer) — never the raw error object, which could carry credentials.
-      log?.warn(
-        {
-          userId: u.id,
-          code: (err as { code?: string })?.code,
-          message: err instanceof Error ? err.message : String(err),
-        },
-        'sheets sync failed for user',
-      )
+      // Only the AppError code (already sanitized by the integration layer) —
+      // never the raw error or its message, which can carry credentials or echo
+      // the sheet contents that failed to write.
+      logEvent(log ?? NOOP_LOG, 'warn', {
+        event: 'sheets.user',
+        outcome: 'failed',
+        userId: u.id,
+        code: (err as { code?: string })?.code,
+      })
     }
   }
-  return { users: users.length, synced, skipped, failed }
+  const summary = { users: users.length, synced, skipped, failed }
+  // A summary line so the job's shape is visible even when nothing failed —
+  // "ran, mirrored 0, skipped 12" is the answer to "why is my sheet stale?".
+  // Counts only; the per-user failures above already carry the opaque userId.
+  logEvent(log ?? NOOP_LOG, failed > 0 ? 'warn' : 'info', {
+    event: 'sheets.flush',
+    outcome: failed > 0 ? 'failed' : 'ok',
+    count: summary.users,
+  })
+  return summary
 }

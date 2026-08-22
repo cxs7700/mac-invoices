@@ -16,7 +16,7 @@ import { listFeed, markSeen } from './feed'
  */
 async function notifyDigest(request: FastifyRequest, reply: FastifyReply) {
   assertCronSecret(request)
-  const summary = await runDigestFlush(request.server.prisma)
+  const summary = await runDigestFlush(request.server.prisma, request.log)
   return reply.send(summary)
 }
 

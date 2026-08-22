@@ -35,6 +35,9 @@ Fastify server with plugin-based architecture:
 - **`src/db/connector.ts`** — Fastify plugin that decorates the instance with a Prisma client. Handles disconnect on server close.
 - **`src/lib/prisma.ts`** — Prisma client (pg adapter). Imports `./loadEnv.ts` to load the single root `.env` regardless of cwd.
 - **`src/invoices/`** — Invoice CRUD module.
+- **`src/lib/log.ts`** — Operational logging. `loggerOptions` in `app.ts` owns the transport (pino) and secret redaction; this module owns *what a log line may contain*. `logEvent(log, level, fields)` emits only the names in `LOG_FIELD_KEYS` — an **allow-list**, enforced both by the `LogFields` type (no index signature, so a stray `{ email }` is a compile error) and at runtime (so a spread or cast cannot smuggle one past). Only opaque cuids, counts, durations, status codes and stable error codes are loggable; names, emails, phones, addresses, amounts and error *messages* are not. `reason` must be a code (`bad_password`), never prose. `LOG_LEVEL` sets verbosity (default `info`, `silent` under test). Events use stable dot-names: `auth.login`, `auth.signup`, `auth.reset`, `submission.link.denied`, `cron.auth`, `email.send`, `digest.flush`, `sheets.flush`, `request.client_error`, `request.server_error`.
+
+  **When adding a log call, use `logEvent` — never `request.log.info({...})` directly**, which bypasses the allow-list. `test/logging.pii.test.ts` drives real requests carrying real personal data and asserts none of it reaches any log line; `test/log.test.ts` and `test/log-redaction.test.ts` cover the helper and the serializers.
 
 Invoice routes live in `routes.ts` (plugin) → `handlers.ts` (validated handlers) → `types.ts`. The old `myRoutes`/`myTypes` variant was removed when the implementations were consolidated in Phase 1 (OQ-1 resolved).
 

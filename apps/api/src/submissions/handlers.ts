@@ -7,7 +7,8 @@ import {
 } from '@mac-invoices/shared'
 import { AppError } from '../middleware/errorHandler'
 import { parseBody } from '../lib/validate'
-import { validateLinkToken } from '../vendors/token'
+import { validateLinkToken, parseLinkToken } from '../vendors/token'
+import { logEvent } from '../lib/log'
 import { issueUploadToken } from '../integrations/storage'
 import { createSubmission, vendorUpdateSubmission, vendorBlobOwner } from '../invoices/writeService'
 
@@ -22,7 +23,22 @@ export type TokenParams = { token: string }
 /** Resolve the path token to a vendor, or throw the uniform dead-link 404. */
 async function resolveLink(request: FastifyRequest<{ Params: TokenParams }>) {
   const link = await validateLinkToken(request.server.prisma, request.params.token)
-  if (!link) throw new AppError('NOT_FOUND', 'This link is no longer active', 404)
+  if (!link) {
+    // The one place every dead-link rejection passes through, so it is the one
+    // place worth logging: repeated denials on a single lookupId are what a
+    // brute-force or a leaked-then-revoked link looks like.
+    //
+    // Only the NON-SECRET lookupId is recorded — the same half `redactUrlToken`
+    // keeps in the request URL. Logging the whole token would hand a log reader
+    // a working credential. `validateLinkToken` deliberately cannot say WHICH
+    // failure occurred (no existence leak), so there is no `reason` to give.
+    logEvent(request.log, 'warn', {
+      event: 'submission.link.denied',
+      outcome: 'denied',
+      tokenLookupId: parseLinkToken(request.params.token)?.lookupId,
+    })
+    throw new AppError('NOT_FOUND', 'This link is no longer active', 404)
+  }
   return link
 }
 
