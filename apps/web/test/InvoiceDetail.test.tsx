@@ -33,7 +33,7 @@ function json(status: number, body: unknown) {
   }
 }
 
-function setup(getStatus = 200) {
+function setup(getStatus = 200, body: unknown = invoice) {
   const fetchMock = vi.fn().mockImplementation((_url: string, init?: { method?: string }) => {
     const method = init?.method ?? 'GET'
     if (method === 'PATCH') return Promise.resolve(json(200, { ...invoice, status: 'PAID' }))
@@ -46,7 +46,7 @@ function setup(getStatus = 200) {
       })
     return Promise.resolve(
       getStatus === 200
-        ? json(200, invoice)
+        ? json(200, body)
         : json(404, { error: { code: 'NOT_FOUND', message: 'x' } }),
     )
   })
@@ -88,6 +88,15 @@ describe('InvoiceDetail', () => {
         ),
       ).toBe(true),
     )
+  })
+
+  it('offers no mark-as-paid or edit actions on a cancelled invoice', async () => {
+    setup(200, { ...invoice, status: 'CANCELLED' })
+    await waitFor(() => expect(screen.getByText('Invoice INV-1')).toBeDefined())
+    expect(screen.queryByRole('button', { name: /mark as paid/i })).toBeNull()
+    expect(screen.queryByRole('link', { name: /^edit$/i })).toBeNull()
+    // Delete stays available so the landlord can clean up.
+    expect(screen.getByRole('button', { name: /^delete$/i })).toBeDefined()
   })
 
   it('shows a not-found state on 404', async () => {

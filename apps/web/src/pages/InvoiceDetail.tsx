@@ -161,7 +161,7 @@ export default function InvoiceDetail() {
                     update.mutate({ status: 'REJECTED', rejectionReason: reason })
                   }
                 />
-              ) : (
+              ) : invoice.status !== 'CANCELLED' ? (
                 <Button
                   className="w-full"
                   disabled={invoice.status === 'PAID' || update.isPending}
@@ -169,11 +169,16 @@ export default function InvoiceDetail() {
                 >
                   {t('invoiceDetail.markAsPaid')}
                 </Button>
-              )}
+              ) : null}
 
-              <Button variant="outline" className="w-full" asChild>
-                <Link to={`/invoices/${invoice.id}/edit`}>{t('invoiceDetail.edit')}</Link>
-              </Button>
+              {/* CANCELLED is terminal (a withdrawn submission): the server
+                  refuses any further transition, so offer no paid/edit actions
+                  — only Delete, for cleanup. */}
+              {invoice.status !== 'CANCELLED' && (
+                <Button variant="outline" className="w-full" asChild>
+                  <Link to={`/invoices/${invoice.id}/edit`}>{t('invoiceDetail.edit')}</Link>
+                </Button>
+              )}
 
               <Button
                 variant="outline"

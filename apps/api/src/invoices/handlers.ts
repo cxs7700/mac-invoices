@@ -131,6 +131,16 @@ function invoiceDateFilter(from?: Date, to?: Date): Prisma.DateTimeFilter | unde
   return invoiceDate
 }
 
+// A vendor-withdrawn submission (CANCELLED with a submitting vendor) leaves the
+// landlord's working surface entirely — list and status counts — even under an
+// explicit CANCELLED filter. The row itself survives so the "vendor withdrew"
+// notification link still resolves; the landlord's own cancelled invoices
+// (no submittedByVendorId) are unaffected.
+const WITHDRAWN = {
+  status: 'CANCELLED',
+  submittedByVendorId: { not: null },
+} satisfies Prisma.InvoiceWhereInput
+
 /**
  * GET /api/invoices — list the session user's invoices: status / date-range
  * (invoiceDate) / vendor (contains) filtering, whitelisted sort, and strict
@@ -142,7 +152,7 @@ export async function listInvoices(
 ) {
   const q = parseBody(ListInvoicesQuerySchema, request.query, 'Invalid query parameters')
 
-  const where: Prisma.InvoiceWhereInput = { userId: request.user.id }
+  const where: Prisma.InvoiceWhereInput = { userId: request.user.id, NOT: WITHDRAWN }
   if (q.status) where.status = q.status
   const invoiceDate = invoiceDateFilter(q.from, q.to)
   if (invoiceDate) where.invoiceDate = invoiceDate
@@ -196,7 +206,7 @@ export async function listInvoices(
 export async function invoiceStats(request: FastifyRequest, reply: FastifyReply) {
   const grouped = await request.server.prisma.invoice.groupBy({
     by: ['status'],
-    where: { userId: request.user.id },
+    where: { userId: request.user.id, NOT: WITHDRAWN },
     _count: { _all: true },
   })
 
