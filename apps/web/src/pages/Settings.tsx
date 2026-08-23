@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ApiError } from '@/lib/apiClient'
+import { fieldClass } from '@/lib/fieldClass'
 import { Button } from '@/components/ui/button'
 import { useMe } from '@/hooks/useAuth'
 import {
@@ -21,7 +22,6 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   )
 }
 
-const inputClass = 'mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm'
 const errOf = (e: unknown) =>
   e instanceof ApiError ? e.message : e ? 'Something went wrong' : null
 
@@ -47,7 +47,7 @@ function ProfileSection() {
             id="firstName"
             value={firstNameValue}
             onChange={(e) => setFirstName(e.target.value)}
-            className={inputClass}
+            className={fieldClass}
           />
         </div>
         <div>
@@ -58,7 +58,7 @@ function ProfileSection() {
             id="lastName"
             value={lastNameValue}
             onChange={(e) => setLastName(e.target.value)}
-            className={inputClass}
+            className={fieldClass}
           />
         </div>
         <div>
@@ -69,7 +69,7 @@ function ProfileSection() {
             id="email"
             value={emailValue}
             onChange={(e) => setEmail(e.target.value)}
-            className={inputClass}
+            className={fieldClass}
           />
         </div>
         {update.isSuccess && (
@@ -126,7 +126,7 @@ function SecuritySection() {
             autoComplete="new-password"
             value={current}
             onChange={(e) => setCurrent(e.target.value)}
-            className={inputClass}
+            className={fieldClass}
           />
         </div>
         <div>
@@ -139,7 +139,7 @@ function SecuritySection() {
             autoComplete="new-password"
             value={next}
             onChange={(e) => setNext(e.target.value)}
-            className={inputClass}
+            className={fieldClass}
           />
           <p className="mt-1 text-xs text-muted-foreground">At least 8 characters.</p>
         </div>
@@ -236,7 +236,7 @@ function SheetsSection() {
               id="sheetId"
               value={value}
               onChange={(e) => setSheetId(e.target.value)}
-              className={inputClass}
+              className={fieldClass}
             />
           </div>
           {errOf(save.error) && (
