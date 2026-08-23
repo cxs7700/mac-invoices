@@ -94,6 +94,27 @@ export default function VendorSubmit() {
   const [photos, setPhotos] = useState<{ url: string; type: ImageTypeT }[]>(restored?.photos ?? [])
   const [justSubmitted, setJustSubmitted] = useState(false)
 
+  /**
+   * Object URLs for photos uploaded in THIS visit, keyed by their stored blob
+   * URL. Deliberately outside `photos` and outside the draft: an object URL is
+   * valid only for the document that made it, so persisting one would restore a
+   * reference that is already dead. A restored draft therefore has no preview —
+   * it renders a labelled placeholder rather than a broken image.
+   */
+  const [previews, setPreviews] = useState<Record<string, string>>({})
+
+  // Release every object URL when the page goes away. Without this, navigating
+  // off mid-form leaves each attached photo pinned in memory for the lifetime
+  // of the document — on a phone holding five full-resolution shots, that is
+  // the difference between a tab that survives backgrounding and one that does
+  // not. A ref mirrors the map so the unmount cleanup does not re-run on every
+  // change, which would revoke URLs still on screen.
+  const previewsRef = useRef<Record<string, string>>({})
+  useEffect(() => {
+    previewsRef.current = previews
+  }, [previews])
+  useEffect(() => () => Object.values(previewsRef.current).forEach(URL.revokeObjectURL), [])
+
   // Save on every change rather than on an interval or on unload: `pagehide` is
   // the one lifecycle event iOS actually delivers reliably, and a vendor whose
   // battery dies never fires anything at all. Writing a few KB of JSON per
@@ -155,6 +176,10 @@ export default function VendorSubmit() {
     setCategory('')
     setPropertyId('')
     setPhotos([])
+    setPreviews((prev) => {
+      Object.values(prev).forEach(URL.revokeObjectURL)
+      return {}
+    })
   }
 
   const updateItem = (id: string, patch: Partial<ItemRowValue>) =>
@@ -163,11 +188,27 @@ export default function VendorSubmit() {
   const removeItem = (id: string) =>
     setItems((prev) => (prev.length === 1 ? prev : prev.filter((row) => row.id !== id)))
 
-  const addPhoto = (url: string) =>
-    setPhotos((prev) =>
-      prev.length >= MAX_INVOICE_IMAGES ? prev : [...prev, { url, type: 'OTHER' }],
-    )
-  const removePhoto = (url: string) => setPhotos((prev) => prev.filter((p) => p.url !== url))
+  const addPhoto = (url: string, previewUrl: string) => {
+    let accepted = false
+    setPhotos((prev) => {
+      if (prev.length >= MAX_INVOICE_IMAGES) return prev
+      accepted = true
+      return [...prev, { url, type: 'OTHER' }]
+    })
+    // Only keep a preview for a photo that was actually kept, and release the
+    // one belonging to a photo the cap rejected — an object URL pins the whole
+    // file in memory until it is revoked.
+    if (accepted) setPreviews((prev) => ({ ...prev, [url]: previewUrl }))
+    else URL.revokeObjectURL(previewUrl)
+  }
+  const removePhoto = (url: string) => {
+    setPhotos((prev) => prev.filter((p) => p.url !== url))
+    setPreviews((prev) => {
+      if (prev[url]) URL.revokeObjectURL(prev[url])
+      const { [url]: _removed, ...rest } = prev
+      return rest
+    })
+  }
   const setPhotoType = (url: string, type: ImageTypeT) =>
     setPhotos((prev) => prev.map((p) => (p.url === url ? { ...p, type } : p)))
 
@@ -255,13 +296,30 @@ export default function VendorSubmit() {
                   >
                     {/* A thumbnail, not just "Photo 3": after five shots on a
                         job site the numbers alone don't say which is the
-                        receipt and which is the part. */}
-                    <img
-                      src={p.url}
-                      alt={t('vendorSubmit.photoN', { n: i + 1 })}
-                      loading="lazy"
-                      className="h-14 w-14 shrink-0 rounded object-cover"
-                    />
+                        receipt and which is the part.
+
+                        Sourced from the local file, never from `p.url`. The
+                        blob store is private, so an <img> pointed at the stored
+                        URL is answered with 403 and the vendor gets a broken
+                        icon — which is what shipped until this change. A
+                        restored draft has no local file, so it shows a
+                        placeholder instead: still no picture, but it reads as
+                        "attached" rather than as an error. */}
+                    {previews[p.url] ? (
+                      <img
+                        src={previews[p.url]}
+                        alt={t('vendorSubmit.photoN', { n: i + 1 })}
+                        className="h-14 w-14 shrink-0 rounded object-cover"
+                      />
+                    ) : (
+                      <span
+                        role="img"
+                        aria-label={t('vendorSubmit.photoN', { n: i + 1 })}
+                        className="flex h-14 w-14 shrink-0 items-center justify-center rounded bg-muted text-xs font-medium text-muted-foreground"
+                      >
+                        {i + 1}
+                      </span>
+                    )}
                     <div className="flex min-w-0 flex-1 flex-col gap-2">
                       <select
                         aria-label={t('vendorSubmit.photoTypeLabel', { n: i + 1 })}

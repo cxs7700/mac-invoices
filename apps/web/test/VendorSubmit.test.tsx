@@ -420,6 +420,55 @@ describe('VendorSubmit', () => {
   })
 
   /**
+   * The blob store is private: an <img> pointed at the stored URL is answered
+   * with 403, which shipped as a broken-image icon next to every photo a vendor
+   * attached. Confirmed in a browser against real storage before this fix.
+   */
+  it('previews an attached photo from the local file, never from the stored url', async () => {
+    useSubmissionStatus.mockReturnValue({ isPending: false, isError: false, data: { data: [] } })
+    const stored = 'https://ypyz.private.blob.vercel-storage.com/owners/c_x/abc'
+    uploadSubmissionPhoto.mockResolvedValue(stored)
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:local-preview')
+    const { container } = renderPage()
+
+    const fileInput = container.querySelectorAll('input[type="file"]')[1] as HTMLInputElement
+    fireEvent.change(fileInput, {
+      target: { files: [new File(['x'], 'p.jpg', { type: 'image/jpeg' })] },
+    })
+
+    const img = await waitFor(() => {
+      const found = container.querySelector('img[alt="Photo 1"]') as HTMLImageElement | null
+      if (!found) throw new Error('no thumbnail yet')
+      return found
+    })
+    expect(img.getAttribute('src')).toBe('blob:local-preview')
+    // The stored URL must never reach an img — that is the 403.
+    expect(container.innerHTML).not.toContain(stored)
+  })
+
+  it('shows a placeholder, not a broken image, for a restored draft’s photos', async () => {
+    useSubmissionStatus.mockReturnValue({ isPending: false, isError: false, data: { data: [] } })
+    uploadSubmissionPhoto.mockResolvedValue('https://blob.example/owners/c_x/abc')
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:local-preview')
+    const first = renderPage()
+    const fileInput = first.container.querySelectorAll('input[type="file"]')[1] as HTMLInputElement
+    fireEvent.change(fileInput, {
+      target: { files: [new File(['x'], 'p.jpg', { type: 'image/jpeg' })] },
+    })
+    await waitFor(() => expect(screen.getByText('1 of 5 photos attached')).toBeDefined())
+    first.unmount()
+
+    const { container } = renderPage()
+
+    // An object URL dies with the document that made it, so the draft keeps
+    // only the stored URL. Rendering that would 403; a placeholder reads as
+    // "attached" instead of as a failure.
+    await waitFor(() => expect(screen.getByText('1 of 5 photos attached')).toBeDefined())
+    expect(container.querySelector('img[alt="Photo 1"]')).toBeNull()
+    expect(screen.getByRole('img', { name: 'Photo 1' })).toBeDefined()
+  })
+
+  /**
    * Draft persistence. The scenario is a phone call, a backgrounded tab or a
    * flat battery mid-form — the failure nobody reports, because a vendor who
    * loses a half-filled invoice texts it instead, exactly as they did before
