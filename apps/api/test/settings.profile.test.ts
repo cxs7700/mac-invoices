@@ -8,34 +8,28 @@ const app = buildApp()
 let cookie: string
 let other: Awaited<ReturnType<typeof createSecondUser>>
 let landlordId: string
-let landlordEmail: string
 
 beforeAll(async () => {
   await app.ready()
   cookie = await loginCookie(app)
   other = await createSecondUser(app)
-  // Capture the landlord's identity BEFORE any test mutates it — the email
-  // test below changes the shared seeded landlord's login email, so restoring
-  // by re-querying on that email in afterAll would no longer find the row.
+  // Held by id so the restore below cannot depend on the email still matching.
+  // No test in this file changes the landlord's email any more — email is the
+  // login identity and the other 13 files that log in as this landlord run in
+  // parallel — but the name edit below is still a mutation of a shared row.
   const landlord = await app.prisma.user.findFirstOrThrow({
     where: { role: 'LANDLORD', email: process.env.LANDLORD_EMAIL ?? 'landlord@example.com' },
   })
   landlordId = landlord.id
-  landlordEmail = landlord.email
 })
 afterAll(async () => {
-  // Restore the landlord's profile + locale + email (by id, captured above) so
-  // other suites — including this file's own re-login — aren't affected.
+  // Restore the landlord's display name + locale (by id) so other suites aren't
+  // affected. The email is deliberately absent: nothing here changes it, and a
+  // restore for a mutation that no longer happens would only suggest one does.
   await app.prisma.user
     .update({
       where: { id: landlordId },
-      data: {
-        name: 'Landlord',
-        firstName: 'Landlord',
-        lastName: null,
-        locale: 'en',
-        email: landlordEmail,
-      },
+      data: { name: 'Landlord', firstName: 'Landlord', lastName: null, locale: 'en' },
     })
     .catch(() => {})
   await other.cleanup()
@@ -75,13 +69,20 @@ describe('PATCH /api/settings/profile', () => {
     expect(me.name).toBe('New Name')
   })
 
+  // Runs against the throwaway user, NOT the shared seeded landlord. Email is
+  // the login identity: while it was changed here, every other test file that
+  // logs in as `landlord@example.com` got a 401 for the window until this
+  // file's afterAll restored it. Test files run in parallel against one
+  // database, so a different file failed on each run and every one of them
+  // passed in isolation — which is what made it read as flakiness rather than
+  // as this test. Nothing that shares a fixture may mutate its login identity.
   it('edits the email (no verification flow)', async () => {
     const email = `settings-test-${Date.now()}@example.com`
-    const res = await patch({ email })
+    const res = await patch({ email }, other.cookie)
     expect(res.statusCode).toBe(200)
     expect(res.json().email).toBe(email)
     const me = (
-      await app.inject({ method: 'GET', url: '/api/auth/me', headers: { cookie } })
+      await app.inject({ method: 'GET', url: '/api/auth/me', headers: { cookie: other.cookie } })
     ).json()
     expect(me.email).toBe(email)
   })

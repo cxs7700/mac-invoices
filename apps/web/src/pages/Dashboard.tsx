@@ -113,7 +113,7 @@ export default function Dashboard() {
         </div>
       ) : (
         <>
-          <div className="grid gap-4 sm:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <Stat label={t('dashboard.totalSpend')} value={formatMoney(summary.total.amount)} />
             <Stat label={t('dashboard.outstanding')} value={formatMoney(outstanding)} />
             <Stat label={t('dashboard.invoices')} value={String(summary.total.count)} />
@@ -155,9 +155,11 @@ export default function Dashboard() {
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-border bg-card p-4">
+    <div className="min-w-0 rounded-lg border border-border bg-card p-4">
       <div className="text-xs uppercase tracking-wide text-muted-foreground">{label}</div>
-      <div className="mt-1 text-2xl font-bold text-foreground tabular-nums">{value}</div>
+      <div className="mt-1 truncate text-xl font-bold text-foreground tabular-nums sm:text-2xl">
+        {value}
+      </div>
     </div>
   )
 }

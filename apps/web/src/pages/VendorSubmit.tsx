@@ -242,24 +242,6 @@ export default function VendorSubmit() {
         </div>
       ) : (
         <form onSubmit={onSubmit} className="space-y-4 rounded-lg border border-border bg-card p-5">
-          <InvoiceFields
-            items={items}
-            onItemChange={updateItem}
-            onItemAdd={addItem}
-            onItemRemove={removeItem}
-            computedTotal={computedTotal}
-            invoiceDate={invoiceDate}
-            onInvoiceDate={setInvoiceDate}
-            propertyId={propertyId}
-            onPropertyId={setPropertyId}
-            properties={properties}
-            category={category}
-            onCategory={setCategory}
-            notes={notes}
-            onNotes={setNotes}
-            partsOrdered={partsOrdered}
-            onPartsOrdered={setPartsOrdered}
-          />
           <div>
             <span className="text-sm font-medium text-foreground">
               {t('vendorSubmit.photosLabel')} {t('vendorSubmit.optionalSuffix')}
@@ -334,6 +316,24 @@ export default function VendorSubmit() {
               </p>
             )}
           </div>
+          <InvoiceFields
+            items={items}
+            onItemChange={updateItem}
+            onItemAdd={addItem}
+            onItemRemove={removeItem}
+            computedTotal={computedTotal}
+            invoiceDate={invoiceDate}
+            onInvoiceDate={setInvoiceDate}
+            propertyId={propertyId}
+            onPropertyId={setPropertyId}
+            properties={properties}
+            category={category}
+            onCategory={setCategory}
+            notes={notes}
+            onNotes={setNotes}
+            partsOrdered={partsOrdered}
+            onPartsOrdered={setPartsOrdered}
+          />
           {submitError && (
             <p className="text-sm text-destructive" role="alert">
               {submitError}
