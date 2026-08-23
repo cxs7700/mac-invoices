@@ -21,13 +21,22 @@ const pickFile = (container: HTMLElement, file: File) => {
 describe('PhotoAttach', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it('uploads a valid file and calls onUploaded with the stored url', async () => {
+  it('uploads a valid file and reports the stored url plus a local preview', async () => {
     validateImageFile.mockReturnValue(null)
     uploadInvoicePhoto.mockResolvedValue('https://blob/url')
+    const objectUrl = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:preview-1')
     const onUploaded = vi.fn()
+    const file = new File(['x'], 'inv.jpg', { type: 'image/jpeg' })
     const { container } = render(<PhotoAttach onUploaded={onUploaded} />)
-    pickFile(container, new File(['x'], 'inv.jpg', { type: 'image/jpeg' }))
-    await waitFor(() => expect(onUploaded).toHaveBeenCalledWith('https://blob/url'))
+
+    pickFile(container, file)
+
+    // The stored URL is what gets submitted; the preview is what can actually
+    // be rendered, because the blob store is private and 403s an unsigned img.
+    await waitFor(() =>
+      expect(onUploaded).toHaveBeenCalledWith('https://blob/url', 'blob:preview-1'),
+    )
+    expect(objectUrl).toHaveBeenCalledWith(file)
   })
 
   it('rejects an invalid file with an error and does not upload', async () => {

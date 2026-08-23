@@ -26,7 +26,13 @@ export function PhotoAttach({
   upload = uploadInvoicePhoto,
   remainingSlots,
 }: {
-  onUploaded: (url: string) => void
+  /**
+   * Called with the stored blob URL, plus an object URL for the local file.
+   * The store is private, so the blob URL is NOT renderable — fetching it
+   * unsigned returns 403. A caller that wants to show the photo back should
+   * render the preview and take ownership of revoking it.
+   */
+  onUploaded: (url: string, previewUrl: string) => void
   disabled?: boolean
   label?: string
   // Defaults to the authed invoice upload; the public vendor page passes a
@@ -61,7 +67,10 @@ export function PhotoAttach({
       const url = await upload(file, (progress) =>
         setInFlight((prev) => prev.map((u) => (u.id === id ? { ...u, progress } : u))),
       )
-      onUploaded(url)
+      // Preview from the local file rather than the stored URL. It is instant,
+      // costs no network, and — decisively — the blob store is private, so the
+      // returned URL 403s when an <img> fetches it unsigned.
+      onUploaded(url, URL.createObjectURL(file))
     } catch {
       setError(t('photo.uploadFailed'))
     } finally {
