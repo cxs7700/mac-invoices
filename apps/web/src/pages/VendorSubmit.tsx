@@ -270,9 +270,17 @@ export default function VendorSubmit() {
               </ul>
             )}
             <div className="mt-2">
+              {/*
+                `remainingSlots` rather than `disabled={atCap}`: it keeps the
+                capture buttons live while an upload is in flight, so a vendor
+                can shoot the next receipt instead of waiting on field LTE, and
+                it still refuses to start more uploads than there are slots —
+                `addPhoto` drops anything past the cap, so an unbounded queue
+                would push a file to storage and then discard it.
+              */}
               <PhotoAttach
                 onUploaded={addPhoto}
-                disabled={atCap}
+                remainingSlots={MAX_INVOICE_IMAGES - photos.length}
                 upload={(file, onProgress) => uploadSubmissionPhoto(token!, file, onProgress)}
               />
             </div>

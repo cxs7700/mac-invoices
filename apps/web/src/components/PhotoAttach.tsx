@@ -7,12 +7,24 @@ import { uploadInvoicePhoto, validateImageFile } from '@/hooks/useImageUpload'
  * Capture or pick a photo and upload it directly to storage. Two affordances
  * (camera + file) so both work on every platform — iOS `capture` would force
  * camera-only. Calls `onUploaded` with the stored blob URL on success.
+ *
+ * Concurrency is opt-in via `remainingSlots`. Without it the control stays
+ * single-shot: the buttons disable while an upload runs, which is what the two
+ * landlord callers want — `InvoiceNew` holds a single URL that a second upload
+ * would overwrite, and the gallery blocks on its own append mutation anyway.
+ *
+ * With `remainingSlots` the buttons stay live during an upload, so a vendor
+ * standing at a job site can shoot the next receipt while the last one is still
+ * going up. The bound matters: the vendor page discards anything past its photo
+ * cap, so an unbounded queue would upload a file to storage and then silently
+ * drop it — the vendor watching progress reach 100% and then seeing no photo.
  */
 export function PhotoAttach({
   onUploaded,
   disabled,
   label = 'photo',
   upload = uploadInvoicePhoto,
+  remainingSlots,
 }: {
   onUploaded: (url: string) => void
   disabled?: boolean
@@ -20,13 +32,20 @@ export function PhotoAttach({
   // Defaults to the authed invoice upload; the public vendor page passes a
   // token-scoped uploader instead.
   upload?: (file: File, onProgress?: (percent: number) => void) => Promise<string>
+  /** Slots left for completed photos. Omit for single-shot behaviour. */
+  remainingSlots?: number
 }) {
   const { t } = useTranslation()
   const cameraRef = useRef<HTMLInputElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
-  const [uploading, setUploading] = useState(false)
-  const [progress, setProgress] = useState(0)
+  // One entry per upload in flight. Single-shot callers never see more than one.
+  const [inFlight, setInFlight] = useState<{ id: number; progress: number }[]>([])
   const [error, setError] = useState<string | null>(null)
+  const nextId = useRef(0)
+
+  const concurrent = remainingSlots !== undefined
+  const noSlotsLeft = concurrent && inFlight.length >= Math.max(0, remainingSlots)
+  const busy = concurrent ? noSlotsLeft : inFlight.length > 0
 
   async function handleFile(file: File | undefined) {
     if (!file) return
@@ -36,15 +55,17 @@ export function PhotoAttach({
       return
     }
     setError(null)
-    setUploading(true)
-    setProgress(0)
+    const id = nextId.current++
+    setInFlight((prev) => [...prev, { id, progress: 0 }])
     try {
-      const url = await upload(file, setProgress)
+      const url = await upload(file, (progress) =>
+        setInFlight((prev) => prev.map((u) => (u.id === id ? { ...u, progress } : u))),
+      )
       onUploaded(url)
     } catch {
       setError(t('photo.uploadFailed'))
     } finally {
-      setUploading(false)
+      setInFlight((prev) => prev.filter((u) => u.id !== id))
     }
   }
 
@@ -71,7 +92,7 @@ export function PhotoAttach({
           type="button"
           variant="outline"
           size="sm"
-          disabled={disabled || uploading}
+          disabled={disabled || busy}
           onClick={() => cameraRef.current?.click()}
         >
           {t('photo.take', { label: labelText })}
@@ -80,17 +101,17 @@ export function PhotoAttach({
           type="button"
           variant="outline"
           size="sm"
-          disabled={disabled || uploading}
+          disabled={disabled || busy}
           onClick={() => fileRef.current?.click()}
         >
           {t('photo.choose', { label: labelText })}
         </Button>
       </div>
-      {uploading && (
-        <p className="text-xs text-muted-foreground" role="status">
-          {t('photo.uploading', { progress })}
+      {inFlight.map((u) => (
+        <p key={u.id} className="text-xs text-muted-foreground" role="status">
+          {t('photo.uploading', { progress: u.progress })}
         </p>
-      )}
+      ))}
       {error && (
         <p className="text-xs text-destructive" role="alert">
           {error}
