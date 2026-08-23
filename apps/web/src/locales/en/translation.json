@@ -471,6 +471,7 @@
     "inactiveBody": "Ask whoever sent it for an up-to-date link.",
     "rateLimited": "You've submitted too many times — please wait a few minutes and try again.",
     "genericError": "Something went wrong — please try again.",
+    "draftRestored": "We kept the invoice you started. Check it over before you send it.",
     "submittedTitle": "Your invoice has been submitted",
     "submittedBody": "We'll let you know once it's been reviewed.",
     "noPropertiesTitle": "No properties assigned yet",

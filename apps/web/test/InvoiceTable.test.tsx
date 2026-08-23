@@ -90,6 +90,49 @@ describe('InvoiceTable', () => {
     )
     expect(screen.getByText('Drywall, Paint')).toBeDefined()
   })
+
+  // A real description from the seeded 2025 data — the longest at 87 characters.
+  const longJob =
+    'Apt 2A&5A Heating Sys Change Out Comustion Fan, Motor Upgrade, LED Bulbs on Wall Soffit'
+
+  it('wraps a long job summary over two lines instead of clipping it to one', () => {
+    const long: InvoiceListItem = {
+      ...base,
+      id: 'd',
+      invoiceNumber: 'INV-4',
+      vendorName: 'Long',
+      items: [item(longJob)],
+      amount: '500.00',
+      category: 'REPAIRS',
+      status: 'PAID',
+      invoiceDate: '2026-02-01',
+      partsOrdered: null,
+    }
+    render(
+      <MemoryRouter>
+        <InvoiceTable invoices={[long]} />
+      </MemoryRouter>,
+    )
+    // jsdom applies no CSS, so nothing here can observe the clip visually — the
+    // text is in the DOM either way. The class contract IS the behaviour: with
+    // `truncate` this job lost its ending at 320px on every screen, monitor
+    // included. Asserting the classes is what makes that regression loud.
+    const job = screen.getByText(longJob)
+    expect(job.className).toContain('line-clamp-2')
+    expect(job.className).not.toContain('truncate')
+  })
+
+  it('leaves parts ordered on a single truncated line, deliberately', () => {
+    render(
+      <MemoryRouter>
+        <InvoiceTable invoices={rows} />
+      </MemoryRouter>,
+    )
+    // Parts is empty in 157 of the 158 seeded invoices, so it does not earn a
+    // second line the way the job summary does. The asymmetry is the decision.
+    const parts = screen.getByText('2x sink washer')
+    expect(parts.className).toContain('truncate')
+  })
 })
 
 describe('InvoiceTable export column', () => {
@@ -117,7 +160,11 @@ describe('InvoiceTable export column', () => {
   it('heads the sync column "Exported" and reads No / Yes', () => {
     renderRows([
       make({ id: 'no', sheetsSyncedAt: null }),
-      make({ id: 'yes', updatedAt: '2026-01-15T00:00:00.000Z', sheetsSyncedAt: '2026-01-16T00:00:00.000Z' }),
+      make({
+        id: 'yes',
+        updatedAt: '2026-01-15T00:00:00.000Z',
+        sheetsSyncedAt: '2026-01-16T00:00:00.000Z',
+      }),
     ])
     expect(screen.getByRole('columnheader', { name: 'Exported' })).toBeDefined()
     expect(screen.getByText('No')).toBeDefined()

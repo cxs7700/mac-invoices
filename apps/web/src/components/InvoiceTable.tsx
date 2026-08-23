@@ -96,7 +96,23 @@ export function InvoiceTable({
                   {inv.invoiceNumber ?? t('invoiceTable.unnumbered')}
                 </Link>
               </td>
-              <td className={`${td} max-w-xs truncate`}>{summarizeItems(inv.items)}</td>
+              {/*
+                Job wraps to two lines rather than truncating on one. `max-w-xs
+                truncate` capped the cell at 320px at EVERY width — a 27-inch
+                monitor clipped exactly as hard as a laptop — and the seeded
+                2025 descriptions run to 87 characters, so the longest jobs lost
+                their ending with no way to recover it short of opening the
+                invoice. `summarizeItems` has already capped the list at three
+                items before this point, so CSS was truncating a summary of a
+                summary. The wider cap plus two lines fits every real
+                description; the clamp still bounds a pathological one.
+                Parts keeps the single-line cap deliberately: it is empty in 157
+                of the 158 seeded invoices, so giving it two lines would spend
+                vertical space on em dashes.
+              */}
+              <td className={td}>
+                <span className="line-clamp-2 max-w-md">{summarizeItems(inv.items)}</span>
+              </td>
               <td className={`${td} max-w-xs truncate`}>{inv.partsOrdered || '—'}</td>
               <td className={td}>{inv.vendorName}</td>
               <td className={td}>{formatDate(inv.invoiceDate)}</td>
