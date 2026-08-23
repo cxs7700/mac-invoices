@@ -198,6 +198,8 @@
     "rangeYtd": "YTD",
     "range1y": "1Y",
     "rangeCustom": "Custom",
+    "taxYear": "Tax year",
+    "taxYearAny": "Any",
     "fromDate": "From date",
     "toDate": "To date",
     "vendor": "Vendor",

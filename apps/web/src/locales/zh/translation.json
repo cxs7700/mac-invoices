@@ -221,6 +221,8 @@
     "rangeYtd": "今年至今",
     "range1y": "1年",
     "rangeCustom": "自訂",
+    "taxYear": "稅務年度",
+    "taxYearAny": "不限",
     "fromDate": "由邊日",
     "toDate": "到邊日",
     "vendor": "供應商",

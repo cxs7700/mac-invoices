@@ -25,6 +25,50 @@ export type DateRangePreset = (typeof DATE_RANGE_PRESETS)[number]
 export const CUSTOM_RANGE = 'custom'
 const RANGE_OPTIONS: readonly string[] = [...DATE_RANGE_PRESETS, CUSTOM_RANGE]
 
+/**
+ * A tax-year range: `?range=ty2025` means the whole of 2025, Jan 1 to Dec 31.
+ *
+ * These are CLOSED on both ends, unlike the lookback presets above, which set
+ * only `from` because they mean "since X". A completed tax year is the one
+ * window a landlord has to be able to name exactly — "how much did I spend in
+ * 2025" — and it was previously unaskable without hand-typing two dates, since
+ * `ytd` always means the current year.
+ *
+ * Parsing accepts any plausible year rather than only the offered ones, so an
+ * old bookmark or a hand-typed `?range=ty2019` still resolves instead of
+ * silently falling back to no filter. The bounds are fixed rather than
+ * clock-relative to keep parsing independent of the current date; a year with
+ * no invoices simply returns nothing, which is the honest answer.
+ */
+const TAX_YEAR_RE = /^ty(\d{4})$/
+const TAX_YEAR_MIN = 2000
+const TAX_YEAR_MAX = 2100
+/** How many completed years the picker offers. */
+const TAX_YEARS_OFFERED = 5
+
+/** The year a `ty####` range denotes, or null if it isn't one. */
+export function taxYear(range: string): number | null {
+  const m = TAX_YEAR_RE.exec(range)
+  if (!m) return null
+  const year = Number(m[1])
+  return year >= TAX_YEAR_MIN && year <= TAX_YEAR_MAX ? year : null
+}
+
+/** `2025` → `ty2025`, the URL form. */
+export const taxYearRange = (year: number) => `ty${year}`
+
+/**
+ * The completed tax years offered in the picker, newest first. The current
+ * year is deliberately absent — it isn't over, and `ytd` already means
+ * "this year so far".
+ */
+export function taxYearOptions(today: Date = new Date()): number[] {
+  const lastComplete = today.getFullYear() - 1
+  return Array.from({ length: TAX_YEARS_OFFERED }, (_, i) => lastComplete - i).filter(
+    (y) => y >= TAX_YEAR_MIN,
+  )
+}
+
 const pad = (n: number) => String(n).padStart(2, '0')
 /** Local-time YYYY-MM-DD (toISOString would shift the day in western zones). */
 const toISODate = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
@@ -93,11 +137,12 @@ export function parseListParams(sp: URLSearchParams): ListFilters {
   const pageRaw = parseInt(sp.get('page') ?? '1', 10)
   // A bare ?from=/?to= (older bookmark, hand-edited URL) still works: it implies
   // the custom range, which is the only mode that reads those two fields.
-  const range = RANGE_OPTIONS.includes(rangeRaw)
-    ? rangeRaw
-    : DATE_RE.test(from) || DATE_RE.test(to)
-      ? CUSTOM_RANGE
-      : ''
+  const range =
+    RANGE_OPTIONS.includes(rangeRaw) || taxYear(rangeRaw) !== null
+      ? rangeRaw
+      : DATE_RE.test(from) || DATE_RE.test(to)
+        ? CUSTOM_RANGE
+        : ''
   return {
     status: (STATUS_OPTIONS as readonly string[]).includes(status) ? status : '',
     range,
@@ -115,6 +160,9 @@ export function parseListParams(sp: URLSearchParams): ListFilters {
 
 /** The concrete from/to a filter set resolves to (a preset derives its start). */
 export function resolvedDates(f: ListFilters, today: Date = new Date()) {
+  // A tax year is closed on both ends; every other preset is "since X".
+  const year = taxYear(f.range)
+  if (year !== null) return { from: `${year}-01-01`, to: `${year}-12-31` }
   if (f.range && f.range !== CUSTOM_RANGE) {
     return { from: rangeStart(f.range as DateRangePreset, today), to: '' }
   }

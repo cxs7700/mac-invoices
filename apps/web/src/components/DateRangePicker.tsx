@@ -1,5 +1,12 @@
 import { useTranslation } from 'react-i18next'
-import { DATE_RANGE_PRESETS, CUSTOM_RANGE, type DateRangePreset } from '@/lib/listParams'
+import {
+  DATE_RANGE_PRESETS,
+  CUSTOM_RANGE,
+  taxYear,
+  taxYearOptions,
+  taxYearRange,
+  type DateRangePreset,
+} from '@/lib/listParams'
 
 const field =
   'rounded-md border border-input bg-card px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring'
@@ -21,10 +28,17 @@ const RANGE_CHOICES: readonly (DateRangePreset | typeof CUSTOM_RANGE)[] = [
 export type DateRangeValue = { range: string; from: string; to: string }
 
 /**
- * The lookback control: preset buttons (1W…1Y) plus a custom from/to escape
- * hatch. Shared by the invoice list's FilterBar and the dashboard so one
- * lookback means the same window in both places. `range: ''` is no date filter
- * (all time) — clicking the active choice again clears back to it.
+ * The lookback control: preset buttons (1W…1Y), a Tax year dropdown, and a
+ * custom from/to escape hatch. Shared by the invoice list's FilterBar and the
+ * dashboard so one lookback means the same window in both places.
+ * `range: ''` is no date filter (all time) — clicking the active choice again
+ * clears back to it.
+ *
+ * The tax years are a dropdown rather than more buttons on purpose: the row
+ * already holds seven and had previously overflowed at 375px, pushing the
+ * page's primary action off-screen. One `<select>` adds a single control at
+ * any width. Preset and tax year are the same underlying field (`range`), so
+ * choosing either necessarily clears the other — there is only ever one window.
  */
 export function DateRangePicker({
   value,
@@ -41,6 +55,8 @@ export function DateRangePicker({
     onChange(range === CUSTOM_RANGE ? { range } : { range, from: '', to: '' })
 
   const dateError = value.range === CUSTOM_RANGE && value.from && value.to && value.from > value.to
+  const activeTaxYear = taxYear(value.range)
+  const years = taxYearOptions()
 
   return (
     <>
@@ -69,6 +85,22 @@ export function DateRangePicker({
           })}
         </div>
       </div>
+
+      <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+        {t('filterBar.taxYear')}
+        <select
+          className={field}
+          value={activeTaxYear === null ? '' : String(activeTaxYear)}
+          onChange={(e) => selectRange(e.target.value ? taxYearRange(Number(e.target.value)) : '')}
+        >
+          <option value="">{t('filterBar.taxYearAny')}</option>
+          {years.map((y) => (
+            <option key={y} value={y}>
+              {y}
+            </option>
+          ))}
+        </select>
+      </label>
 
       {value.range === CUSTOM_RANGE && (
         <>

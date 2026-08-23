@@ -4,7 +4,10 @@ import {
   toSearchParams,
   toQueryParams,
   rangeStart,
+  resolvedDates,
   hasActiveFilters,
+  taxYear,
+  taxYearOptions,
 } from '@/lib/listParams'
 
 const parse = (qs: string) => parseListParams(new URLSearchParams(qs))
@@ -74,5 +77,56 @@ describe('hasActiveFilters', () => {
   it('counts a preset as an active filter', () => {
     expect(hasActiveFilters(parse('range=1y'))).toBe(true)
     expect(hasActiveFilters(parse(''))).toBe(false)
+  })
+
+  it('counts a tax year as an active filter', () => {
+    expect(hasActiveFilters(parse('range=ty2025'))).toBe(true)
+  })
+})
+
+describe('tax-year ranges', () => {
+  it('resolves to the whole calendar year, closed on both ends', () => {
+    // Unlike the lookback presets, which leave `to` open because they mean
+    // "since X", a tax year is bounded at both ends.
+    expect(resolvedDates(parse('range=ty2025'))).toEqual({
+      from: '2025-01-01',
+      to: '2025-12-31',
+    })
+  })
+
+  it('does not depend on today, unlike a lookback preset', () => {
+    const a = resolvedDates(parse('range=ty2023'), new Date(2026, 0, 15))
+    const b = resolvedDates(parse('range=ty2023'), new Date(2030, 6, 1))
+    expect(a).toEqual(b)
+  })
+
+  it('survives the URL round-trip without writing derived dates', () => {
+    expect(toSearchParams(parse('range=ty2024')).toString()).toBe('range=ty2024')
+  })
+
+  it('reaches the API as a concrete closed window', () => {
+    const q = toQueryParams(parse('range=ty2022'))
+    expect(q.from).toBe('2022-01-01')
+    expect(q.to).toBe('2022-12-31')
+  })
+
+  it('accepts a year outside the offered list, so an old bookmark still works', () => {
+    expect(taxYear('ty2019')).toBe(2019)
+    expect(parse('range=ty2019').range).toBe('ty2019')
+  })
+
+  it('rejects implausible or malformed years', () => {
+    expect(taxYear('ty1999')).toBeNull()
+    expect(taxYear('ty2101')).toBeNull()
+    expect(taxYear('ty25')).toBeNull()
+    expect(taxYear('tyabcd')).toBeNull()
+    expect(taxYear('1y')).toBeNull()
+    expect(parse('range=ty1999')).toMatchObject({ range: '', from: '', to: '' })
+  })
+
+  it('offers completed years only, newest first — never the current one', () => {
+    const years = taxYearOptions(new Date(2026, 7, 23))
+    expect(years).toEqual([2025, 2024, 2023, 2022, 2021])
+    expect(years).not.toContain(2026)
   })
 })
