@@ -1,5 +1,6 @@
 import { put } from '@vercel/blob/client'
 import { apiClient } from '@/lib/apiClient'
+import { compressImage } from '@/lib/compressImage'
 
 // Direct browser→Blob upload. The file never goes through the JSON-only apiClient
 // (or the 60s API function): apiClient only fetches a short-lived upload token,
@@ -30,17 +31,22 @@ export async function uploadInvoicePhoto(
   file: File,
   onProgress?: (percent: number) => void,
 ): Promise<string> {
+  // Compress BEFORE minting the token, never after: the token is pinned to a
+  // single `allowedContentTypes` entry, so a token minted for the original
+  // HEIC would reject the JPEG this produces. Falls back to the original file
+  // whenever it cannot compress, so this cannot turn an upload into a failure.
+  const upload = await compressImage(file)
   const { token, pathname } = await apiClient<{ token: string; pathname: string }>(
     '/api/invoices/image-upload-token',
-    { method: 'POST', body: JSON.stringify({ contentType: file.type }) },
+    { method: 'POST', body: JSON.stringify({ contentType: upload.type }) },
   )
   // The blob lands at exactly the server-issued pathname (the token pins it with
   // addRandomSuffix:false), so the owner-prefix gate and the orphan-blob sweep can
   // match the stored URL's pathname to what they expect.
-  const result = await put(pathname, file, {
+  const result = await put(pathname, upload, {
     access: 'private',
     token,
-    contentType: file.type,
+    contentType: upload.type,
     onUploadProgress: onProgress ? (event) => onProgress(Math.round(event.percentage)) : undefined,
   })
   return result.url

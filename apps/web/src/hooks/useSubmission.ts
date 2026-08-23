@@ -2,6 +2,7 @@ import { put } from '@vercel/blob/client'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { SubmissionStatus, ImageType } from '@mac-invoices/shared'
 import { apiClient } from '@/lib/apiClient'
+import { compressImage } from '@/lib/compressImage'
 
 // Public (no-session) hooks for the vendor link page. Authorization is the
 // path token alone; apiClient still sends credentials but there is no cookie.
@@ -14,16 +15,21 @@ export async function uploadSubmissionPhoto(
   file: File,
   onProgress?: (percent: number) => void,
 ): Promise<string> {
+  // Compress BEFORE minting the token — it is pinned to one allowed content
+  // type, so a token minted for the original HEIC rejects the JPEG this makes.
+  // This is the path that matters most: the vendor is on field LTE, and the
+  // photo is the largest thing the flow moves.
+  const upload = await compressImage(file)
   const { token: clientToken, pathname } = await apiClient<{ token: string; pathname: string }>(
     `${base(token)}/upload-token`,
-    { method: 'POST', body: JSON.stringify({ contentType: file.type }) },
+    { method: 'POST', body: JSON.stringify({ contentType: upload.type }) },
   )
   // Lands at exactly the server-issued pathname (token pins addRandomSuffix:false)
   // so the owner-prefix gate and the orphan-blob sweep match on pathname.
-  const result = await put(pathname, file, {
+  const result = await put(pathname, upload, {
     access: 'private',
     token: clientToken,
-    contentType: file.type,
+    contentType: upload.type,
     onUploadProgress: onProgress ? (e) => onProgress(Math.round(e.percentage)) : undefined,
   })
   return result.url
