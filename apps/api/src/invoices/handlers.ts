@@ -12,6 +12,7 @@ import {
   InvoiceStatus,
   InvoiceCategory,
   InvoiceSortField,
+  NON_SPEND_STATUSES,
   compareInvoiceOrder,
 } from '@mac-invoices/shared'
 import { AppError } from '../middleware/errorHandler'
@@ -228,20 +229,19 @@ export async function invoiceSummary(
   const prisma = request.server.prisma
   const q = parseBody(SummaryQuerySchema, request.query, 'Invalid query parameters')
   const window = invoiceDateFilter(q.from, q.to)
-  // "Spend" is real committed money: PENDING / APPROVED / PAID. SUBMITTED
-  // (un-vetted), REJECTED (declined) and CANCELLED (withdrawn) are excluded from
-  // the grand total and the per-category breakdown — these are exactly the
-  // statuses that can carry a null category (a vendor submission), so
-  // excluding them also keeps byCategory reconciled with the total (no stray
-  // null-category bucket). byStatus KEEPS every status — its SUBMITTED count is
-  // the landlord's "to review" signal.
+  // "Spend" is real committed money: PENDING / APPROVED / PAID. The excluded
+  // set lives in NON_SPEND_STATUSES (DEC-041) so this handler and the
+  // per-property rollup cannot drift apart — they did, and a property's total
+  // silently counted un-vetted submissions the dashboard did not.
+  // byStatus KEEPS every status — its SUBMITTED count is the landlord's
+  // "to review" signal.
   const owned: Prisma.InvoiceWhereInput = {
     userId: request.user.id,
     ...(window ? { invoiceDate: window } : {}),
   }
   const spend: Prisma.InvoiceWhereInput = {
     ...owned,
-    status: { notIn: ['SUBMITTED', 'REJECTED', 'CANCELLED'] },
+    status: { notIn: [...NON_SPEND_STATUSES] },
   }
 
   const [agg, byCat, byStat, spendRows] = await Promise.all([

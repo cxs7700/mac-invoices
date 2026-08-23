@@ -4,7 +4,8 @@ import { createSecondUser } from './helpers/auth'
 
 // U3 property CRUD + detail (landlord, authed). Ownership-scoped with no
 // existence leak; delete is blocked while invoices reference the property; the
-// detail rollup sums non-REJECTED/CANCELLED amounts.
+// detail rollup sums amounts outside NON_SPEND_STATUSES — the same definition
+// of spend the dashboard summary uses (DEC-041).
 const app = buildApp()
 let a: Awaited<ReturnType<typeof createSecondUser>>
 let b: Awaited<ReturnType<typeof createSecondUser>>
@@ -105,5 +106,43 @@ describe('delete guard + spend rollup', () => {
     await invoice(a.user.id, id, 'REJECTED', 30)
     const detail = await get(id, a.cookie)
     expect(detail.json().totalSpend).toBe('150.00')
+  })
+
+  // DEC-041: the rollup once excluded only REJECTED/CANCELLED, so a property's
+  // total counted un-vetted vendor submissions that the dashboard's spend did
+  // not. Both now read the shared NON_SPEND_STATUSES.
+  it('excludes SUBMITTED from the rollup — un-vetted money is not spend (DEC-041)', async () => {
+    const id = (await create({ name: 'Unvetted', address: 'x' }, a.cookie)).json().id
+    await invoice(a.user.id, id, 'PAID', 100)
+    await invoice(a.user.id, id, 'SUBMITTED', 4000)
+    const detail = await get(id, a.cookie)
+    expect(detail.json().totalSpend).toBe('100.00')
+  })
+
+  // The rollup and the dashboard summary must answer "spend" identically. Uses
+  // its own landlord because /api/invoices/summary is landlord-wide, so the
+  // shared `a` would carry invoices from the tests above.
+  it('agrees with the dashboard summary on what counts as spend (DEC-041)', async () => {
+    const c = await createSecondUser(app)
+    try {
+      const id = (await create({ name: 'Agree', address: 'x' }, c.cookie)).json().id
+      await invoice(c.user.id, id, 'PAID', 100)
+      await invoice(c.user.id, id, 'PENDING', 25)
+      await invoice(c.user.id, id, 'SUBMITTED', 4000)
+      await invoice(c.user.id, id, 'REJECTED', 30)
+      await invoice(c.user.id, id, 'CANCELLED', 70)
+
+      const detail = await get(id, c.cookie)
+      const summary = await app.inject({
+        method: 'GET',
+        url: '/api/invoices/summary',
+        headers: { cookie: c.cookie },
+      })
+      expect(detail.json().totalSpend).toBe('125.00')
+      expect(summary.json().total.amount).toBe(detail.json().totalSpend)
+    } finally {
+      await app.prisma.invoice.deleteMany({ where: { userId: c.user.id } })
+      await c.cleanup()
+    }
   })
 })

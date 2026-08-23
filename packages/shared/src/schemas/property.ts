@@ -30,7 +30,8 @@ export const PropertySchema = z.object({
 })
 
 /** The property detail response: the property plus its total-spend rollup
- * (sum of its invoices' amounts excluding REJECTED/CANCELLED), as a string. */
+ * (sum of its invoices' amounts excluding NON_SPEND_STATUSES — the same
+ * definition of spend the dashboard uses, per DEC-041), as a string. */
 export const PropertyDetailSchema = PropertySchema.extend({
   totalSpend: z.string(),
 })

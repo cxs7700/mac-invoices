@@ -158,6 +158,24 @@ export const ListInvoicesQuerySchema = z.object({
   offset: z.coerce.number().int().min(0).max(100_000).default(0),
 })
 
+/**
+ * The statuses excluded from "spend" — the single source of truth for what
+ * counts as real committed money, shared by every spend rollup (DEC-041).
+ *
+ * SUBMITTED is un-vetted (a vendor's claim the landlord has not reviewed),
+ * REJECTED was declined and CANCELLED was withdrawn — none of the three is
+ * money the landlord has committed. Excluding SUBMITTED also keeps a
+ * category breakdown reconciled with its total, since a vendor submission is
+ * exactly the case that can carry a null category.
+ *
+ * Deliberately NOT the same constant as `NON_EXPORTABLE_STATUSES` in
+ * `apps/api/src/invoices/sheetRows.ts`, which holds the same three values for
+ * a different reason (what may mirror to the accounting sheet). They agree
+ * today by coincidence of rationale, not by dependency — collapsing them
+ * would couple the sheet's export rule to the definition of spend.
+ */
+export const NON_SPEND_STATUSES = ['SUBMITTED', 'REJECTED', 'CANCELLED'] as const
+
 export type InvoiceStatus = z.infer<typeof InvoiceStatus>
 export type InvoiceCategory = z.infer<typeof InvoiceCategory>
 /**

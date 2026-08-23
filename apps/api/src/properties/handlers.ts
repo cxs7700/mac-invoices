@@ -1,5 +1,9 @@
 import type { FastifyRequest, FastifyReply } from 'fastify'
-import { CreatePropertySchema, UpdatePropertySchema } from '@mac-invoices/shared'
+import {
+  CreatePropertySchema,
+  UpdatePropertySchema,
+  NON_SPEND_STATUSES,
+} from '@mac-invoices/shared'
 import { AppError } from '../middleware/errorHandler'
 import { parseBody } from '../lib/validate'
 import { money } from '../lib/money'
@@ -54,8 +58,13 @@ export async function listProperties(request: FastifyRequest, reply: FastifyRepl
 
 /**
  * GET /api/properties/:id — one own property plus its total-spend rollup
- * (sum of its invoices' amounts excluding REJECTED/CANCELLED). The aggregate is
- * scoped to the landlord (userId) as defense-in-depth on top of ownProperty.
+ * (sum of its invoices' amounts, excluding NON_SPEND_STATUSES). The aggregate
+ * is scoped to the landlord (userId) as defense-in-depth on top of ownProperty.
+ *
+ * The exclusion set is the shared one (DEC-041) rather than a local literal:
+ * this rollup previously excluded only REJECTED/CANCELLED, so a property's
+ * total counted un-vetted SUBMITTED invoices that the dashboard's spend did
+ * not — the same word reporting two different numbers.
  */
 export async function getProperty(
   request: FastifyRequest<{ Params: Params }>,
@@ -64,7 +73,11 @@ export async function getProperty(
   const landlordId = request.user.id
   const p = await ownProperty(request.server.prisma, request.params.id, landlordId)
   const agg = await request.server.prisma.invoice.aggregate({
-    where: { propertyId: p.id, userId: landlordId, status: { notIn: ['REJECTED', 'CANCELLED'] } },
+    where: {
+      propertyId: p.id,
+      userId: landlordId,
+      status: { notIn: [...NON_SPEND_STATUSES] },
+    },
     _sum: { amount: true },
   })
   return reply.send({ ...toProperty(p), totalSpend: money(agg._sum.amount) })
