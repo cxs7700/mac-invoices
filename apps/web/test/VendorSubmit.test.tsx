@@ -420,6 +420,72 @@ describe('VendorSubmit', () => {
   })
 
   /**
+   * Draft persistence. The scenario is a phone call, a backgrounded tab or a
+   * flat battery mid-form — the failure nobody reports, because a vendor who
+   * loses a half-filled invoice texts it instead, exactly as they did before
+   * the link existed. Unmount/remount stands in for the reload.
+   */
+  it('gives the vendor their unfinished invoice back after a reload', async () => {
+    useSubmissionStatus.mockReturnValue({ isPending: false, isError: false, data: { data: [] } })
+    const first = renderPage()
+    fillFirstLine('Fixed a leak', '120')
+    fireEvent.change(screen.getByLabelText('Invoice date'), { target: { value: '2026-06-01' } })
+    fireEvent.change(screen.getByLabelText(/^Notes/), { target: { value: 'Gate code 1234' } })
+    first.unmount()
+
+    renderPage()
+
+    expect((screen.getByPlaceholderText('Description') as HTMLInputElement).value).toBe(
+      'Fixed a leak',
+    )
+    expect((screen.getByLabelText('Invoice date') as HTMLInputElement).value).toBe('2026-06-01')
+    expect((screen.getByLabelText(/^Notes/) as HTMLTextAreaElement).value).toBe('Gate code 1234')
+  })
+
+  it('says so when it restores a draft, rather than repopulating silently', () => {
+    useSubmissionStatus.mockReturnValue({ isPending: false, isError: false, data: { data: [] } })
+    const first = renderPage()
+    fillFirstLine('Fixed a leak', '120')
+    first.unmount()
+
+    renderPage()
+
+    // Silently refilled fields would leave the vendor unsure whether this is
+    // this job's invoice or last week's — and clearing it costs what it saved.
+    expect(screen.getByText(/kept the invoice you started/i)).toBeDefined()
+  })
+
+  it('does not announce a draft on a first, clean visit', () => {
+    useSubmissionStatus.mockReturnValue({ isPending: false, isError: false, data: { data: [] } })
+    renderPage()
+    expect(screen.queryByText(/kept the invoice you started/i)).toBeNull()
+  })
+
+  it('forgets the draft once the invoice is submitted', async () => {
+    useSubmissionStatus.mockReturnValue({ isPending: false, isError: false, data: { data: [] } })
+    submitMock.mutate.mockImplementation((_payload: unknown, opts: { onSuccess: () => void }) =>
+      opts.onSuccess(),
+    )
+    const first = renderPage()
+    fillFirstLine('Fixed a leak', '120')
+    fireEvent.change(screen.getByLabelText('Invoice date'), { target: { value: '2026-06-01' } })
+    fireEvent.change(screen.getByLabelText(/^Property/), { target: { value: 'p1' } })
+    await waitFor(() =>
+      expect((screen.getByRole('button', { name: 'Submit' }) as HTMLButtonElement).disabled).toBe(
+        false,
+      ),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
+    first.unmount()
+
+    renderPage()
+
+    // A sent invoice is not an unfinished one; restoring it would invite a duplicate.
+    expect((screen.getByPlaceholderText('Description') as HTMLInputElement).value).toBe('')
+    expect(screen.queryByText(/kept the invoice you started/i)).toBeNull()
+  })
+
+  /**
    * The 16px rule, asserted on the one surface that provably needs it.
    *
    * Mobile Safari zooms the viewport when a focused input's font-size is under

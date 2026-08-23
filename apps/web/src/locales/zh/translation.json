@@ -494,6 +494,7 @@
     "inactiveBody": "搵返發連結畀你嗰個人攞條新嘅。",
     "rateLimited": "你交得太密 — 等幾分鐘再試。",
     "genericError": "出咗問題 — 再試一次。",
+    "draftRestored": "我哋幫你留低咗未交完嘅發票。交之前請檢查一次。",
     "submittedTitle": "你張發票已經交咗",
     "submittedBody": "審核完我哋會通知你。",
     "noPropertiesTitle": "仲未指派物業",

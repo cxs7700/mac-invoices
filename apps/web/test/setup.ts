@@ -2,6 +2,24 @@ import { afterEach, beforeEach } from 'vitest'
 import { cleanup } from '@testing-library/react'
 import i18n from '../src/lib/i18n'
 
+// jsdom keeps one localStorage for the whole file, so anything a test persists
+// is still there for the next one. That is not hypothetical: the vendor
+// submission draft restores a half-filled form, so without this a test that
+// typed two line items hands the next test a form that already has them.
+//
+// Registered BEFORE `cleanup` deliberately. Vitest runs afterEach hooks in
+// reverse registration order, so this one runs LAST — after unmount. That
+// ordering is load-bearing: unmounting flushes state updates still queued from
+// a resolved upload, which re-runs the draft's save effect. Clearing first
+// would be undone by the very teardown meant to isolate the test.
+afterEach(() => {
+  try {
+    localStorage.clear()
+  } catch {
+    // Not every environment exposes it; nothing to clean up if so.
+  }
+})
+
 // Unmount React trees between tests so repeated renders don't accumulate in jsdom.
 afterEach(cleanup)
 

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { ApiError } from '@/lib/apiClient'
+import { loadDraft, saveDraft, clearDraft } from '@/lib/submissionDraft'
 import { StatusBadge } from '@/components/StatusBadge'
 import { PhotoAttach } from '@/components/PhotoAttach'
 import { LanguageSwitcher } from '@/components/LanguageSwitcher'
@@ -79,14 +80,28 @@ export default function VendorSubmit() {
   const withdraw = useWithdraw(token!)
   const propertyList = useSubmissionProperties(token!)
 
-  const [items, setItems] = useState<ItemRowValue[]>([blankItem()])
-  const [invoiceDate, setInvoiceDate] = useState('')
-  const [notes, setNotes] = useState('')
-  const [partsOrdered, setPartsOrdered] = useState('')
-  const [category, setCategory] = useState('')
-  const [propertyId, setPropertyId] = useState('')
-  const [photos, setPhotos] = useState<{ url: string; type: ImageTypeT }[]>([])
+  // Read once, in a lazy initialiser, so the restored values are the form's
+  // FIRST render rather than a flash of empty fields that then repopulate.
+  const [restored] = useState(() => (token ? loadDraft(token) : null))
+  const [draftRestored, setDraftRestored] = useState(restored !== null)
+
+  const [items, setItems] = useState<ItemRowValue[]>(restored?.items ?? [blankItem()])
+  const [invoiceDate, setInvoiceDate] = useState(restored?.invoiceDate ?? '')
+  const [notes, setNotes] = useState(restored?.notes ?? '')
+  const [partsOrdered, setPartsOrdered] = useState(restored?.partsOrdered ?? '')
+  const [category, setCategory] = useState(restored?.category ?? '')
+  const [propertyId, setPropertyId] = useState(restored?.propertyId ?? '')
+  const [photos, setPhotos] = useState<{ url: string; type: ImageTypeT }[]>(restored?.photos ?? [])
   const [justSubmitted, setJustSubmitted] = useState(false)
+
+  // Save on every change rather than on an interval or on unload: `pagehide` is
+  // the one lifecycle event iOS actually delivers reliably, and a vendor whose
+  // battery dies never fires anything at all. Writing a few KB of JSON per
+  // keystroke is cheap next to losing the form.
+  useEffect(() => {
+    if (!token) return
+    saveDraft(token, { items, invoiceDate, notes, partsOrdered, category, propertyId, photos })
+  }, [token, items, invoiceDate, notes, partsOrdered, category, propertyId, photos])
 
   if (status.isPending) {
     return (
@@ -175,7 +190,13 @@ export default function VendorSubmit() {
       },
       {
         onSuccess: () => {
+          // Clear before resetting: the save effect fires on the reset too, and
+          // `saveDraft` clears on an empty form — but the submission is the
+          // moment the draft stops being wanted, so say so explicitly rather
+          // than relying on emptiness to imply it.
+          if (token) clearDraft(token)
           resetForm()
+          setDraftRestored(false)
           setJustSubmitted(true)
         },
       },
@@ -190,6 +211,21 @@ export default function VendorSubmit() {
   return (
     <Shell>
       <InstallPrompt />
+
+      {/*
+        A restored draft must announce itself. Silently repopulating the form
+        would leave a vendor unsure whether what they are looking at is this
+        job's invoice or last week's, and the safe reaction to that doubt is to
+        clear it and retype — which costs exactly what the draft just saved.
+      */}
+      {draftRestored && !justSubmitted && (
+        <p
+          role="status"
+          className="mb-4 rounded-md border border-tone-blue bg-tone-blue px-3 py-2 text-sm text-tone-blue-foreground"
+        >
+          {t('vendorSubmit.draftRestored')}
+        </p>
+      )}
 
       {noPropertiesAssigned ? (
         <div className="rounded-lg border border-border bg-card p-6 text-center">
