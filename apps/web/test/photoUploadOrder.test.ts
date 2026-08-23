@@ -54,9 +54,13 @@ describe.each([
 
     await run()
 
-    expect(put).toHaveBeenCalledWith('owners/u1/uuid', jpeg, expect.objectContaining({
-      contentType: 'image/jpeg',
-    }))
+    expect(put).toHaveBeenCalledWith(
+      'owners/u1/uuid',
+      jpeg,
+      expect.objectContaining({
+        contentType: 'image/jpeg',
+      }),
+    )
   })
 
   it('still uploads the original, consistently typed, when compression declines', async () => {
@@ -67,8 +71,12 @@ describe.each([
 
     const body = JSON.parse(apiClient.mock.calls[0][1].body)
     expect(body.contentType).toBe('image/heic')
-    expect(put).toHaveBeenCalledWith('owners/u1/uuid', heic, expect.objectContaining({
-      contentType: 'image/heic',
-    }))
+    expect(put).toHaveBeenCalledWith(
+      'owners/u1/uuid',
+      heic,
+      expect.objectContaining({
+        contentType: 'image/heic',
+      }),
+    )
   })
 })

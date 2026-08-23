@@ -92,7 +92,8 @@ describe('InvoiceTable', () => {
   })
 
   // A real description from the seeded 2025 data — the longest at 87 characters.
-  const longJob = 'Apt 2A&5A Heating Sys Change Out Comustion Fan, Motor Upgrade, LED Bulbs on Wall Soffit'
+  const longJob =
+    'Apt 2A&5A Heating Sys Change Out Comustion Fan, Motor Upgrade, LED Bulbs on Wall Soffit'
 
   it('wraps a long job summary over two lines instead of clipping it to one', () => {
     const long: InvoiceListItem = {
@@ -159,7 +160,11 @@ describe('InvoiceTable export column', () => {
   it('heads the sync column "Exported" and reads No / Yes', () => {
     renderRows([
       make({ id: 'no', sheetsSyncedAt: null }),
-      make({ id: 'yes', updatedAt: '2026-01-15T00:00:00.000Z', sheetsSyncedAt: '2026-01-16T00:00:00.000Z' }),
+      make({
+        id: 'yes',
+        updatedAt: '2026-01-15T00:00:00.000Z',
+        sheetsSyncedAt: '2026-01-16T00:00:00.000Z',
+      }),
     ])
     expect(screen.getByRole('columnheader', { name: 'Exported' })).toBeDefined()
     expect(screen.getByText('No')).toBeDefined()
