@@ -37,7 +37,7 @@ export function SyncBadge({ sheetsSyncedAt, updatedAt, long }: Props) {
   const { t } = useTranslation()
   const state = syncState(sheetsSyncedAt, updatedAt)
   const label = t(`sync.${long ? 'labelLong' : 'label'}.${state}`)
-  return (
+  const badge = (
     <span
       role="status"
       // The aria label always spells the state out, so a screen reader never
@@ -49,4 +49,16 @@ export function SyncBadge({ sheetsSyncedAt, updatedAt, long }: Props) {
       {label}
     </span>
   )
+  // "Drifted" is the one state whose name doesn't explain itself, and the
+  // title-attribute hint is unreachable on touch devices — so the long form
+  // spells it out next to the badge.
+  if (long && state === 'drifted') {
+    return (
+      <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
+        {badge}
+        <span className="text-xs text-muted-foreground">{t('sync.hint.drifted')}</span>
+      </span>
+    )
+  }
+  return badge
 }

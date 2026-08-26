@@ -126,7 +126,7 @@
     "hint": {
       "not-exported": "仲未匯出去 Google 試算表",
       "exported": "已經同步咗去 Google 試算表",
-      "drifted": "上次匯出之後改過 — 再匯出一次更新試算表"
+      "drifted": "上次匯出之後改過 — Google 試算表大約 15 分鐘內會自動更新"
     },
     "aria": "試算表匯出：{{label}}"
   },
