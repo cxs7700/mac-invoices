@@ -1,0 +1,64 @@
+# Nightly encrypted backup of the production Prisma Postgres database.
+#
+# The repo is PUBLIC, so artifacts are downloadable by anyone — the dump is
+# therefore gpg-encrypted (AES256, symmetric) before upload. Nothing readable
+# ever leaves the runner.
+#
+# Setup (repo Settings → Secrets and variables → Actions):
+#   - Secret BACKUP_DATABASE_URL  = the production DATABASE_URL (direct TCP
+#     postgres:// URL from Vercel prod env)
+#   - Secret BACKUP_PASSPHRASE    = passphrase for the encrypted dump. Also kept
+#     in the local root .env — losing it makes the backups undecryptable.
+#
+# Restore a backup:
+#   gh run download <run-id> -n db-backup   # or download via the Actions UI
+#   gpg --batch --passphrase "$BACKUP_PASSPHRASE" -d backup.dump.gpg > backup.dump
+#   pg_restore --clean --if-exists -d "$DATABASE_URL" backup.dump
+#
+# Same caveat as the other scheduled workflows: GitHub cron is best-effort and
+# auto-disabled after ~60 days of repo inactivity.
+name: Nightly DB backup
+
+on:
+  schedule:
+    - cron: '17 7 * * *' # daily ~03:17 ET (off the :00 rush)
+  workflow_dispatch: {} # manual trigger for testing
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      # Prisma Postgres runs Postgres 17; pg_dump must be >= the server version,
+      # and ubuntu-latest ships client 16, so install 17 from the PGDG repo.
+      - name: Install postgresql-client-17
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSo /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+
+      - name: Dump and encrypt
+        env:
+          BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          test -n "$BACKUP_DATABASE_URL" || { echo "BACKUP_DATABASE_URL secret is not set"; exit 1; }
+          test -n "$BACKUP_PASSPHRASE" || { echo "BACKUP_PASSPHRASE secret is not set"; exit 1; }
+          /usr/lib/postgresql/17/bin/pg_dump --no-owner --no-privileges -Fc \
+            -d "$BACKUP_DATABASE_URL" -f backup.dump
+          # Sanity check: an empty/tiny dump means the backup silently failed.
+          test "$(stat -c%s backup.dump)" -gt 10000 || { echo "dump suspiciously small"; exit 1; }
+          gpg --batch --symmetric --cipher-algo AES256 \
+            --passphrase "$BACKUP_PASSPHRASE" -o backup.dump.gpg backup.dump
+          rm backup.dump
+
+      - name: Upload encrypted backup
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-backup
+          path: backup.dump.gpg
+          retention-days: 30
+          if-no-files-found: error
