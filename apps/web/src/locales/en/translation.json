@@ -1,5 +1,7 @@
 {
-  "app": { "name": "Rent Ops" },
+  "app": {
+    "name": "Rent Ops"
+  },
   "nav": {
     "dashboard": "Dashboard",
     "invoices": "Invoices",
@@ -36,7 +38,9 @@
   },
   "settings": {
     "title": "Settings",
-    "language": { "title": "Language" },
+    "language": {
+      "title": "Language"
+    },
     "profile": {
       "title": "Profile",
       "firstName": "First name",
@@ -45,9 +49,18 @@
       "saved": "Profile saved.",
       "save": "Save"
     },
-    "security": { "title": "Security" },
-    "sheets": { "title": "Google Sheets connection" },
-    "theme": { "title": "Theme", "light": "Light", "system": "System", "dark": "Dark" }
+    "security": {
+      "title": "Security"
+    },
+    "sheets": {
+      "title": "Google Sheets connection"
+    },
+    "theme": {
+      "title": "Theme",
+      "light": "Light",
+      "system": "System",
+      "dark": "Dark"
+    }
   },
   "login": {
     "welcome": "Welcome back — sign in to continue.",
@@ -100,8 +113,16 @@
     "cta": "No photo yet — add one to document this invoice."
   },
   "sync": {
-    "label": { "not-exported": "No", "exported": "Yes", "drifted": "No" },
-    "labelLong": { "not-exported": "Not exported", "exported": "Exported", "drifted": "Drifted" },
+    "label": {
+      "not-exported": "No",
+      "exported": "Yes",
+      "drifted": "No"
+    },
+    "labelLong": {
+      "not-exported": "Not exported",
+      "exported": "Exported",
+      "drifted": "Drifted"
+    },
     "hint": {
       "not-exported": "Not yet exported to the Google Sheet",
       "exported": "Synced to the Google Sheet",
@@ -134,7 +155,9 @@
     "filterBy": "Filter by {{status}}, {{count}} invoices",
     "activeSuffix": ", active"
   },
-  "spendBars": { "empty": "Nothing to show yet." },
+  "spendBars": {
+    "empty": "Nothing to show yet."
+  },
   "invoiceList": {
     "heading": "Invoices",
     "exporting": "Exporting…",
@@ -510,6 +533,10 @@
     "noSubmissions": "No submissions yet — submit your first invoice above.",
     "rejectedPrefix": "Rejected:",
     "resubmit": "Submit a new invoice to resubmit",
-    "withdraw": "Withdraw"
+    "withdraw": "Withdraw",
+    "viewDetails": "View details",
+    "hideDetails": "Hide details",
+    "detailLoading": "Loading details…",
+    "detailError": "Couldn't load details — please try again."
   }
 }

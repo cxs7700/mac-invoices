@@ -16,6 +16,7 @@ import {
   useSubmit,
   useSubmissionProperties,
   useWithdraw,
+  useSubmissionDetail,
   uploadSubmissionPhoto,
 } from '@/hooks/useSubmission'
 import { MAX_INVOICE_IMAGES, ImageType } from '@mac-invoices/shared'
@@ -414,6 +415,7 @@ export default function VendorSubmit() {
             {submissions.map((s) => (
               <SubmissionRow
                 key={s.id}
+                token={token!}
                 submission={s}
                 onWithdraw={() => withdraw.mutate(s.id)}
                 onResubmit={startNew}
@@ -428,17 +430,20 @@ export default function VendorSubmit() {
 }
 
 function SubmissionRow({
+  token,
   submission: s,
   onWithdraw,
   onResubmit,
   withdrawing,
 }: {
+  token: string
   submission: SubmissionStatus
   onWithdraw: () => void
   onResubmit: () => void
   withdrawing: boolean
 }) {
   const { t } = useTranslation()
+  const [expanded, setExpanded] = useState(false)
   return (
     <li className="rounded-md border border-border bg-card p-3">
       <div className="flex items-center justify-between">
@@ -448,6 +453,15 @@ function SubmissionRow({
       <p className="mt-1 text-xs text-muted-foreground">
         {formatDate(s.invoiceDate)} · {s.description}
       </p>
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        aria-expanded={expanded}
+        className="mt-2 text-xs font-medium text-primary underline"
+      >
+        {expanded ? t('vendorSubmit.hideDetails') : t('vendorSubmit.viewDetails')}
+      </button>
+      {expanded && <SubmissionDetailPanel token={token} id={s.id} />}
       {s.status === 'REJECTED' && (
         <div className="mt-2 text-xs">
           {s.rejectionReason && (
@@ -476,5 +490,83 @@ function SubmissionRow({
         </Button>
       )}
     </li>
+  )
+}
+
+/**
+ * Read-only detail for one submission, fetched on expand. Submissions cannot
+ * be edited once filed — a vendor who needs a change withdraws and resubmits —
+ * so this renders values only, never inputs.
+ */
+function SubmissionDetailPanel({ token, id }: { token: string; id: string }) {
+  const { t } = useTranslation()
+  const detail = useSubmissionDetail(token, id, true)
+  if (detail.isPending) {
+    return <p className="mt-2 text-xs text-muted-foreground">{t('vendorSubmit.detailLoading')}</p>
+  }
+  if (detail.isError) {
+    return <p className="mt-2 text-xs text-destructive">{t('vendorSubmit.detailError')}</p>
+  }
+  const d = detail.data.data
+  return (
+    <div className="mt-2 space-y-2 border-t border-border pt-2 text-sm">
+      <div>
+        <p className="text-xs font-medium text-muted-foreground">{t('vendorSubmit.items.title')}</p>
+        <ul className="mt-1 space-y-1">
+          {d.items.map((item, i) => (
+            <li key={i} className="flex justify-between gap-2 text-foreground">
+              <span>
+                {item.description}
+                {item.quantity !== 1 && (
+                  <span className="text-muted-foreground"> × {item.quantity}</span>
+                )}
+              </span>
+              <span className="tabular-nums">{formatMoney(item.total)}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+      <DetailField label={t('vendorSubmit.property')}>
+        {d.property ? `${d.property.name} — ${d.property.address}` : null}
+      </DetailField>
+      <DetailField label={t('vendorSubmit.category')}>
+        {d.category ? t(`category.${d.category}`) : null}
+      </DetailField>
+      <DetailField label={t('vendorSubmit.notes')}>{d.notes}</DetailField>
+      <DetailField label={t('vendorSubmit.partsOrdered')}>{d.partsOrdered}</DetailField>
+      <div>
+        <p className="text-xs font-medium text-muted-foreground">{t('vendorSubmit.photosLabel')}</p>
+        {d.images.length === 0 ? (
+          <p className="text-muted-foreground">{t('vendorSubmit.photosNoneYet')}</p>
+        ) : (
+          <div className="mt-1 flex flex-wrap gap-2">
+            {d.images.map((img, i) => (
+              <a key={img.id} href={img.url} target="_blank" rel="noreferrer">
+                <img
+                  src={img.url}
+                  alt={t('vendorSubmit.photoN', { n: i + 1 })}
+                  className="h-20 w-20 rounded-md border border-border object-cover"
+                />
+              </a>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/** Label + value line; renders the shared "not specified" dash for empty values. */
+function DetailField({ label, children }: { label: string; children: React.ReactNode }) {
+  const { t } = useTranslation()
+  return (
+    <div>
+      <p className="text-xs font-medium text-muted-foreground">{label}</p>
+      <p className="text-foreground">
+        {children ?? (
+          <span className="text-muted-foreground">{t('vendorSubmit.notSpecified')}</span>
+        )}
+      </p>
+    </div>
   )
 }

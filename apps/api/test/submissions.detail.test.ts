@@ -69,60 +69,60 @@ afterAll(async () => {
   await app.close()
 })
 
-describe('vendor edit (U7)', () => {
-  it('edits a SUBMITTED submission, then locks once the landlord has approved (AE2)', async () => {
+describe('vendor submission detail (read-only)', () => {
+  const detail = (token: string, id: string) =>
+    app.inject({ method: 'GET', url: `/api/submissions/${token}/${id}` })
+
+  it('returns the full submission: lines, notes, photos with signed URLs', async () => {
+    const c = await makeVendor()
+    const id = await submit(c.id, c.token, {
+      items: [
+        { description: 'Labour', quantity: 2, total: 150 },
+        { description: 'Parts', quantity: 1, total: 25.5 },
+      ],
+      notes: 'Back door',
+      partsOrdered: 'Washer kit',
+      propertyId: undefined,
+    })
+    const res = await detail(c.token, id)
+    expect(res.statusCode).toBe(200)
+    const d = res.json().data
+    expect(d.status).toBe('SUBMITTED')
+    expect(d.amount).toBe('175.50')
+    expect(d.items).toEqual([
+      { description: 'Labour', quantity: 2, total: '150.00' },
+      { description: 'Parts', quantity: 1, total: '25.50' },
+    ])
+    expect(d.notes).toBe('Back door')
+    expect(d.partsOrdered).toBe('Washer kit')
+    expect(d.images).toHaveLength(1)
+    expect(d.images[0].url).toBe('https://signed/url') // freshly signed, not the raw blob path
+    // No invoiceNumber in the vendor-facing shape.
+    expect(Object.keys(d)).not.toContain('invoiceNumber')
+  })
+
+  it('another vendor\u2019s id (or a guess) is a uniform 404', async () => {
+    const a = await makeVendor()
+    const b = await makeVendor()
+    const id = await submit(a.id, a.token)
+    expect((await detail(b.token, id)).statusCode).toBe(404)
+    expect((await detail(a.token, 'no-such-id')).statusCode).toBe(404)
+  })
+
+  it('submissions can no longer be edited: the PATCH route is gone', async () => {
     const c = await makeVendor()
     const id = await submit(c.id, c.token)
-    const edited = await app.inject({
-      method: 'PATCH',
-      url: `/api/submissions/${c.token}/${id}`,
-      payload: { items: [{ description: 'work', quantity: 1, total: 250 }] },
-    })
-    expect(edited.statusCode).toBe(200)
-    const row = await app.prisma.invoice.findUniqueOrThrow({ where: { id } })
-    expect(Number(row.amount)).toBe(250)
-
-    // FIELD_EDITED is attributed to the vendor.
-    const ev = await app.prisma.invoiceEvent.findFirstOrThrow({
-      where: { invoiceId: id, type: 'FIELD_EDITED' },
-    })
-    expect(ev.actorId).toBe(`vendor:${c.id}`)
-
-    // After approval the submission is locked: the same edit is a 409.
-    expect((await approve(id)).statusCode).toBe(200)
-    const afterReview = await app.inject({
+    const res = await app.inject({
       method: 'PATCH',
       url: `/api/submissions/${c.token}/${id}`,
       payload: { items: [{ description: 'work', quantity: 1, total: 999 }] },
     })
-    expect(afterReview.statusCode).toBe(409)
+    expect(res.statusCode).toBe(404)
+    const row = await app.prisma.invoice.findUniqueOrThrow({ where: { id } })
+    expect(Number(row.amount)).toBe(100) // untouched
   })
 
-  it('replaces the whole line list, re-deriving the amount from it', async () => {
-    const c = await makeVendor()
-    const id = await submit(c.id, c.token)
-    const edited = await app.inject({
-      method: 'PATCH',
-      url: `/api/submissions/${c.token}/${id}`,
-      payload: {
-        items: [
-          { description: 'Labour', quantity: 2, total: 150 },
-          { description: 'Parts', quantity: 1, total: 25.5 },
-        ],
-      },
-    })
-    expect(edited.statusCode).toBe(200)
-
-    const row = await app.prisma.invoice.findUniqueOrThrow({
-      where: { id },
-      include: { items: { orderBy: { sortOrder: 'asc' } } },
-    })
-    // The original single line is gone, not merged with the new ones.
-    expect(row.items.map((i) => i.description)).toEqual(['Labour', 'Parts'])
-    expect(row.amount.toString()).toBe('175.5')
-  })
-
-  it('summarizes every line in the vendor’s own status list, not just the first', async () => {
+  it('summarizes every line in the vendor\u2019s own status list, not just the first', async () => {
     const c = await makeVendor()
     const id = await submit(c.id, c.token, {
       items: [
@@ -136,54 +136,7 @@ describe('vendor edit (U7)', () => {
     expect(row.description).toBe('Labour, Valve')
   })
 
-  it('accepts notes and parts ordered on edit', async () => {
-    const c = await makeVendor()
-    const id = await submit(c.id, c.token)
-    const edited = await app.inject({
-      method: 'PATCH',
-      url: `/api/submissions/${c.token}/${id}`,
-      payload: { notes: 'Back door', partsOrdered: 'Washer kit' },
-    })
-    expect(edited.statusCode).toBe(200)
-    const row = await app.prisma.invoice.findUniqueOrThrow({ where: { id } })
-    expect(row.notes).toBe('Back door')
-    expect(row.partsOrdered).toBe('Washer kit')
-  })
-
-  it('editing only the description records a FIELD_EDITED event and updates the item', async () => {
-    const c = await makeVendor()
-    const id = await submit(c.id, c.token)
-    const edited = await app.inject({
-      method: 'PATCH',
-      url: `/api/submissions/${c.token}/${id}`,
-      payload: { items: [{ description: 'Replaced the whole panel', quantity: 1, total: 100 }] },
-    })
-    expect(edited.statusCode).toBe(200)
-
-    const item = await app.prisma.invoiceItem.findFirstOrThrow({ where: { invoiceId: id } })
-    expect(item.description).toBe('Replaced the whole panel')
-
-    const ev = await app.prisma.invoiceEvent.findFirstOrThrow({
-      where: { invoiceId: id, type: 'FIELD_EDITED' },
-    })
-    expect(ev.actorId).toBe(`vendor:${c.id}`)
-    expect(ev.detail).toEqual({
-      field: 'description',
-      old: 'work',
-      new: 'Replaced the whole panel',
-    })
-
-    // A no-op re-submit of the same description records nothing new.
-    const before = await app.prisma.invoiceEvent.count({ where: { invoiceId: id } })
-    await app.inject({
-      method: 'PATCH',
-      url: `/api/submissions/${c.token}/${id}`,
-      payload: { items: [{ description: 'Replaced the whole panel', quantity: 1, total: 100 }] },
-    })
-    expect(await app.prisma.invoiceEvent.count({ where: { invoiceId: id } })).toBe(before)
-  })
-
-  it('own-status list returns this vendor’s submissions with rejection reason', async () => {
+  it('own-status list returns this vendor\u2019s submissions with rejection reason', async () => {
     const c = await makeVendor()
     const ok = await submit(c.id, c.token)
     const rejectMe = await submit(c.id, c.token)
@@ -203,27 +156,6 @@ describe('vendor edit (U7)', () => {
     expect(submitted.status).toBe('SUBMITTED')
     // No invoiceNumber leaked in the safe shape.
     expect(Object.keys(rejected)).not.toContain('invoiceNumber')
-  })
-
-  it('two concurrent vendor edits both pass the CAS (last-write-wins, v1)', async () => {
-    const c = await makeVendor()
-    const id = await submit(c.id, c.token)
-    const [a, b] = await Promise.all([
-      app.inject({
-        method: 'PATCH',
-        url: `/api/submissions/${c.token}/${id}`,
-        payload: { items: [{ description: 'work', quantity: 1, total: 200 }] },
-      }),
-      app.inject({
-        method: 'PATCH',
-        url: `/api/submissions/${c.token}/${id}`,
-        payload: { items: [{ description: 'work', quantity: 1, total: 300 }] },
-      }),
-    ])
-    expect(a.statusCode).toBe(200)
-    expect(b.statusCode).toBe(200)
-    const row = await app.prisma.invoice.findUniqueOrThrow({ where: { id } })
-    expect([200, 300]).toContain(Number(row.amount))
   })
 })
 

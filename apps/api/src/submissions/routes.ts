@@ -47,10 +47,10 @@ async function submissionRoutes(fastify: FastifyInstance) {
     { config: { rateLimit: { max: readMax, timeWindow: '1 minute' } } },
     handlers.listProperties,
   )
-  fastify.patch<{ Params: TokenParams & { id: string } }>(
+  fastify.get<{ Params: TokenParams & { id: string } }>(
     '/api/submissions/:token/:id',
-    { config: { rateLimit: { max: submitMax, timeWindow: '1 minute' } } },
-    handlers.edit,
+    { config: { rateLimit: { max: readMax, timeWindow: '1 minute' } } },
+    handlers.detailOwn,
   )
   fastify.post<{ Params: TokenParams & { id: string } }>(
     '/api/submissions/:token/:id/withdraw',

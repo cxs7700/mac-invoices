@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import {
+  ImageType,
   InvoiceCategory,
   InvoiceImageInputSchema,
   InvoiceItemInputSchema,
@@ -45,17 +46,28 @@ export const SubmissionSchema = z.object({
 })
 export type SubmissionInput = z.infer<typeof SubmissionSchema>
 
-// What a vendor may change while a submission is still SUBMITTED (same
-// validators as submit, all optional). The photo is not edited here in v1.
-export const EditSubmissionSchema = z.object({
-  items: SubmissionSchema.shape.items.optional(),
-  invoiceDate: SubmissionSchema.shape.invoiceDate.optional(),
-  notes: SubmissionSchema.shape.notes,
-  partsOrdered: SubmissionSchema.shape.partsOrdered,
-  category: SubmissionSchema.shape.category,
-  propertyId: SubmissionSchema.shape.propertyId,
+// Submissions are read-only to the vendor once filed (2026-08-25): the old
+// PATCH edit path was removed — a vendor who needs a change withdraws and
+// resubmits, so the landlord never reviews a moving target.
+
+/** A vendor's own submission in full (read-only detail view; safe fields only). */
+export const SubmissionDetailSchema = z.object({
+  id: z.string(),
+  status: InvoiceStatus,
+  amount: z.string(),
+  invoiceDate: z.coerce.date(),
+  items: z.array(z.object({ description: z.string(), quantity: z.number(), total: z.string() })),
+  category: InvoiceCategory.nullable(),
+  property: z.object({ name: z.string(), address: z.string() }).nullable(),
+  notes: z.string().nullable(),
+  partsOrdered: z.string().nullable(),
+  images: z.array(
+    z.object({ id: z.string(), url: z.string(), type: ImageType, caption: z.string().nullable() }),
+  ),
+  rejectionReason: z.string().nullable(),
+  createdAt: z.coerce.date(),
 })
-export type EditSubmissionInput = z.infer<typeof EditSubmissionSchema>
+export type SubmissionDetail = z.infer<typeof SubmissionDetailSchema>
 
 /** A vendor's own submission as shown in their status list (safe fields only). */
 export const SubmissionStatusSchema = z.object({

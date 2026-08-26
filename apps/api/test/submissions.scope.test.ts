@@ -86,26 +86,30 @@ describe('vendor read/act scope (AE4)', () => {
     expect(ids).not.toContain(landlordInvoice)
   })
 
-  it('A cannot edit B’s submission, the landlord’s invoice, or a guessed id — all uniform 409', async () => {
-    const edit = (id: string) =>
-      app.inject({
-        method: 'PATCH',
-        url: `/api/submissions/${A.token}/${id}`,
-        payload: { items: [{ description: 'x', quantity: 1, total: 1 }] },
-      })
-    const onB = await edit(bInvoice)
-    const onLandlord = await edit(landlordInvoice)
-    const onGuess = await edit('does-not-exist-id')
+  it('A cannot act on B’s submission, the landlord’s invoice, or a guessed id — all uniform', async () => {
+    // Withdraw is the only vendor mutation left (edit was removed); every
+    // out-of-scope target is a uniform 409.
+    const withdraw = (id: string) =>
+      app.inject({ method: 'POST', url: `/api/submissions/${A.token}/${id}/withdraw` })
+    const onB = await withdraw(bInvoice)
+    const onLandlord = await withdraw(landlordInvoice)
+    const onGuess = await withdraw('does-not-exist-id')
     expect(onB.statusCode).toBe(409)
     expect(onLandlord.statusCode).toBe(409)
     expect(onGuess.statusCode).toBe(409)
     // Identical bodies — no distinction between "exists but not yours" and "absent".
     expect(onB.json().error.message).toBe(onLandlord.json().error.message)
     expect(onB.json().error.message).toBe(onGuess.json().error.message)
-    // B's submission is untouched.
-    expect(
-      Number((await app.prisma.invoice.findUniqueOrThrow({ where: { id: bInvoice } })).amount),
-    ).toBe(100)
+    // The detail view is scoped the same way: everything out of scope is 404.
+    const detail = (id: string) =>
+      app.inject({ method: 'GET', url: `/api/submissions/${A.token}/${id}` })
+    expect((await detail(bInvoice)).statusCode).toBe(404)
+    expect((await detail(landlordInvoice)).statusCode).toBe(404)
+    expect((await detail('does-not-exist-id')).statusCode).toBe(404)
+    // B's submission is untouched (still SUBMITTED, amount intact).
+    const b = await app.prisma.invoice.findUniqueOrThrow({ where: { id: bInvoice } })
+    expect(b.status).toBe('SUBMITTED')
+    expect(Number(b.amount)).toBe(100)
   })
 
   it('a link holder cannot read an invoice merely ATTRIBUTED to them', async () => {
@@ -134,11 +138,15 @@ describe('vendor read/act scope (AE4)', () => {
     expect(list.statusCode).toBe(200)
     expect(list.json().data.map((r: { id: string }) => r.id)).not.toContain(invoice.id)
 
-    const edit = await app.inject({
-      method: 'PATCH',
-      url: `/api/submissions/${A.token}/${invoice.id}`,
-      payload: { items: [{ description: 'x', quantity: 1, total: 5 }] },
+    const withdraw = await app.inject({
+      method: 'POST',
+      url: `/api/submissions/${A.token}/${invoice.id}/withdraw`,
     })
-    expect(edit.statusCode).toBe(409)
+    expect(withdraw.statusCode).toBe(409)
+    const detail = await app.inject({
+      method: 'GET',
+      url: `/api/submissions/${A.token}/${invoice.id}`,
+    })
+    expect(detail.statusCode).toBe(404)
   })
 })

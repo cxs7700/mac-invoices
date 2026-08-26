@@ -533,6 +533,10 @@
     "noSubmissions": "仲未交過 — 喺上面交你第一張發票。",
     "rejectedPrefix": "已拒絕：",
     "resubmit": "交張新發票重新提交",
-    "withdraw": "撤回"
+    "withdraw": "撤回",
+    "viewDetails": "查看详情",
+    "hideDetails": "收起详情",
+    "detailLoading": "正在加载详情…",
+    "detailError": "无法加载详情，请重试。"
   }
 }

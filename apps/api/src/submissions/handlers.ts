@@ -1,16 +1,11 @@
 import type { FastifyRequest, FastifyReply } from 'fastify'
-import {
-  SubmissionSchema,
-  EditSubmissionSchema,
-  ImageUploadTokenSchema,
-  summarizeItems,
-} from '@mac-invoices/shared'
+import { SubmissionSchema, ImageUploadTokenSchema, summarizeItems } from '@mac-invoices/shared'
 import { AppError } from '../middleware/errorHandler'
 import { parseBody } from '../lib/validate'
 import { validateLinkToken, parseLinkToken } from '../vendors/token'
 import { logEvent } from '../lib/log'
-import { issueUploadToken } from '../integrations/storage'
-import { createSubmission, vendorUpdateSubmission, vendorBlobOwner } from '../invoices/writeService'
+import { issueUploadToken, signedReadUrl } from '../integrations/storage'
+import { createSubmission, withdrawSubmission, vendorBlobOwner } from '../invoices/writeService'
 
 // Public (no-session) endpoints authorized purely by the link token. Every
 // failure to resolve the token returns the SAME opaque 404 ("link no longer
@@ -152,19 +147,52 @@ export async function listOwn(
 type EditParams = TokenParams & { id: string }
 
 /**
- * PATCH /api/submissions/:token/:id — edit a still-SUBMITTED submission. The
- * write is a compare-and-set scoped to this vendor; a reviewed (or foreign,
- * or absent) submission returns a uniform 409.
+ * GET /api/submissions/:token/:id — the vendor's read-only view of ONE of their
+ * own submissions, in full: lines, property, notes, parts, photos (freshly
+ * signed read URLs). Scoped by `submittedByVendorId`; a foreign or absent id is
+ * the same uniform 404 the dead-link path uses (no existence probe). This is
+ * view-only by design — submissions cannot be edited once filed; a vendor who
+ * needs a change withdraws and resubmits.
  */
-export async function edit(request: FastifyRequest<{ Params: EditParams }>, reply: FastifyReply) {
+export async function detailOwn(
+  request: FastifyRequest<{ Params: EditParams }>,
+  reply: FastifyReply,
+) {
   const { vendorId } = await resolveLink(request)
-  const input = parseBody(EditSubmissionSchema, request.body)
-  const inv = await vendorUpdateSubmission(
-    request.server.prisma,
-    { vendorId, invoiceId: request.params.id },
-    input,
-  )
-  return reply.send({ id: inv.id, status: inv.status })
+  const inv = await request.server.prisma.invoice.findFirst({
+    where: { id: request.params.id, submittedByVendorId: vendorId },
+    select: {
+      id: true,
+      status: true,
+      amount: true,
+      invoiceDate: true,
+      category: true,
+      notes: true,
+      partsOrdered: true,
+      rejectionReason: true,
+      createdAt: true,
+      property: { select: { name: true, address: true } },
+      items: {
+        select: { description: true, quantity: true, total: true },
+        orderBy: { sortOrder: 'asc' },
+      },
+      images: {
+        select: { id: true, url: true, type: true, caption: true },
+        orderBy: { createdAt: 'asc' },
+      },
+    },
+  })
+  if (!inv) throw new AppError('NOT_FOUND', 'Submission not found', 404)
+  return reply.send({
+    data: {
+      ...inv,
+      amount: inv.amount.toFixed(2),
+      items: inv.items.map((i) => ({ ...i, total: i.total.toFixed(2) })),
+      images: await Promise.all(
+        inv.images.map(async (img) => ({ ...img, url: await signedReadUrl(img.url) })),
+      ),
+    },
+  })
 }
 
 /**
@@ -178,10 +206,9 @@ export async function withdraw(
   reply: FastifyReply,
 ) {
   const { vendorId } = await resolveLink(request)
-  const inv = await vendorUpdateSubmission(
-    request.server.prisma,
-    { vendorId, invoiceId: request.params.id },
-    { withdraw: true },
-  )
+  const inv = await withdrawSubmission(request.server.prisma, {
+    vendorId,
+    invoiceId: request.params.id,
+  })
   return reply.send({ id: inv.id, status: inv.status })
 }

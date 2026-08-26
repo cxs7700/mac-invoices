@@ -470,25 +470,22 @@ export async function createSubmission(
 }
 
 /**
- * Vendor edit/withdraw of their OWN still-SUBMITTED submission. This is a
- * distinct path from updateInvoice — NOT a parameterization of it — because
- * updateInvoice scopes ownership by `userId` (the landlord), which a vendor
- * never is. Scoping is by `submittedByVendorId`, and the write is a
+ * Vendor withdrawal of their OWN still-SUBMITTED submission (→ CANCELLED).
+ * This is a distinct path from updateInvoice — NOT a parameterization of it —
+ * because updateInvoice scopes ownership by `userId` (the landlord), which a
+ * vendor never is. Scoping is by `submittedByVendorId`, and the write is a
  * compare-and-set: the `updateMany` re-asserts `status: 'SUBMITTED'`, so if the
  * landlord approved/rejected in the meantime the update matches zero rows and we
  * return a uniform 409 (landlord action wins the race). The same 409 covers
  * "not yours" and "doesn't exist", so a vendor can't probe other rows.
+ *
+ * Withdrawal is the ONLY vendor mutation of a filed submission — the PATCH edit
+ * path was removed 2026-08-25 (submissions are read-only once filed; a vendor
+ * who needs a change withdraws and resubmits).
  */
-export async function vendorUpdateSubmission(
+export async function withdrawSubmission(
   prisma: PrismaClient,
   args: { vendorId: string; invoiceId: string },
-  input: {
-    items?: InvoiceItemInput[]
-    invoiceDate?: Date
-    notes?: string
-    partsOrdered?: string
-    withdraw?: boolean
-  },
 ) {
   const actorId = vendorActorId(args.vendorId)
   const locked = () => new AppError('CONFLICT', 'This submission can no longer be changed', 409)
@@ -501,80 +498,18 @@ export async function vendorUpdateSubmission(
     const before = await tx.invoice.findFirst({ where: scope })
     if (!before) throw locked()
 
-    const data: Prisma.InvoiceUncheckedUpdateInput = {}
-    const events: Prisma.InvoiceEventCreateManyInput[] = []
-    const base = { invoiceId: args.invoiceId, actorId, ownerUserId: before.userId }
-
-    if (input.withdraw) {
-      data.status = 'CANCELLED'
-      events.push({
-        ...base,
+    // Compare-and-set: re-assert SUBMITTED so a concurrent landlord review wins.
+    const result = await tx.invoice.updateMany({ where: scope, data: { status: 'CANCELLED' } })
+    if (result.count === 0) throw locked()
+    await tx.invoiceEvent.create({
+      data: {
+        invoiceId: args.invoiceId,
+        actorId,
+        ownerUserId: before.userId,
         type: 'STATUS_CHANGED',
         detail: { from: 'SUBMITTED', to: 'CANCELLED' },
-      })
-    } else {
-      // `amount` is derived from the lines, never sent by the client — the
-      // same rule the landlord path follows.
-      const fields: { key: 'invoiceDate' | 'notes' | 'partsOrdered'; value: unknown }[] = [
-        { key: 'invoiceDate', value: input.invoiceDate },
-        { key: 'notes', value: input.notes },
-        { key: 'partsOrdered', value: input.partsOrdered },
-      ]
-      for (const { key, value } of fields) {
-        if (value === undefined) continue
-        ;(data as Record<string, unknown>)[key] = value
-        const oldValue = normalize(key, (before as Record<string, unknown>)[key])
-        const newValue = normalize(key, value)
-        if (oldValue !== newValue) {
-          events.push({
-            ...base,
-            type: 'FIELD_EDITED',
-            detail: { field: key, old: oldValue, new: newValue },
-          })
-        }
-      }
-      if (input.items !== undefined) {
-        const nextAmount = sumItemTotals(input.items)
-        data.amount = nextAmount
-        const oldAmount = normalize('amount', before.amount)
-        const newAmount = normalize('amount', nextAmount)
-        if (oldAmount !== newAmount) {
-          events.push({
-            ...base,
-            type: 'FIELD_EDITED',
-            detail: { field: 'amount', old: oldAmount, new: newAmount },
-          })
-        }
-        // The line list is a set, not a field: summarize rather than diff each
-        // row, so the ledger stays readable when a vendor re-orders lines.
-        const existing = await tx.invoiceItem.findMany({
-          where: { invoiceId: args.invoiceId },
-          orderBy: { sortOrder: 'asc' },
-        })
-        const oldSummary = existing.map((i) => i.description).join('; ')
-        const newSummary = input.items.map((i) => i.description).join('; ')
-        if (oldSummary !== newSummary) {
-          events.push({
-            ...base,
-            type: 'FIELD_EDITED',
-            detail: { field: 'description', old: oldSummary, new: newSummary },
-          })
-        }
-      }
-    }
-
-    // Compare-and-set: re-assert SUBMITTED so a concurrent landlord review wins.
-    const result = await tx.invoice.updateMany({ where: scope, data })
-    if (result.count === 0) throw locked()
-    if (events.length > 0) await tx.invoiceEvent.createMany({ data: events })
-    // Items are replaced wholesale rather than diffed: a vendor may add, remove
-    // or reorder lines, and `amount` (set above) must stay their exact sum.
-    if (input.items !== undefined) {
-      await tx.invoiceItem.deleteMany({ where: { invoiceId: args.invoiceId } })
-      await tx.invoiceItem.createMany({
-        data: nestedItemRows(input.items).map((row) => ({ ...row, invoiceId: args.invoiceId })),
-      })
-    }
+      },
+    })
     return tx.invoice.findFirstOrThrow({
       where: { id: args.invoiceId },
       include: { items: { orderBy: { sortOrder: 'asc' } } },

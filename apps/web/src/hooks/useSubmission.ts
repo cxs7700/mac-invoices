@@ -1,6 +1,6 @@
 import { put } from '@vercel/blob/client'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { SubmissionStatus, ImageType } from '@mac-invoices/shared'
+import type { SubmissionStatus, SubmissionDetail, ImageType } from '@mac-invoices/shared'
 import { apiClient } from '@/lib/apiClient'
 import { compressImage } from '@/lib/compressImage'
 
@@ -44,6 +44,22 @@ export function useSubmissionStatus(token: string) {
     queryKey: ['submissions', token],
     queryFn: () => apiClient(`${base(token)}`),
     retry: false,
+  })
+}
+
+/**
+ * Read-only full view of ONE of the vendor's own submissions (lines, property,
+ * notes, photos). Fetched on expand, not with the list — the photo URLs are
+ * short-lived signed reads minted per request.
+ */
+export function useSubmissionDetail(token: string, id: string, enabled: boolean) {
+  return useQuery<{ data: SubmissionDetail }>({
+    queryKey: ['submission-detail', token, id],
+    queryFn: () => apiClient(`${base(token)}/${encodeURIComponent(id)}`),
+    enabled,
+    retry: false,
+    // Signed photo URLs expire in 15 min; don't serve a cached page past that.
+    staleTime: 10 * 60 * 1000,
   })
 }
 
