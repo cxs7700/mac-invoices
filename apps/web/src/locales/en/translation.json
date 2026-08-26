@@ -253,6 +253,8 @@
     "vendor": "Vendor",
     "category": "Category",
     "uncategorized": "Uncategorized",
+    "property": "Property",
+    "noProperty": "No property",
     "submittedBy": "Submitted by",
     "invoiceDate": "Invoice date",
     "paidDate": "Paid date",

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate, useParams } from 'react-router'
-import type { InvoiceCategory } from '@mac-invoices/shared'
+import { propertyLabel, type InvoiceCategory } from '@mac-invoices/shared'
 import { useInvoice, useUpdateInvoice, useDeleteInvoice } from '@/hooks/useInvoice'
 import { useInvoiceEvents } from '@/hooks/useInvoiceEvents'
 import { StatusBadge } from '@/components/StatusBadge'
@@ -90,6 +90,10 @@ export default function InvoiceDetail() {
                   : t('invoiceDetail.uncategorized')
               }
             />
+            <Field
+              label={t('invoiceDetail.property')}
+              value={invoice.property ? propertyLabel(invoice.property) : t('invoiceDetail.noProperty')}
+            />
             {invoice.submitterName && (
               <Field label={t('invoiceDetail.submittedBy')} value={invoice.submitterName} />
             )}
@@ -150,6 +154,8 @@ export default function InvoiceDetail() {
               {invoice.status === 'SUBMITTED' ? (
                 <ReviewActions
                   isPending={update.isPending}
+                  initialCategory={invoice.category ?? ''}
+                  initialPropertyId={invoice.propertyId ?? ''}
                   onApprove={(category, propertyId) =>
                     update.mutate({
                       status: 'APPROVED',

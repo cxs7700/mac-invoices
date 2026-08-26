@@ -9,6 +9,9 @@ type Props = {
   onApprove: (category: string, propertyId: string) => void
   onReject: (reason: string) => void
   isPending: boolean
+  /** Pre-filled from the submission, so vendor-supplied values carry through. */
+  initialCategory?: string
+  initialPropertyId?: string
 }
 
 /**
@@ -17,11 +20,17 @@ type Props = {
  * this enforces it by construction); Reject opens a required reason (surfaced
  * back to the vendor). Mirrors the detail page's two-step confirm pattern.
  */
-export function ReviewActions({ onApprove, onReject, isPending }: Props) {
+export function ReviewActions({
+  onApprove,
+  onReject,
+  isPending,
+  initialCategory = '',
+  initialPropertyId = '',
+}: Props) {
   const { t } = useTranslation()
   const [mode, setMode] = useState<'idle' | 'approve' | 'reject'>('idle')
-  const [category, setCategory] = useState('')
-  const [propertyId, setPropertyId] = useState('')
+  const [category, setCategory] = useState(initialCategory)
+  const [propertyId, setPropertyId] = useState(initialPropertyId)
   const [reason, setReason] = useState('')
   const { data: propData } = useProperties()
   const properties = propData?.data ?? []

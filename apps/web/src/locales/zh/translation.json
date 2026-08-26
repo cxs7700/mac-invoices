@@ -253,6 +253,8 @@
     "vendor": "供應商",
     "category": "類別",
     "uncategorized": "未分類",
+    "property": "物業",
+    "noProperty": "冇物業",
     "submittedBy": "邊個交",
     "invoiceDate": "發票日期",
     "paidDate": "付款日期",

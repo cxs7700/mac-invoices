@@ -9,6 +9,7 @@ import type { InvoiceListItem } from './useInvoices'
 export type Invoice = InvoiceListItem & {
   currency: string
   propertyId: string | null
+  property: { name: string | null; address: string } | null
   paidDate: string | null
   rejectionReason: string | null
   notes: string | null

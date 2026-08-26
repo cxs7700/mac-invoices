@@ -353,6 +353,7 @@ export async function getInvoice(
       // existing, distinct meaning (the no-login-link submitter).
       vendor: { select: { name: true, phone: true, email: true } },
       submittedByVendor: { select: { name: true } },
+      property: { select: { name: true, address: true } },
       _count: { select: { images: true } },
     },
   })
