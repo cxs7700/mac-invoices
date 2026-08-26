@@ -59,7 +59,7 @@ describe('InvoiceEdit', () => {
   it('prefills the form from the fetched invoice', async () => {
     setup()
     await waitFor(() =>
-      expect((screen.getByLabelText('Vendor') as HTMLInputElement).value).toBe('Acme'),
+      expect((screen.getByLabelText(/^Vendor/) as HTMLInputElement).value).toBe('Acme'),
     )
     expect((screen.getByLabelText('Description') as HTMLInputElement).value).toBe('Fix sink')
     expect((screen.getByLabelText('Total') as HTMLInputElement).value).toBe('149.99')
@@ -72,7 +72,7 @@ describe('InvoiceEdit', () => {
   it('saves edits via PATCH and navigates to the detail page', async () => {
     const fetchMock = setup()
     await waitFor(() =>
-      expect((screen.getByLabelText('Vendor') as HTMLInputElement).value).toBe('Acme'),
+      expect((screen.getByLabelText(/^Vendor/) as HTMLInputElement).value).toBe('Acme'),
     )
 
     fireEvent.change(screen.getByLabelText('Total'), { target: { value: '200' } })
@@ -91,7 +91,7 @@ describe('InvoiceEdit', () => {
   it('round-trips a pre-existing vendorId on save when the vendor name is untouched', async () => {
     const fetchMock = setup()
     await waitFor(() =>
-      expect((screen.getByLabelText('Vendor') as HTMLInputElement).value).toBe('Acme'),
+      expect((screen.getByLabelText(/^Vendor/) as HTMLInputElement).value).toBe('Acme'),
     )
 
     fireEvent.click(screen.getByRole('button', { name: /save changes/i }))
@@ -108,10 +108,10 @@ describe('InvoiceEdit', () => {
   it('clears the pre-existing vendorId on save when the vendor name is edited', async () => {
     const fetchMock = setup()
     await waitFor(() =>
-      expect((screen.getByLabelText('Vendor') as HTMLInputElement).value).toBe('Acme'),
+      expect((screen.getByLabelText(/^Vendor/) as HTMLInputElement).value).toBe('Acme'),
     )
 
-    fireEvent.change(screen.getByLabelText('Vendor'), { target: { value: 'Acme Annex' } })
+    fireEvent.change(screen.getByLabelText(/^Vendor/), { target: { value: 'Acme Annex' } })
     fireEvent.click(screen.getByRole('button', { name: /save changes/i }))
 
     await waitFor(() =>

@@ -28,7 +28,8 @@ vi.mock('@/hooks/useVendors', () => ({
 }))
 
 function fill(label: string, value: string) {
-  fireEvent.change(screen.getByLabelText(label), { target: { value } })
+  // Labels of required fields carry a trailing asterisk — match on the prefix.
+  fireEvent.change(screen.getByLabelText(new RegExp(`^${label}`)), { target: { value } })
 }
 
 type FormDefaults = { vendorName?: string; vendorId?: string }
@@ -181,7 +182,7 @@ describe('InvoiceForm', () => {
             .queryAllByRole('option')
             .map((o) => o.textContent)
     }
-    const vendorInput = () => screen.getByLabelText('Vendor') as HTMLInputElement
+    const vendorInput = () => screen.getByLabelText(/^Vendor/) as HTMLInputElement
 
     it('opens a dropdown of every saved vendor on click, before anything is typed', () => {
       renderInvoiceForm({

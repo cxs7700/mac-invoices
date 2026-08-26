@@ -537,6 +537,8 @@
     "viewDetails": "View details",
     "hideDetails": "Hide details",
     "detailLoading": "Loading details…",
-    "detailError": "Couldn't load details — please try again."
+    "detailError": "Couldn't load details — please try again.",
+    "prevPhoto": "Previous photo",
+    "nextPhoto": "Next photo"
   }
 }

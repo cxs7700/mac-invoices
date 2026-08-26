@@ -55,6 +55,16 @@ type Props = {
   noPropertiesHint?: React.ReactNode
 }
 
+/** Red asterisk marking a required field (decorative — validation still tells). */
+export function RequiredMark() {
+  return (
+    <span aria-hidden="true" className="text-destructive">
+      {' '}
+      *
+    </span>
+  )
+}
+
 export function InvoiceFields({
   items,
   onItemChange,
@@ -88,6 +98,7 @@ export function InvoiceFields({
         <div className="mb-1">
           <span className="text-sm font-medium text-foreground">
             {t('invoiceFields.items.title')}
+            <RequiredMark />
           </span>
         </div>
         <div className="space-y-2">
@@ -199,6 +210,7 @@ export function InvoiceFields({
       <div>
         <label htmlFor="invoiceDate" className="text-sm font-medium text-foreground">
           {t('invoiceFields.invoiceDate')}
+          <RequiredMark />
         </label>
         <input
           id="invoiceDate"
@@ -219,6 +231,7 @@ export function InvoiceFields({
       <div>
         <label htmlFor="propertyId" className="text-sm font-medium text-foreground">
           {t('invoiceFields.property')}
+          <RequiredMark />
         </label>
         <select
           id="propertyId"

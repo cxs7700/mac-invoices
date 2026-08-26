@@ -33,7 +33,7 @@ describe('ReviewActions', () => {
     expect(confirm.disabled).toBe(true) // nothing set yet
     fireEvent.change(screen.getByLabelText(/set a category/i), { target: { value: 'LABOR' } })
     expect(confirm.disabled).toBe(true) // still need a property
-    fireEvent.change(screen.getByLabelText('Property'), { target: { value: 'p1' } })
+    fireEvent.change(screen.getByLabelText(/^Property/), { target: { value: 'p1' } })
     expect(confirm.disabled).toBe(false)
     fireEvent.click(confirm)
     expect(onApprove).toHaveBeenCalledWith('LABOR', 'p1')

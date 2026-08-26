@@ -198,7 +198,7 @@ describe('VendorSubmit', () => {
     const { container } = renderPage()
 
     fillFirstLine('Fixed a leak', '120')
-    fireEvent.change(screen.getByLabelText('Invoice date'), { target: { value: '2026-06-01' } })
+    fireEvent.change(screen.getByLabelText(/^Invoice date/), { target: { value: '2026-06-01' } })
     fireEvent.change(screen.getByLabelText(/^Property/), { target: { value: 'p1' } })
 
     // Upload a photo via the hidden file input (the second one — camera, then file).
@@ -229,7 +229,7 @@ describe('VendorSubmit', () => {
     const { container } = renderPage()
 
     fillFirstLine('Fixed a leak', '120')
-    fireEvent.change(screen.getByLabelText('Invoice date'), { target: { value: '2026-06-01' } })
+    fireEvent.change(screen.getByLabelText(/^Invoice date/), { target: { value: '2026-06-01' } })
     fireEvent.change(screen.getByLabelText(/^Property/), { target: { value: 'p1' } })
     const fileInput = container.querySelectorAll('input[type="file"]')[1] as HTMLInputElement
     fireEvent.change(fileInput, {
@@ -260,7 +260,7 @@ describe('VendorSubmit', () => {
     const totals = screen.getAllByPlaceholderText('Total')
     fireEvent.change(descriptions[1], { target: { value: 'Valve' } })
     fireEvent.change(totals[1], { target: { value: '25.50' } })
-    fireEvent.change(screen.getByLabelText('Invoice date'), { target: { value: '2026-06-01' } })
+    fireEvent.change(screen.getByLabelText(/^Invoice date/), { target: { value: '2026-06-01' } })
     fireEvent.change(screen.getByLabelText(/^Property/), { target: { value: 'p1' } })
 
     // The running total mirrors the landlord form.
@@ -294,7 +294,7 @@ describe('VendorSubmit', () => {
     const { container } = renderPage()
 
     fillFirstLine('Fixed a leak', '120')
-    fireEvent.change(screen.getByLabelText('Invoice date'), { target: { value: '2026-06-01' } })
+    fireEvent.change(screen.getByLabelText(/^Invoice date/), { target: { value: '2026-06-01' } })
     fireEvent.change(screen.getByLabelText(/^Property/), { target: { value: 'p1' } })
     fireEvent.change(screen.getByLabelText(/^Notes/), { target: { value: 'Gate code 1234' } })
     fireEvent.change(screen.getByLabelText(/^Parts ordered/), { target: { value: 'Cartridge' } })
@@ -321,7 +321,7 @@ describe('VendorSubmit', () => {
     renderPage()
 
     fillFirstLine('Fixed a leak', '120')
-    fireEvent.change(screen.getByLabelText('Invoice date'), { target: { value: '2026-06-01' } })
+    fireEvent.change(screen.getByLabelText(/^Invoice date/), { target: { value: '2026-06-01' } })
     fireEvent.change(screen.getByLabelText(/^Property/), { target: { value: 'p1' } })
 
     // No photo attached at all.
@@ -380,7 +380,7 @@ describe('VendorSubmit', () => {
     renderPage()
 
     fillFirstLine('Fixed a leak', '120')
-    fireEvent.change(screen.getByLabelText('Invoice date'), { target: { value: '2026-06-01' } })
+    fireEvent.change(screen.getByLabelText(/^Invoice date/), { target: { value: '2026-06-01' } })
     fireEvent.change(screen.getByLabelText(/^Property/), { target: { value: 'p1' } })
     fireEvent.change(screen.getByLabelText(/^Category/), { target: { value: 'REPAIRS' } })
     fireEvent.change(screen.getByLabelText(/^Property/), { target: { value: 'p1' } })
@@ -397,7 +397,7 @@ describe('VendorSubmit', () => {
     renderPage()
 
     fillFirstLine('Fixed a leak', '120')
-    fireEvent.change(screen.getByLabelText('Invoice date'), { target: { value: '2026-06-01' } })
+    fireEvent.change(screen.getByLabelText(/^Invoice date/), { target: { value: '2026-06-01' } })
     fireEvent.change(screen.getByLabelText(/^Property/), { target: { value: 'p1' } })
     fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
 
@@ -478,7 +478,7 @@ describe('VendorSubmit', () => {
     useSubmissionStatus.mockReturnValue({ isPending: false, isError: false, data: { data: [] } })
     const first = renderPage()
     fillFirstLine('Fixed a leak', '120')
-    fireEvent.change(screen.getByLabelText('Invoice date'), { target: { value: '2026-06-01' } })
+    fireEvent.change(screen.getByLabelText(/^Invoice date/), { target: { value: '2026-06-01' } })
     fireEvent.change(screen.getByLabelText(/^Notes/), { target: { value: 'Gate code 1234' } })
     first.unmount()
 
@@ -487,7 +487,7 @@ describe('VendorSubmit', () => {
     expect((screen.getByPlaceholderText('Description') as HTMLInputElement).value).toBe(
       'Fixed a leak',
     )
-    expect((screen.getByLabelText('Invoice date') as HTMLInputElement).value).toBe('2026-06-01')
+    expect((screen.getByLabelText(/^Invoice date/) as HTMLInputElement).value).toBe('2026-06-01')
     expect((screen.getByLabelText(/^Notes/) as HTMLTextAreaElement).value).toBe('Gate code 1234')
   })
 
@@ -517,7 +517,7 @@ describe('VendorSubmit', () => {
     )
     const first = renderPage()
     fillFirstLine('Fixed a leak', '120')
-    fireEvent.change(screen.getByLabelText('Invoice date'), { target: { value: '2026-06-01' } })
+    fireEvent.change(screen.getByLabelText(/^Invoice date/), { target: { value: '2026-06-01' } })
     fireEvent.change(screen.getByLabelText(/^Property/), { target: { value: 'p1' } })
     await waitFor(() =>
       expect((screen.getByRole('button', { name: 'Submit' }) as HTMLButtonElement).disabled).toBe(

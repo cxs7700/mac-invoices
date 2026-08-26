@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { CreateInvoiceFormSchema, type CreateInvoiceInput } from '@mac-invoices/shared'
 import { Button } from '@/components/ui/button'
 import { VendorCombobox } from '@/components/VendorCombobox'
-import { InvoiceFields, type ItemRowValue } from '@/components/InvoiceFields'
+import { InvoiceFields, RequiredMark, type ItemRowValue } from '@/components/InvoiceFields'
 import { useProperties } from '@/hooks/useProperties'
 import { useVendors } from '@/hooks/useVendors'
 
@@ -116,6 +116,7 @@ export function InvoiceForm({
       <div>
         <label htmlFor="vendorName" className="block text-sm font-medium mb-1">
           {t('invoiceForm.vendor')}
+          <RequiredMark />
         </label>
         <VendorCombobox
           id="vendorName"

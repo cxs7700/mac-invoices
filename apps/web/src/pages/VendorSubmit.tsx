@@ -461,7 +461,6 @@ function SubmissionRow({
       >
         {expanded ? t('vendorSubmit.hideDetails') : t('vendorSubmit.viewDetails')}
       </button>
-      {expanded && <SubmissionDetailPanel token={token} id={s.id} />}
       {s.status === 'REJECTED' && (
         <div className="mt-2 text-xs">
           {s.rejectionReason && (
@@ -479,16 +478,19 @@ function SubmissionRow({
         </div>
       )}
       {s.status === 'SUBMITTED' && (
-        <Button
-          variant="outline"
-          size="sm"
-          className="mt-2"
-          disabled={withdrawing}
-          onClick={onWithdraw}
-        >
-          {t('vendorSubmit.withdraw')}
-        </Button>
+        <div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-2"
+            disabled={withdrawing}
+            onClick={onWithdraw}
+          >
+            {t('vendorSubmit.withdraw')}
+          </Button>
+        </div>
       )}
+      {expanded && <SubmissionDetailPanel token={token} id={s.id} />}
     </li>
   )
 }
@@ -501,6 +503,9 @@ function SubmissionRow({
 function SubmissionDetailPanel({ token, id }: { token: string; id: string }) {
   const { t } = useTranslation()
   const detail = useSubmissionDetail(token, id, true)
+  // Index into d.images, or null when closed — an index (not a URL) so the
+  // prev/next controls can step through the gallery.
+  const [lightbox, setLightbox] = useState<number | null>(null)
   if (detail.isPending) {
     return <p className="mt-2 text-xs text-muted-foreground">{t('vendorSubmit.detailLoading')}</p>
   }
@@ -541,17 +546,64 @@ function SubmissionDetailPanel({ token, id }: { token: string; id: string }) {
         ) : (
           <div className="mt-1 flex flex-wrap gap-2">
             {d.images.map((img, i) => (
-              <a key={img.id} href={img.url} target="_blank" rel="noreferrer">
+              <button
+                key={img.id}
+                type="button"
+                onClick={() => setLightbox(i)}
+                aria-label={t('vendorSubmit.photoN', { n: i + 1 })}
+              >
                 <img
                   src={img.url}
                   alt={t('vendorSubmit.photoN', { n: i + 1 })}
                   className="h-20 w-20 rounded-md border border-border object-cover"
                 />
-              </a>
+              </button>
             ))}
           </div>
         )}
       </div>
+      {lightbox !== null && d.images[lightbox] && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={t('vendorSubmit.photoN', { n: lightbox + 1 })}
+          // Theme-invariant cinema surface, matching the landlord gallery.
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+          onClick={() => setLightbox(null)}
+        >
+          <img
+            src={d.images[lightbox].url}
+            alt={t('vendorSubmit.photoN', { n: lightbox + 1 })}
+            className="max-h-full max-w-full rounded-md"
+          />
+          {d.images.length > 1 && (
+            <>
+              <button
+                type="button"
+                aria-label={t('vendorSubmit.prevPhoto')}
+                className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-black/50 px-3 py-2 text-2xl text-white"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setLightbox((lightbox + d.images.length - 1) % d.images.length)
+                }}
+              >
+                ‹
+              </button>
+              <button
+                type="button"
+                aria-label={t('vendorSubmit.nextPhoto')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-black/50 px-3 py-2 text-2xl text-white"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setLightbox((lightbox + 1) % d.images.length)
+                }}
+              >
+                ›
+              </button>
+            </>
+          )}
+        </div>
+      )}
     </div>
   )
 }
