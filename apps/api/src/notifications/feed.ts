@@ -1,5 +1,5 @@
 import type { FastifyRequest, FastifyReply } from 'fastify'
-import type { PrismaClient } from '../../prisma/generated/client.ts'
+import type { PrismaClient, EventType } from '../../prisma/generated/client.ts'
 
 // The landlord's in-app notification feed. Reads vendor-authored events from
 // the InvoiceEvent ledger (the same source the email digest uses) scoped to the
@@ -22,9 +22,18 @@ type FeedRow = {
   createdAt: Date
 }
 
-/** Where-clause for this landlord's vendor-authored events. */
+/**
+ * Where-clause for this landlord's vendor-authored events. IMAGE_ATTACHED /
+ * IMAGE_REMOVED are excluded: a submission writes one IMAGE_ATTACHED per photo
+ * in the same transaction as its CREATED event, so surfacing them turns one
+ * submission into N+1 notifications.
+ */
 function feedWhere(ownerUserId: string) {
-  return { ownerUserId, actorId: { startsWith: VENDOR } }
+  return {
+    ownerUserId,
+    actorId: { startsWith: VENDOR },
+    type: { notIn: ['IMAGE_ATTACHED', 'IMAGE_REMOVED'] as EventType[] },
+  }
 }
 
 /** Human-readable one-liner for a vendor event (no vendor name embedded). */

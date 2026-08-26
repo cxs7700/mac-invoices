@@ -205,7 +205,10 @@ export function InvoiceFields({
           type="date"
           value={invoiceDate}
           onChange={(e) => onInvoiceDate(e.target.value)}
-          className={fieldClass}
+          // iOS Safari gives date inputs an intrinsic min-width that overrides
+          // w-full and pushes the field past its container; min-w-0 +
+          // appearance-none let it shrink to fit.
+          className={`${fieldClass} min-w-0 appearance-none`}
         />
         {errors?.invoiceDate && (
           <p className="mt-1 text-sm text-destructive">{errors.invoiceDate}</p>
