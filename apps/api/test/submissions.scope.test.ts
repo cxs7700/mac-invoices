@@ -124,7 +124,7 @@ describe('vendor read/act scope (AE4)', () => {
         currency: 'USD',
         category: 'REPAIRS',
         invoiceDate: new Date('2026-01-15'),
-        status: 'APPROVED',
+        status: 'PAID',
         userId: landlord.user.id,
         vendorId: A.id,
         submittedByVendorId: null,

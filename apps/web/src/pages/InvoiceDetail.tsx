@@ -158,7 +158,7 @@ export default function InvoiceDetail() {
                   initialPropertyId={invoice.propertyId ?? ''}
                   onApprove={(category, propertyId) =>
                     update.mutate({
-                      status: 'APPROVED',
+                      status: 'PAID',
                       category: category as InvoiceCategory,
                       propertyId,
                     })
@@ -167,10 +167,21 @@ export default function InvoiceDetail() {
                     update.mutate({ status: 'REJECTED', rejectionReason: reason })
                   }
                 />
+              ) : invoice.status === 'PAID' ? (
+                /* PAID is reopenable: the landlord can undo a mark-as-paid
+                   (PAID → PENDING clears paidDate server-side). */
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  disabled={update.isPending}
+                  onClick={() => update.mutate({ status: 'PENDING' })}
+                >
+                  {t('invoiceDetail.markAsUnpaid')}
+                </Button>
               ) : invoice.status !== 'CANCELLED' ? (
                 <Button
                   className="w-full"
-                  disabled={invoice.status === 'PAID' || update.isPending}
+                  disabled={update.isPending}
                   onClick={() => update.mutate({ status: 'PAID' })}
                 >
                   {t('invoiceDetail.markAsPaid')}

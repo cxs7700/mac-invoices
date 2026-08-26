@@ -193,8 +193,8 @@ describe('compareForExport (invoice-number ledger order)', () => {
 describe('dropdownSpecs', () => {
   it('status spec offers exactly the exportable statuses at the status column index', () => {
     const spec = dropdownSpecs([]).find((s) => s.columnIndex === EXPORT_COLUMNS.indexOf('status'))
-    expect(spec?.values).toEqual(['PENDING', 'APPROVED', 'PAID'])
-    expect(EXPORTABLE_STATUSES).toEqual(['PENDING', 'APPROVED', 'PAID'])
+    expect(spec?.values).toEqual(['PENDING', 'PAID'])
+    expect(EXPORTABLE_STATUSES).toEqual(['PENDING', 'PAID'])
   })
 
   it('category spec offers the six categories at the category column index', () => {

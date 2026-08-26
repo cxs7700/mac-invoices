@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { StatusCounts } from '@/components/StatusCounts'
 
 function statsOk() {
-  const body = { counts: { PENDING: 4, APPROVED: 0, PAID: 2, REJECTED: 1, CANCELLED: 0 }, total: 7 }
+  const body = { counts: { PENDING: 4, PAID: 2, REJECTED: 1, CANCELLED: 0 }, total: 7 }
   return {
     ok: true,
     status: 200,

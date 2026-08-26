@@ -87,7 +87,7 @@ const listInclude = {
  * count (the same bound `nextInvoiceNumber` already scans).
  *
  * `desc` is the exact reverse of `asc`, which puts the un-numbered submissions
- * (numbered on first APPROVED, KTD-11) first rather than last.
+ * (numbered on first PAID, KTD-11) first rather than last.
  */
 async function listPageByInvoiceNumber(
   prisma: FastifyRequest['server']['prisma'],
@@ -239,7 +239,7 @@ export async function invoiceSummary(
   const prisma = request.server.prisma
   const q = parseBody(SummaryQuerySchema, request.query, 'Invalid query parameters')
   const window = invoiceDateFilter(q.from, q.to)
-  // "Spend" is real committed money: PENDING / APPROVED / PAID. The excluded
+  // "Spend" is real committed money: PENDING / PAID. The excluded
   // set lives in NON_SPEND_STATUSES (DEC-041) so this handler and the
   // per-property rollup cannot drift apart — they did, and a property's total
   // silently counted un-vetted submissions the dashboard did not.

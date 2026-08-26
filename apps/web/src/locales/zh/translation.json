@@ -269,6 +269,7 @@
     "partsOrdered": "訂咗嘅零件",
     "actions": "操作",
     "markAsPaid": "標記為已付款",
+    "markAsUnpaid": "標記為未付款",
     "cancel": "取消",
     "edit": "編輯",
     "delete": "刪除",

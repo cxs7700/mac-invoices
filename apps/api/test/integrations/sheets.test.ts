@@ -533,7 +533,7 @@ describe('sheets.applyColumnFormatting — wrap', () => {
 describe('sheets.applyColumnFormatting', () => {
   it('sends one batchUpdate: a leading rows-2+ validation clear, then a ONE_OF_LIST rule per spec', async () => {
     await applyColumnFormatting('SHEET-1', { sheetId: 123, typedColumnIndexes: [], table: null }, [
-      { columnIndex: 6, values: ['PENDING', 'APPROVED', 'PAID'] },
+      { columnIndex: 6, values: ['PENDING', 'PAID'] },
       { columnIndex: 3, values: ['12 Main St'] },
     ])
     expect(batchUpdateMock).toHaveBeenCalledTimes(1)
@@ -550,7 +550,6 @@ describe('sheets.applyColumnFormatting', () => {
                   type: 'ONE_OF_LIST',
                   values: [
                     { userEnteredValue: 'PENDING' },
-                    { userEnteredValue: 'APPROVED' },
                     { userEnteredValue: 'PAID' },
                   ],
                 },
@@ -607,7 +606,7 @@ describe('sheets.applyColumnFormatting', () => {
 
   it('skips specs on Table-typed columns — Google rejects classic validation there', async () => {
     await applyColumnFormatting('S', { sheetId: 0, typedColumnIndexes: [5, 6], table: null }, [
-      { columnIndex: 6, values: ['PENDING', 'APPROVED', 'PAID'] }, // typed → skipped
+      { columnIndex: 6, values: ['PENDING', 'PAID'] }, // typed → skipped
       { columnIndex: 3, values: ['12 Main St'] }, // untyped → set
     ])
     const requests = batchUpdateMock.mock.calls[0][0].requestBody.requests

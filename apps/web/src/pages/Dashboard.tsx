@@ -70,7 +70,7 @@ export default function Dashboard() {
     )
 
   const outstanding = summary.byStatus
-    .filter((s) => s.status === 'PENDING' || s.status === 'APPROVED')
+    .filter((s) => s.status === 'PENDING')
     .reduce((sum, s) => sum + parseFloat(s.amount), 0)
 
   const catRows = summary.byCategory

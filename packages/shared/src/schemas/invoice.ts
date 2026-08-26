@@ -3,9 +3,10 @@ import { z } from 'zod'
 // SUBMITTED is the entry state for a vendor-submitted invoice, awaiting
 // landlord review (approve/reject). Appended (not reordered) so existing
 // `.options`-derived UI/zero-fills stay stable.
+// APPROVED was removed 2026-08-26 — approving a submission now lands directly
+// on PAID (existing APPROVED rows were migrated to PAID).
 export const InvoiceStatus = z.enum([
   'PENDING',
-  'APPROVED',
   'PAID',
   'REJECTED',
   'CANCELLED',

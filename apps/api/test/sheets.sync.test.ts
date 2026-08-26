@@ -263,11 +263,7 @@ describe('continuous Sheets sync flush', () => {
       const call = applyColumnFormatting.mock.calls.find((c) => c[0] === l.target)!
       expect(call[1]).toEqual({ sheetId: 123, typedColumnIndexes: [], table: null }) // the resolved tab
       const specs = call[2] as Array<{ columnIndex: number; values: string[] }>
-      expect(specs.find((s) => s.values.includes('PENDING'))?.values).toEqual([
-        'PENDING',
-        'APPROVED',
-        'PAID',
-      ])
+      expect(specs.find((s) => s.values.includes('PENDING'))?.values).toEqual(['PENDING', 'PAID'])
       expect(specs.find((s) => s.values.includes('9 Oak Ave'))?.values).toEqual([
         '9 Oak Ave',
         '12 Main St',
