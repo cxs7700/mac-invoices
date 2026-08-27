@@ -63,17 +63,17 @@ afterAll(async () => {
 })
 
 describe('U2 transition guard — SUBMITTED lifecycle', () => {
-  it('approves a submission when a category is supplied in the same call', async () => {
+  it('approves a submission (→ PAID) when a category is supplied in the same call', async () => {
     const inv = await makeSubmitted('approve')
-    const res = await patch(inv.id, { status: 'APPROVED', category: 'LABOR', propertyId: propId })
+    const res = await patch(inv.id, { status: 'PAID', category: 'LABOR', propertyId: propId })
     expect(res.statusCode).toBe(200)
-    expect(res.json().status).toBe('APPROVED')
+    expect(res.json().status).toBe('PAID')
     expect(res.json().category).toBe('LABOR')
   })
 
-  it('blocks APPROVED when no category is set (422 CATEGORY_REQUIRED)', async () => {
+  it('blocks approving when no category is set (422 CATEGORY_REQUIRED)', async () => {
     const inv = await makeSubmitted('nocat')
-    const res = await patch(inv.id, { status: 'APPROVED' })
+    const res = await patch(inv.id, { status: 'PAID' })
     expect(res.statusCode).toBe(422)
     expect(res.json().error.code).toBe('CATEGORY_REQUIRED')
   })
@@ -93,9 +93,9 @@ describe('U2 transition guard — SUBMITTED lifecycle', () => {
     expect(res.json().error.code).toBe('REASON_REQUIRED')
   })
 
-  it('blocks a landlord paying a submission directly (SUBMITTED → PAID)', async () => {
-    const inv = await makeSubmitted('pay')
-    const res = await patch(inv.id, { status: 'PAID' })
+  it('blocks a landlord moving a submission back to PENDING (SUBMITTED → PENDING)', async () => {
+    const inv = await makeSubmitted('pend')
+    const res = await patch(inv.id, { status: 'PENDING' })
     expect(res.statusCode).toBe(422)
     expect(res.json().error.code).toBe('INVALID_TRANSITION')
   })
@@ -133,13 +133,6 @@ describe('U2 transition guard — legacy landlord flows still pass (R-8)', () =>
     const res = await patch(id, { status: 'REJECTED' })
     expect(res.statusCode).toBe(200)
     expect(res.json().status).toBe('REJECTED')
-  })
-
-  it('PENDING → APPROVED passes (category + property set on approve)', async () => {
-    const id = await makePending('legacyapprove')
-    const res = await patch(id, { status: 'APPROVED', propertyId: propId })
-    expect(res.statusCode).toBe(200)
-    expect(res.json().status).toBe('APPROVED')
   })
 
   it('REJECTED is terminal — no transition out (forward-only)', async () => {

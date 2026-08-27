@@ -250,13 +250,12 @@ describe('buildInvoicePdfModel', () => {
       buildInvoicePdfModel([inv({ status })], addresses, landlord)[0].tone
     expect(toneOf('PENDING')).toBe('amber')
     expect(toneOf('SUBMITTED')).toBe('blue')
-    expect(toneOf('APPROVED')).toBe('violet')
     expect(toneOf('PAID')).toBe('green')
     expect(toneOf('REJECTED')).toBe('red')
     expect(toneOf('CANCELLED')).toBe('slate')
-    // All six are distinct — the point of the mapping.
-    const tones = ['PENDING', 'SUBMITTED', 'APPROVED', 'PAID', 'REJECTED', 'CANCELLED'].map(toneOf)
-    expect(new Set(tones).size).toBe(6)
+    // All five are distinct — the point of the mapping.
+    const tones = ['PENDING', 'SUBMITTED', 'PAID', 'REJECTED', 'CANCELLED'].map(toneOf)
+    expect(new Set(tones).size).toBe(5)
   })
 
   it('colours the balance by what is actually owed', () => {
@@ -269,7 +268,7 @@ describe('buildInvoicePdfModel', () => {
 })
 
 describe('balanceDue', () => {
-  it.each(['PENDING', 'APPROVED', 'SUBMITTED'])('%s owes the full amount', (status) => {
+  it.each(['PENDING', 'SUBMITTED'])('%s owes the full amount', (status) => {
     expect(balanceDue({ status, amount: '55.00' })).toBe('$55.00')
   })
 

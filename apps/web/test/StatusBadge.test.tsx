@@ -28,15 +28,14 @@ describe('StatusBadge', () => {
 
     expect(toneOf('PENDING')).toBe('amber')
     expect(toneOf('SUBMITTED')).toBe('blue')
-    expect(toneOf('APPROVED')).toBe('violet')
     expect(toneOf('PAID')).toBe('green')
     expect(toneOf('REJECTED')).toBe('red')
     expect(toneOf('CANCELLED')).toBe('slate')
 
     // The pill, the filter chips and the PDF all resolve through STATUS_TONE,
     // so this is the same colour a status gets everywhere else.
-    const tones = ['PENDING', 'SUBMITTED', 'APPROVED', 'PAID', 'REJECTED', 'CANCELLED'].map(toneOf)
-    expect(new Set(tones).size).toBe(6)
+    const tones = ['PENDING', 'SUBMITTED', 'PAID', 'REJECTED', 'CANCELLED'].map(toneOf)
+    expect(new Set(tones).size).toBe(5)
   })
 
   it('falls back to the quietest tone for an unknown status', () => {

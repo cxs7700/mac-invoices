@@ -72,11 +72,11 @@ afterAll(async () => {
 })
 
 describe('U9 landlord review', () => {
-  it('assigns an invoice number on the first APPROVED (KTD-11)', async () => {
+  it('assigns an invoice number on the first PAID (KTD-11)', async () => {
     const c = await makeVendor()
     const id = await submit(c.id, c.token)
     expect((await app.prisma.invoice.findUniqueOrThrow({ where: { id } })).invoiceNumber).toBeNull()
-    const res = await patch(id, { status: 'APPROVED', category: 'LABOR', propertyId: propId })
+    const res = await patch(id, { status: 'PAID', category: 'LABOR', propertyId: propId })
     expect(res.statusCode).toBe(200)
     expect(res.json().invoiceNumber).not.toBeNull()
   })
@@ -99,7 +99,7 @@ describe('U9 landlord review', () => {
     const id = created.json().id as string
     expect(await app.prisma.invoiceImage.count({ where: { invoiceId: id } })).toBe(3)
     expect(
-      (await patch(id, { status: 'APPROVED', category: 'LABOR', propertyId: propId })).statusCode,
+      (await patch(id, { status: 'PAID', category: 'LABOR', propertyId: propId })).statusCode,
     ).toBe(200)
     expect(await app.prisma.invoiceImage.count({ where: { invoiceId: id } })).toBe(3)
   })

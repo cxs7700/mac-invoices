@@ -68,7 +68,7 @@ describe('GET /api/invoices/summary', () => {
     const stat = Object.fromEntries(data.byStatus.map((r: { status: string }) => [r.status, r]))
     expect(stat.PENDING).toEqual({ status: 'PENDING', count: 3, amount: '350.00' })
     expect(stat.SUBMITTED).toEqual({ status: 'SUBMITTED', count: 0, amount: '0.00' }) // zero-filled
-    expect(data.byStatus).toHaveLength(6)
+    expect(data.byStatus).toHaveLength(5)
   })
 
   it('excludes SUBMITTED/REJECTED/CANCELLED from spend, keeps SUBMITTED in byStatus, and byCategory reconciles (KTD-9)', async () => {

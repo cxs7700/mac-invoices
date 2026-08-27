@@ -15,8 +15,9 @@ type Props = {
 }
 
 /**
- * Landlord review actions for a SUBMITTED vendor submission. Approve opens a
- * required category picker (the API blocks APPROVED until a category is set, so
+ * Landlord review actions for a SUBMITTED vendor submission. Approve (which
+ * marks the invoice PAID) opens a required category picker (the API blocks the
+ * transition until a category is set, so
  * this enforces it by construction); Reject opens a required reason (surfaced
  * back to the vendor). Mirrors the detail page's two-step confirm pattern.
  */

@@ -50,7 +50,7 @@ const approve = (id: string) =>
   app.inject({
     method: 'PATCH',
     url: `/api/invoices/${id}`,
-    payload: { status: 'APPROVED', category: 'LABOR', propertyId: propId },
+    payload: { status: 'PAID', category: 'LABOR', propertyId: propId },
     headers: { cookie: landlord.cookie },
   })
 
@@ -192,7 +192,7 @@ describe('vendor withdraw (U8)', () => {
     const [w, a] = await Promise.all([withdraw(c.token, id), approve(id)])
     // Exactly one wins: the other gets a 409 (withdraw) or 422 (approve race).
     const row = await app.prisma.invoice.findUniqueOrThrow({ where: { id } })
-    expect(['CANCELLED', 'APPROVED']).toContain(row.status)
+    expect(['CANCELLED', 'PAID']).toContain(row.status)
     const winners = [w.statusCode === 200, a.statusCode === 200].filter(Boolean).length
     expect(winners).toBe(1) // single-winner: no double-commit
     // The ledger has exactly one terminal STATUS_CHANGED out of SUBMITTED.

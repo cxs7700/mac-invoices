@@ -66,19 +66,19 @@ describe('create records a CREATED event', () => {
 })
 
 describe('update records events', () => {
-  it('AE1: a PENDING -> APPROVED transition records one STATUS_CHANGED {from,to}', async () => {
+  it('AE1: a PENDING -> PAID transition records one STATUS_CHANGED {from,to}', async () => {
     const inv = await createOwn('status')
     const res = await app.inject({
       method: 'PATCH',
       url: `/api/invoices/${inv.id}`,
-      payload: { status: 'APPROVED', propertyId: propId },
+      payload: { status: 'PAID', propertyId: propId },
       headers: { cookie },
     })
     expect(res.statusCode).toBe(200)
     const events = await eventsFor(inv.id)
     const changed = events.filter((e) => e.type === 'STATUS_CHANGED')
     expect(changed).toHaveLength(1)
-    expect(changed[0].detail).toEqual({ from: 'PENDING', to: 'APPROVED' })
+    expect(changed[0].detail).toEqual({ from: 'PENDING', to: 'PAID' })
   })
 
   it('AE2: an amount edit records FIELD_EDITED old->new; an untracked-field edit records nothing', async () => {

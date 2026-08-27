@@ -85,7 +85,7 @@ describe('delete guard + spend rollup', () => {
   it('blocks delete while invoices reference the property, then allows it after reassign (AE2)', async () => {
     const id = (await create({ name: 'Del', address: 'x' }, a.cookie)).json().id
     const i1 = await invoice(a.user.id, id, 'PAID', 100)
-    const i2 = await invoice(a.user.id, id, 'APPROVED', 50)
+    const i2 = await invoice(a.user.id, id, 'PAID', 50)
 
     const blocked = await del(id, a.cookie)
     expect(blocked.statusCode).toBe(422)
@@ -102,7 +102,7 @@ describe('delete guard + spend rollup', () => {
   it('rolls up spend excluding REJECTED/CANCELLED (AE3)', async () => {
     const id = (await create({ name: 'Spend', address: 'x' }, a.cookie)).json().id
     await invoice(a.user.id, id, 'PAID', 100)
-    await invoice(a.user.id, id, 'APPROVED', 50)
+    await invoice(a.user.id, id, 'PAID', 50)
     await invoice(a.user.id, id, 'REJECTED', 30)
     const detail = await get(id, a.cookie)
     expect(detail.json().totalSpend).toBe('150.00')

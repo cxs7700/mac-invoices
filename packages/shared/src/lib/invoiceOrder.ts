@@ -16,7 +16,7 @@ const dateMs = (d: Date | string) => (typeof d === 'string' ? new Date(d) : d).g
 /**
  * Ascending by invoice number, numeric-aware ("9" < "10"; DEC-023 keeps the
  * column a string, so SQL string sort can't do this). Un-numbered invoices
- * (number is stamped on first APPROVED) sort last, tiebroken by invoice date
+ * (number is stamped on first PAID) sort last, tiebroken by invoice date
  * then id so their order is stable. Numbered ties can't happen — the column
  * is unique.
  */

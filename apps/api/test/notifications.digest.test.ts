@@ -101,7 +101,7 @@ describe('digest flush', () => {
         actorId: l.id,
         ownerUserId: l.id,
         type: 'STATUS_CHANGED',
-        detail: { from: 'SUBMITTED', to: 'APPROVED' },
+        detail: { from: 'SUBMITTED', to: 'PAID' },
       },
     })
     await runDigestFlush(app.prisma)

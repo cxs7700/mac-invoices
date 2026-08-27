@@ -195,7 +195,7 @@ describe('delete vendor', () => {
         currency: 'USD',
         category: 'REPAIRS',
         invoiceDate: new Date('2026-01-15'),
-        status: 'APPROVED',
+        status: 'PAID',
         userId: landlordId,
         vendorId,
         items: {

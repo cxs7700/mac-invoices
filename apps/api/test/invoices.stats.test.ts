@@ -53,7 +53,7 @@ describe('GET /api/invoices/stats', () => {
     expect(res.statusCode).toBe(200)
     const body = res.json()
     // Every status key is present (zero-filled), even with no rows in some.
-    for (const s of ['PENDING', 'APPROVED', 'PAID', 'REJECTED', 'CANCELLED']) {
+    for (const s of ['PENDING', 'PAID', 'REJECTED', 'CANCELLED']) {
       expect(body.counts).toHaveProperty(s)
     }
     const sum = Object.values(body.counts as Record<string, number>).reduce((a, b) => a + b, 0)

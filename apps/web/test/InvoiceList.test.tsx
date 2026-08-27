@@ -52,7 +52,7 @@ function meResponse() {
 }
 
 function statsResponse() {
-  const body = { counts: { PENDING: 0, APPROVED: 0, PAID: 0, REJECTED: 0, CANCELLED: 0 }, total: 0 }
+  const body = { counts: { PENDING: 0, PAID: 0, REJECTED: 0, CANCELLED: 0 }, total: 0 }
   return {
     ok: true,
     status: 200,
