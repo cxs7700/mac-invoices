@@ -47,8 +47,16 @@ jobs:
         run: |
           test -n "$BACKUP_DATABASE_URL" || { echo "BACKUP_DATABASE_URL secret is not set"; exit 1; }
           test -n "$BACKUP_PASSPHRASE" || { echo "BACKUP_PASSPHRASE secret is not set"; exit 1; }
+          # Tolerate a secret pasted as a whole .env line ('DATABASE_URL="..."'):
+          # strip an optional KEY= prefix and surrounding quotes.
+          URL="${BACKUP_DATABASE_URL#DATABASE_URL=}"
+          URL="${URL%\"}"; URL="${URL#\"}"
+          case "$URL" in
+            postgres://*|postgresql://*) ;;
+            *) echo "BACKUP_DATABASE_URL is not a postgres:// URL"; exit 1 ;;
+          esac
           /usr/lib/postgresql/17/bin/pg_dump --no-owner --no-privileges -Fc \
-            -d "$BACKUP_DATABASE_URL" -f backup.dump
+            -d "$URL" -f backup.dump
           # Sanity check: an empty/tiny dump means the backup silently failed.
           test "$(stat -c%s backup.dump)" -gt 10000 || { echo "dump suspiciously small"; exit 1; }
           gpg --batch --symmetric --cipher-algo AES256 \
