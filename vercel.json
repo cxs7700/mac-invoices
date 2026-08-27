@@ -1,5 +1,5 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "installCommand": "npm install",
-  "buildCommand": "npm run db:generate && npm run build && node scripts/build-vercel.mjs"
+  "buildCommand": "npm run db:generate && if [ -n \"$DATABASE_URL\" ]; then npm run db:deploy; fi && npm run build && node scripts/build-vercel.mjs"
 }
