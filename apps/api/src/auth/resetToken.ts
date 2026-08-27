@@ -82,7 +82,10 @@ export function resetTokenMatches(
   passwordHash: string,
   version: number,
 ): boolean {
-  const expected = Buffer.from(mac(parsed.userId, parsed.expiresAtMs, passwordHash, version), 'utf8')
+  const expected = Buffer.from(
+    mac(parsed.userId, parsed.expiresAtMs, passwordHash, version),
+    'utf8',
+  )
   const actual = Buffer.from(parsed.mac, 'utf8')
   // Length-check first: timingSafeEqual THROWS on unequal lengths, and
   // branching on length leaks nothing here (the mac's length is fixed and

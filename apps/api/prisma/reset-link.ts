@@ -69,7 +69,9 @@ async function main() {
   const keyFp = process.env.RESET_LINK_KEY ? keyFingerprint(process.env.RESET_LINK_KEY) : null
 
   if (!target) {
-    console.error('DATABASE_URL is not set or is not a valid URL — cannot tell which database this would hit.')
+    console.error(
+      'DATABASE_URL is not set or is not a valid URL — cannot tell which database this would hit.',
+    )
     process.exitCode = 1
     return
   }

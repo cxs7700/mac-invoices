@@ -45,7 +45,5 @@ export type SyncState = 'not-exported' | 'exported' | 'drifted'
  */
 export function syncState(sheetsSyncedAt: string | null | undefined, updatedAt: string): SyncState {
   if (!sheetsSyncedAt) return 'not-exported'
-  return new Date(updatedAt).getTime() > new Date(sheetsSyncedAt).getTime()
-    ? 'drifted'
-    : 'exported'
+  return new Date(updatedAt).getTime() > new Date(sheetsSyncedAt).getTime() ? 'drifted' : 'exported'
 }

@@ -24,7 +24,13 @@ await rm(outDir, { recursive: true, force: true })
 await mkdir(funcDir, { recursive: true })
 
 // 1. Bundle the serverless entry into a single self-contained ESM file.
-const EXTERNAL = ['@prisma/client', '@prisma/adapter-pg', 'pg', '@node-rs/argon2', '@node-rs/argon2-*']
+const EXTERNAL = [
+  '@prisma/client',
+  '@prisma/adapter-pg',
+  'pg',
+  '@node-rs/argon2',
+  '@node-rs/argon2-*',
+]
 const bundlePath = join(funcDir, 'index.mjs')
 await build({
   entryPoints: ['apps/api/src/vercelEntry.ts'],
@@ -57,11 +63,9 @@ console.log(`Traced + copied ${copied} dependency files into the function.`)
 
 // 3. Ship the Prisma generated client dir too, so any runtime path-based lookup of
 //    the query-compiler wasm/engine (relative to /var/task) resolves.
-await cp(
-  join(root, 'apps/api/prisma/generated'),
-  join(funcDir, 'apps/api/prisma/generated'),
-  { recursive: true },
-)
+await cp(join(root, 'apps/api/prisma/generated'), join(funcDir, 'apps/api/prisma/generated'), {
+  recursive: true,
+})
 
 // 4. Function runtime config (Node launcher invokes the default export (req, res)).
 await writeFile(
