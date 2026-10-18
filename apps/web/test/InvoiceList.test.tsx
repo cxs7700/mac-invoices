@@ -438,6 +438,32 @@ describe('InvoiceList — PDF confirm flow', () => {
     expect(addresses.get('prop-1')).toBe('12 Main St')
   })
 
+  it('offers an email summary of the exported invoices on the clipboard', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    vi.stubGlobal('ClipboardItem', undefined)
+    vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } })
+    try {
+      renderList(vi.fn().mockResolvedValue(listResponse([row])))
+      await enterSelectionMode()
+      fireEvent.click(screen.getByRole('checkbox'))
+      fireEvent.click(screen.getByRole('button', { name: /confirm/i }))
+      await waitFor(() => expect(screen.getByText('PDF downloaded — 1 invoice.')).toBeDefined())
+
+      fireEvent.click(screen.getByRole('button', { name: /copy invoice summary/i }))
+      await waitFor(() => expect(screen.getByText('Summary copied')).toBeDefined())
+      expect(writeText).toHaveBeenCalledWith(
+        [
+          'These are the invoices for January 2026. Thank you.',
+          '- Invoice #INV-1: Jan 15, 2026 = $149.99',
+          '',
+          'Total: $149.99',
+        ].join('\n'),
+      )
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
   it('exports selections from a page that is no longer displayed', async () => {
     const listMock = vi
       .fn()
