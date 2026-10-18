@@ -156,9 +156,9 @@ export default function InvoiceDetail() {
                   isPending={update.isPending}
                   initialCategory={invoice.category ?? ''}
                   initialPropertyId={invoice.propertyId ?? ''}
-                  onApprove={(category, propertyId) =>
+                  onAccept={(category, propertyId) =>
                     update.mutate({
-                      status: 'PAID',
+                      status: 'PENDING',
                       category: category as InvoiceCategory,
                       propertyId,
                     })

@@ -80,7 +80,7 @@ export function InvoiceTable({
               )}
               <td className={td}>
                 {/*
-                  Vendor submissions carry no number until the landlord approves
+                  Vendor submissions carry no number until the landlord accepts
                   them, and an empty <Link> renders as an invisible, unclickable
                   cell — which made every pending submission unreachable from
                   this list. Always render a label so the row can be opened.

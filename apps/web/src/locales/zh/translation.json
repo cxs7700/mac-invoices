@@ -292,19 +292,19 @@
     "by": "由"
   },
   "review": {
-    "setCategoryAndProperty": "揀咗類別同物業先批得",
+    "setCategoryAndProperty": "揀咗類別同物業先接受得",
     "selectCategory": "揀類別…",
     "selectProperty": "揀物業…",
     "property": "物業",
     "noProperties": "仲未有物業。",
     "addOne": "加一個",
-    "beforeApproving": "先至批得。",
-    "confirmApprove": "確認批准",
+    "beforeAccepting": "先至接受得。",
+    "confirmAccept": "確認接受",
     "cancel": "取消",
     "reasonLabel": "原因（供應商會睇到）",
     "reasonPlaceholder": "例如：金額同收據對唔上",
     "confirmReject": "確認拒絕",
-    "approve": "批准",
+    "accept": "接受",
     "reject": "拒絕"
   },
   "invoiceFields": {
@@ -353,7 +353,7 @@
     "loadPropertiesError": "載入唔到物業。",
     "noProperties": "仲未有物業。",
     "addOne": "加一個",
-    "toAssignAndApprove": "先分配到同批得。",
+    "toAssignAndAccept": "先分配到同接受得。",
     "saving": "儲存緊…",
     "createInvoice": "開發票"
   },
@@ -402,7 +402,7 @@
   },
   "properties": {
     "title": "物業",
-    "subtitle": "按物業整理發票同支出。批發票嗰陣分配物業。",
+    "subtitle": "按物業整理發票同支出。接受發票嗰陣分配物業。",
     "nameOptional": "名稱（選填）",
     "namePlaceholder": "例如：楓葉大廈（選填 — 唔填就用地址）",
     "address": "地址",

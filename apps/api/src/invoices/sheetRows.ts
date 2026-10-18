@@ -43,7 +43,7 @@ export const EXPORT_HEADER: string[] = EXPORT_COLUMNS.map((c) => COLUMN_LABELS[c
 
 // Only real spend mirrors to the accounting sheet (KTD-9): SUBMITTED (un-vetted),
 // REJECTED (declined) and CANCELLED (withdrawn) are never exported. A later
-// approval re-qualifies the row and assigns its number.
+// acceptance re-qualifies the row and assigns its number.
 export const NON_EXPORTABLE_STATUSES = ['SUBMITTED', 'REJECTED', 'CANCELLED'] as const
 
 /** The statuses that can appear in the sheet — also the Status dropdown list. */

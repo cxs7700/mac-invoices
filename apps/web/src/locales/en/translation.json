@@ -292,19 +292,19 @@
     "by": "by"
   },
   "review": {
-    "setCategoryAndProperty": "Set a category and property to approve",
+    "setCategoryAndProperty": "Set a category and property to accept",
     "selectCategory": "Select a category…",
     "selectProperty": "Select a property…",
     "property": "Property",
     "noProperties": "No properties yet.",
     "addOne": "Add one",
-    "beforeApproving": "before approving.",
-    "confirmApprove": "Confirm approve",
+    "beforeAccepting": "before accepting.",
+    "confirmAccept": "Confirm accept",
     "cancel": "Cancel",
     "reasonLabel": "Reason (shown to the vendor)",
     "reasonPlaceholder": "e.g. Amount doesn't match the receipt",
     "confirmReject": "Confirm reject",
-    "approve": "Approve",
+    "accept": "Accept",
     "reject": "Reject"
   },
   "invoiceFields": {
@@ -353,7 +353,7 @@
     "loadPropertiesError": "Couldn't load properties.",
     "noProperties": "No properties yet.",
     "addOne": "Add one",
-    "toAssignAndApprove": "to assign and to approve.",
+    "toAssignAndAccept": "to assign and to accept.",
     "saving": "Saving…",
     "createInvoice": "Create invoice"
   },
@@ -402,7 +402,7 @@
   },
   "properties": {
     "title": "Properties",
-    "subtitle": "Organize invoices and spend by property. Assign a property when you approve an invoice.",
+    "subtitle": "Organize invoices and spend by property. Assign a property when you accept an invoice.",
     "nameOptional": "Name (optional)",
     "namePlaceholder": "Maple Duplex (optional — address is used if blank)",
     "address": "Address",

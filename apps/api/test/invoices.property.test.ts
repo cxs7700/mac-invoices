@@ -57,16 +57,16 @@ afterAll(async () => {
 describe('required-on-approval (AE1)', () => {
   it('blocks approving a submission with no property, then succeeds once set', async () => {
     const inv = await submitted('sub-approve')
-    const blocked = await patch(inv.id, { status: 'PAID', category: 'LABOR' }, a.cookie)
+    const blocked = await patch(inv.id, { status: 'PENDING', category: 'LABOR' }, a.cookie)
     expect(blocked.statusCode).toBe(422)
     expect(blocked.json().error.code).toBe('PROPERTY_REQUIRED')
     const ok = await patch(
       inv.id,
-      { status: 'PAID', category: 'LABOR', propertyId: propA },
+      { status: 'PENDING', category: 'LABOR', propertyId: propA },
       a.cookie,
     )
     expect(ok.statusCode).toBe(200)
-    expect(ok.json().status).toBe('PAID')
+    expect(ok.json().status).toBe('PENDING')
   })
 
   it('marking a PENDING invoice paid needs no property (legacy landlord freedom)', async () => {
@@ -76,7 +76,7 @@ describe('required-on-approval (AE1)', () => {
 
   it('checks category before property when both are missing', async () => {
     const inv = await submitted('order')
-    const res = await patch(inv.id, { status: 'PAID' }, a.cookie)
+    const res = await patch(inv.id, { status: 'PENDING' }, a.cookie)
     expect(res.statusCode).toBe(422)
     expect(res.json().error.code).toBe('CATEGORY_REQUIRED')
   })

@@ -17,7 +17,9 @@ type Props = {
 
 const tone: Record<SyncState, string> = {
   'not-exported': 'bg-status-overdue text-status-overdue-foreground',
-  exported: 'bg-status-paid text-status-paid-foreground',
+  // Deliberately neutral, NOT the Paid green: exporting says nothing about
+  // payment, and a green pill beside the status badge read as "Paid".
+  exported: 'bg-muted text-muted-foreground',
   drifted: 'bg-status-overdue text-status-overdue-foreground',
 }
 
