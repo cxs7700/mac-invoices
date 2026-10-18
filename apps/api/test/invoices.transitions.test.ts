@@ -4,7 +4,7 @@ import { createSecondUser } from './helpers/auth'
 
 // U2 status-transition guard (KTD-3). SUBMITTED is the vendor-submission
 // entry state: nothing moves *into* it, and from SUBMITTED the landlord may only
-// approve (needs a category) or reject (needs a reason). Legacy transitions among
+// accept (→ PENDING, needs a category) or reject (needs a reason). Legacy transitions among
 // the pre-existing statuses keep their prior freedom (R-8 — no regression of the
 // landlord's existing flows, including reopening a PAID invoice).
 const app = buildApp()
@@ -63,17 +63,22 @@ afterAll(async () => {
 })
 
 describe('U2 transition guard — SUBMITTED lifecycle', () => {
-  it('approves a submission (→ PAID) when a category is supplied in the same call', async () => {
+  it('accepts a submission (→ PENDING, unpaid) when a category is supplied in the same call', async () => {
     const inv = await makeSubmitted('approve')
-    const res = await patch(inv.id, { status: 'PAID', category: 'LABOR', propertyId: propId })
+    const res = await patch(inv.id, { status: 'PENDING', category: 'LABOR', propertyId: propId })
     expect(res.statusCode).toBe(200)
-    expect(res.json().status).toBe('PAID')
+    expect(res.json().status).toBe('PENDING')
     expect(res.json().category).toBe('LABOR')
+    // Accepting is not paying: no paidDate until a separate mark-as-paid.
+    expect(res.json().paidDate).toBeNull()
+    const paid = await patch(inv.id, { status: 'PAID' })
+    expect(paid.statusCode).toBe(200)
+    expect(paid.json().paidDate).not.toBeNull()
   })
 
-  it('blocks approving when no category is set (422 CATEGORY_REQUIRED)', async () => {
+  it('blocks accepting when no category is set (422 CATEGORY_REQUIRED)', async () => {
     const inv = await makeSubmitted('nocat')
-    const res = await patch(inv.id, { status: 'PAID' })
+    const res = await patch(inv.id, { status: 'PENDING' })
     expect(res.statusCode).toBe(422)
     expect(res.json().error.code).toBe('CATEGORY_REQUIRED')
   })
@@ -93,9 +98,9 @@ describe('U2 transition guard — SUBMITTED lifecycle', () => {
     expect(res.json().error.code).toBe('REASON_REQUIRED')
   })
 
-  it('blocks a landlord moving a submission back to PENDING (SUBMITTED → PENDING)', async () => {
-    const inv = await makeSubmitted('pend')
-    const res = await patch(inv.id, { status: 'PENDING' })
+  it('blocks a landlord paying a submission directly (SUBMITTED → PAID)', async () => {
+    const inv = await makeSubmitted('pay')
+    const res = await patch(inv.id, { status: 'PAID', category: 'LABOR', propertyId: propId })
     expect(res.statusCode).toBe(422)
     expect(res.json().error.code).toBe('INVALID_TRANSITION')
   })

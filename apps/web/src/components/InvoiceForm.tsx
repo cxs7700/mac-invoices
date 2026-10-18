@@ -178,7 +178,7 @@ export function InvoiceForm({
               <Link to="/properties" className="text-primary underline">
                 {t('invoiceForm.addOne')}
               </Link>{' '}
-              {t('invoiceForm.toAssignAndApprove')}
+              {t('invoiceForm.toAssignAndAccept')}
             </p>
           ) : null
         }
