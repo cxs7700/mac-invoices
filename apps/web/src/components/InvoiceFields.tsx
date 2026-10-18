@@ -26,6 +26,24 @@ function quantityOf(row: Pick<ItemRowValue, 'quantity'>): number {
   return Math.max(1, Number(row.quantity) || 1)
 }
 
+/**
+ * Money is typed, never stepped. A number input changes its value on the mouse
+ * wheel (while focused) and on ArrowUp/ArrowDown, so scrolling past the field
+ * could silently alter an amount. Blurring on wheel lets the page scroll on
+ * instead; the arrow keys are swallowed. `type="number"` stays for the mobile
+ * decimal keypad and native parsing of a half-typed "1.".
+ */
+const typeOnlyNumberProps = {
+  onWheel: (e: React.WheelEvent<HTMLInputElement>) => e.currentTarget.blur(),
+  onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') e.preventDefault()
+  },
+}
+
+/** Hides the spin buttons a number input draws on desktop. */
+const noSpinnerClass =
+  '[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
+
 type Props = {
   items: ItemRowValue[]
   onItemChange: (id: string, patch: Partial<ItemRowValue>) => void
@@ -171,7 +189,8 @@ export function InvoiceFields({
                     placeholder={t('invoiceFields.items.total')}
                     value={row.total}
                     onChange={(e) => onItemChange(row.id, { total: e.target.value })}
-                    className={itemFieldClass}
+                    {...typeOnlyNumberProps}
+                    className={`${itemFieldClass} ${noSpinnerClass}`}
                   />
                 </div>
 
