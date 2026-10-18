@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { useTranslation } from 'react-i18next'
+import { ClipboardCheck, ClipboardCopy } from 'lucide-react'
 import type { TFunction } from 'i18next'
 import { useInvoices, type InvoiceListItem } from '@/hooks/useInvoices'
 import { useExportInvoices } from '@/hooks/useExportInvoices'
@@ -12,6 +13,7 @@ import { StatusCounts } from '@/components/StatusCounts'
 import { Button } from '@/components/ui/button'
 import { ApiError } from '@/lib/apiClient'
 import { generateInvoicesPdf } from '@/lib/invoicePdf'
+import { buildInvoiceSummary, copyInvoiceSummary, type InvoiceSummary } from '@/lib/invoiceSummary'
 import {
   PAGE_SIZE,
   parseListParams,
@@ -34,7 +36,10 @@ function exportErrorMessage(error: unknown, t: TFunction): string | null {
   return error.message
 }
 
-type PdfMessage = { kind: 'success'; count: number } | { kind: 'error' } | null
+type PdfMessage =
+  | { kind: 'success'; count: number; summary: InvoiceSummary }
+  | { kind: 'error' }
+  | null
 
 export default function InvoiceList() {
   const { t } = useTranslation()
@@ -63,6 +68,7 @@ export default function InvoiceList() {
   const [selected, setSelected] = useState<ReadonlyMap<string, InvoiceListItem>>(new Map())
   const [generating, setGenerating] = useState(false)
   const [pdfMessage, setPdfMessage] = useState<PdfMessage>(null)
+  const [summaryCopy, setSummaryCopy] = useState<'idle' | 'copied' | 'failed'>('idle')
   // FilterBar also mounts this hook, so the ['properties'] query is warm; the
   // page-level call gives Confirm the same cache entry (no second fetch path).
   const propertiesQ = useProperties()
@@ -78,6 +84,7 @@ export default function InvoiceList() {
     // message (Generate PDF is disabled while that export is in flight).
     exportM.reset()
     setPdfMessage(null)
+    setSummaryCopy('idle')
     setSelectionMode(true)
   }
   const exitSelection = () => {
@@ -144,13 +151,28 @@ export default function InvoiceList() {
         lastName: me.lastName,
         email: me.email,
       })
-      setPdfMessage({ kind: 'success', count: snapshot.length })
+      setSummaryCopy('idle')
+      setPdfMessage({
+        kind: 'success',
+        count: snapshot.length,
+        summary: buildInvoiceSummary(snapshot),
+      })
       exitSelection()
     } catch {
       // Failure keeps selection mode and the selection intact (R9).
       setPdfMessage({ kind: 'error' })
     } finally {
       setGenerating(false)
+    }
+  }
+
+  const copySummary = async (summary: InvoiceSummary) => {
+    try {
+      await copyInvoiceSummary(summary)
+      setSummaryCopy('copied')
+      setTimeout(() => setSummaryCopy((s) => (s === 'copied' ? 'idle' : s)), 2000)
+    } catch {
+      setSummaryCopy('failed')
     }
   }
 
@@ -213,10 +235,31 @@ export default function InvoiceList() {
           </span>
         )}
         {pdfMessage?.kind === 'success' && (
-          <span role="status" className="text-status-paid-foreground">
-            {pdfMessage.count === 1
-              ? t('invoiceList.pdfSuccessOne', { count: pdfMessage.count })
-              : t('invoiceList.pdfSuccessOther', { count: pdfMessage.count })}
+          <span className="inline-flex flex-wrap items-center gap-2">
+            <span role="status" className="text-status-paid-foreground">
+              {pdfMessage.count === 1
+                ? t('invoiceList.pdfSuccessOne', { count: pdfMessage.count })
+                : t('invoiceList.pdfSuccessOther', { count: pdfMessage.count })}
+            </span>
+            <button
+              type="button"
+              aria-label={t('invoiceList.copySummary')}
+              title={t('invoiceList.copySummary')}
+              className="rounded p-1.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              onClick={() => void copySummary(pdfMessage.summary)}
+            >
+              {summaryCopy === 'copied' ? (
+                <ClipboardCheck className="h-4 w-4 text-primary" aria-hidden="true" />
+              ) : (
+                <ClipboardCopy className="h-4 w-4" aria-hidden="true" />
+              )}
+            </button>
+            {summaryCopy === 'copied' && (
+              <span className="text-muted-foreground">{t('invoiceList.summaryCopied')}</span>
+            )}
+            {summaryCopy === 'failed' && (
+              <span className="text-destructive">{t('invoiceList.summaryCopyFailed')}</span>
+            )}
           </span>
         )}
         {pdfMessage?.kind === 'error' && (

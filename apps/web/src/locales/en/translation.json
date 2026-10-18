@@ -185,7 +185,10 @@
     "generatingPdf": "Generating…",
     "pdfSuccessOne": "PDF downloaded — {{count}} invoice.",
     "pdfSuccessOther": "PDF downloaded — {{count}} invoices.",
-    "pdfFailed": "PDF generation failed. Your selection is unchanged."
+    "pdfFailed": "PDF generation failed. Your selection is unchanged.",
+    "copySummary": "Copy invoice summary for email",
+    "summaryCopied": "Summary copied",
+    "summaryCopyFailed": "Couldn't copy the summary"
   },
   "invoiceTable": {
     "select": "Select",

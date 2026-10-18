@@ -185,7 +185,10 @@
     "generatingPdf": "生成緊…",
     "pdfSuccessOne": "PDF 下載咗 — {{count}} 張發票。",
     "pdfSuccessOther": "PDF 下載咗 — {{count}} 張發票。",
-    "pdfFailed": "PDF 生成失敗。你揀嘅嘢冇變。"
+    "pdfFailed": "PDF 生成失敗。你揀嘅嘢冇變。",
+    "copySummary": "複製發票摘要（用嚟寄電郵）",
+    "summaryCopied": "摘要複製咗",
+    "summaryCopyFailed": "複製唔到摘要"
   },
   "invoiceTable": {
     "select": "揀",
