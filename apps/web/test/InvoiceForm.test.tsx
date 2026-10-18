@@ -96,6 +96,21 @@ describe('InvoiceForm', () => {
     expect(onSubmit).not.toHaveBeenCalled()
   })
 
+  it('does not step the total on arrow keys or the mouse wheel', () => {
+    render(<InvoiceForm onSubmit={vi.fn()} />)
+    const total = screen.getByLabelText('Total') as HTMLInputElement
+    total.focus()
+
+    // A prevented keydown is what stops the browser's native step.
+    expect(fireEvent.keyDown(total, { key: 'ArrowUp' })).toBe(false)
+    expect(fireEvent.keyDown(total, { key: 'ArrowDown' })).toBe(false)
+    expect(fireEvent.keyDown(total, { key: '5' })).toBe(true)
+
+    // Wheel over a focused number input steps it; blurring hands the scroll back to the page.
+    fireEvent.wheel(total, { deltaY: 100 })
+    expect(document.activeElement).not.toBe(total)
+  })
+
   it('renders a server error when provided', () => {
     render(<InvoiceForm onSubmit={vi.fn()} serverError="Invoice with this number already exists" />)
     expect(screen.getByText(/already exists/i)).toBeDefined()
