@@ -162,7 +162,7 @@ describe('per-tenant invoice numbering', () => {
       const res = await app.inject({
         method: 'PATCH',
         url: `/api/invoices/${submission.id}`,
-        payload: { status: 'PAID' },
+        payload: { status: 'APPROVED' },
         headers: { cookie: c.cookie },
       })
       expect(res.statusCode).toBe(200)

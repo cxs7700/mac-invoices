@@ -1,10 +1,7 @@
 import type { InvoiceStatus } from '../schemas/invoice'
 
 /**
- * The invoice statuses mapped to visually distinct tones. (`violet` stays in
- * the palette although no status maps to it — the per-medium colour tables are
- * keyed by StatusTone, and removed statuses in old timeline entries fall back
- * to `slate` via `statusTone`.)
+ * The invoice statuses mapped to visually distinct tones.
  *
  * This is the mapping — not the colours. Each medium supplies its own palette:
  * the web resolves a tone to CSS custom properties (which carry light and dark
@@ -17,6 +14,7 @@ import type { InvoiceStatus } from '../schemas/invoice'
  *
  * - PENDING   amber  — entered, awaiting the landlord's own action
  * - SUBMITTED blue   — arrived from a vendor, needs review
+ * - APPROVED  violet — accepted, money still owed
  * - PAID      green  — settled, nothing outstanding
  * - REJECTED  red    — refused
  * - CANCELLED slate  — withdrawn; deliberately the quietest, since a cancelled
@@ -28,6 +26,7 @@ export type StatusTone = (typeof STATUS_TONES)[number]
 export const STATUS_TONE: Record<InvoiceStatus, StatusTone> = {
   PENDING: 'amber',
   SUBMITTED: 'blue',
+  APPROVED: 'violet',
   PAID: 'green',
   REJECTED: 'red',
   CANCELLED: 'slate',

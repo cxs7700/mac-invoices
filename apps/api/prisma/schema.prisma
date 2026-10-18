@@ -113,7 +113,7 @@ model Session {
 model Invoice {
   id                     String           @id @default(cuid())
   // Nullable: vendor submissions are created before a number is assigned.
-  // The sequential number is stamped on the first PAID transition (KTD-11)
+  // The sequential number is stamped on the first APPROVED transition (KTD-11)
   // so withdrawn/rejected submissions never leave gaps in the landlord's ledger.
   // Sequential per OWNER, not globally: see @@unique([userId, invoiceNumber])
   // below. Nullable because a contractor submission carries no number until it
@@ -303,10 +303,11 @@ enum ImageType {
   OTHER
 }
 
-// APPROVED was removed 2026-08-26 (migration 20260826...) — approving a vendor
-// submission now lands directly on PAID; prior APPROVED rows were migrated.
+// APPROVED = accepted, not yet paid. Removed 2026-08-26 and restored by
+// migration 20261018120000 — approving a submission lands here, not on PAID.
 enum InvoiceStatus {
   PENDING
+  APPROVED
   PAID
   REJECTED
   CANCELLED

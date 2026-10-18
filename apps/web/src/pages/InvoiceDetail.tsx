@@ -158,7 +158,7 @@ export default function InvoiceDetail() {
                   initialPropertyId={invoice.propertyId ?? ''}
                   onApprove={(category, propertyId) =>
                     update.mutate({
-                      status: 'PAID',
+                      status: 'APPROVED',
                       category: category as InvoiceCategory,
                       propertyId,
                     })

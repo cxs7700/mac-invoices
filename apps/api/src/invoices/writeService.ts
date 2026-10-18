@@ -69,12 +69,14 @@ function actorKindOf(actorId: string): ActorKind {
  * Throw 422 on an illegal status transition. Rules:
  * - Nothing may move *into* SUBMITTED (it is created only by a submission).
  * - From SUBMITTED a vendor may only withdraw (→ CANCELLED); a landlord may
- *   only approve (→ PAID, requires a category and a property) or reject
- *   (→ REJECTED, requires a reason).
+ *   only approve (→ APPROVED, requires a category and a property) or reject
+ *   (→ REJECTED, requires a reason). Approving does NOT pay: APPROVED means
+ *   accepted with money still owed; mark-as-paid (→ PAID) is a later step.
+ * - Entering APPROVED from any state requires a category and a property.
  * - All other (legacy, non-SUBMITTED) transitions are permitted unchanged —
  *   including PAID → PENDING ("mark as unpaid") and plain mark-as-paid, which
  *   deliberately do NOT require a category/property (pre-existing landlord
- *   freedom; the requirement bites only when reviewing a vendor submission).
+ *   freedom; the requirement bites only when approving).
  * A no-op (from === to) is not a transition and returns immediately.
  */
 export function assertTransitionAllowed(
@@ -91,7 +93,7 @@ export function assertTransitionAllowed(
   // out of them (a correction is a brand-new submission). This is also what makes
   // the withdraw-vs-approve race single-winner: if a withdraw commits first, the
   // landlord's approve sees CANCELLED and is refused here rather than resurrecting
-  // it to PAID. (PAID stays reopenable — existing landlord behavior.)
+  // it to APPROVED. (PAID stays reopenable — existing landlord behavior.)
   if (from === 'CANCELLED' || from === 'REJECTED') {
     throw new AppError(
       'INVALID_TRANSITION',
@@ -108,13 +110,8 @@ export function assertTransitionAllowed(
         422,
       )
     }
-    if (to === 'PAID') {
-      if (ctx.categoryAfter == null) {
-        throw new AppError('CATEGORY_REQUIRED', 'Set a category before approving', 422)
-      }
-      if (ctx.propertyIdAfter == null) {
-        throw new AppError('PROPERTY_REQUIRED', 'Assign a property before approving', 422)
-      }
+    if (to === 'APPROVED') {
+      assertApprovable(ctx)
       return
     }
     if (to === 'REJECTED') {
@@ -128,6 +125,16 @@ export function assertTransitionAllowed(
       `A submission can only be approved or rejected, not ${to}`,
       422,
     )
+  }
+  if (to === 'APPROVED') assertApprovable(ctx)
+}
+
+function assertApprovable(ctx: { categoryAfter: unknown; propertyIdAfter: unknown }): void {
+  if (ctx.categoryAfter == null) {
+    throw new AppError('CATEGORY_REQUIRED', 'Set a category before approving', 422)
+  }
+  if (ctx.propertyIdAfter == null) {
+    throw new AppError('PROPERTY_REQUIRED', 'Assign a property before approving', 422)
   }
 }
 
@@ -588,9 +595,9 @@ export async function updateInvoice(
       data.rejectionReason = next === 'REJECTED' ? (input.rejectionReason ?? null) : null
       // KTD-11: a vendor submission carries no number until it is approved —
       // so withdrawn/rejected submissions never leave gaps in the ledger. Assign
-      // the next sequential number on the first transition into PAID (the
-      // approve target now that APPROVED is gone).
-      if (next === 'PAID' && before.invoiceNumber === null) {
+      // the next sequential number on the first transition into APPROVED (or
+      // PAID, should an un-numbered invoice ever be paid without approval).
+      if ((next === 'APPROVED' || next === 'PAID') && before.invoiceNumber === null) {
         data.invoiceNumber = await nextInvoiceNumber(tx, actorId)
       }
       events.push({ ...base, type: 'STATUS_CHANGED', detail: { from: before.status, to: next } })

@@ -22,9 +22,7 @@ const DEV_DEFAULT_PASSWORD = 'changeme-dev'
 const STATUS_MAP: Record<string, Prisma.InvoiceCreateInput['status']> = {
   paid: 'PAID',
   pending: 'PENDING',
-  // APPROVED no longer exists; an approved legacy row is money owed → treated
-  // as accepted-and-settled under the collapsed status model.
-  approved: 'PAID',
+  approved: 'APPROVED',
   rejected: 'REJECTED',
   cancelled: 'CANCELLED',
   canceled: 'CANCELLED',

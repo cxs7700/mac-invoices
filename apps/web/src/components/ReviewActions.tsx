@@ -15,10 +15,10 @@ type Props = {
 }
 
 /**
- * Landlord review actions for a SUBMITTED vendor submission. Approve (which
- * marks the invoice PAID) opens a required category picker (the API blocks the
- * transition until a category is set, so
- * this enforces it by construction); Reject opens a required reason (surfaced
+ * Landlord review actions for a SUBMITTED vendor submission. Approve (→ APPROVED;
+ * it does not mark the invoice paid — that is a separate later action) opens a
+ * required category picker (the API blocks the transition until a category is
+ * set, so this enforces it by construction); Reject opens a required reason (surfaced
  * back to the vendor). Mirrors the detail page's two-step confirm pattern.
  */
 export function ReviewActions({
