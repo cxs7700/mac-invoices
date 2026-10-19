@@ -449,7 +449,7 @@ describe('InvoiceList — PDF confirm flow', () => {
       fireEvent.click(screen.getByRole('button', { name: /confirm/i }))
       await waitFor(() => expect(screen.getByText('PDF downloaded — 1 invoice.')).toBeDefined())
 
-      fireEvent.click(screen.getByRole('button', { name: /copy invoice summary/i }))
+      fireEvent.click(screen.getByRole('button', { name: /copy email template/i }))
       await waitFor(() => expect(screen.getByText('Summary copied')).toBeDefined())
       expect(writeText).toHaveBeenCalledWith(
         [

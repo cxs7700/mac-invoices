@@ -243,9 +243,8 @@ export default function InvoiceList() {
             </span>
             <button
               type="button"
-              aria-label={t('invoiceList.copySummary')}
               title={t('invoiceList.copySummary')}
-              className="rounded p-1.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              className="inline-flex items-center gap-1.5 rounded p-1.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
               onClick={() => void copySummary(pdfMessage.summary)}
             >
               {summaryCopy === 'copied' ? (
@@ -253,6 +252,7 @@ export default function InvoiceList() {
               ) : (
                 <ClipboardCopy className="h-4 w-4" aria-hidden="true" />
               )}
+              <span>{t('invoiceList.copyEmailTemplate')}</span>
             </button>
             {summaryCopy === 'copied' && (
               <span className="text-muted-foreground">{t('invoiceList.summaryCopied')}</span>

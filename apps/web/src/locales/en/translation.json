@@ -187,6 +187,7 @@
     "pdfSuccessOther": "PDF downloaded — {{count}} invoices.",
     "pdfFailed": "PDF generation failed. Your selection is unchanged.",
     "copySummary": "Copy invoice summary for email",
+    "copyEmailTemplate": "Click to copy email template",
     "summaryCopied": "Summary copied",
     "summaryCopyFailed": "Couldn't copy the summary"
   },
