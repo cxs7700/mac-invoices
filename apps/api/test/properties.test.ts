@@ -10,8 +10,16 @@ const app = buildApp()
 let a: Awaited<ReturnType<typeof createSecondUser>>
 let b: Awaited<ReturnType<typeof createSecondUser>>
 
+// Every property must name its owner (the payee); tests that aren't about the
+// owner get a default one so they stay focused on what they test.
+const OWNER = { ownerFirstName: 'Olive', ownerLastName: 'Owner', ownerEmail: 'olive@example.com' }
 const create = (payload: object, cookie: string) =>
-  app.inject({ method: 'POST', url: '/api/properties', payload, headers: { cookie } })
+  app.inject({
+    method: 'POST',
+    url: '/api/properties',
+    payload: { ...OWNER, ...payload },
+    headers: { cookie },
+  })
 const list = (cookie: string) =>
   app.inject({ method: 'GET', url: '/api/properties', headers: { cookie } })
 const get = (id: string, cookie: string) =>
@@ -78,6 +86,87 @@ describe('property CRUD', () => {
     const res = await patch(id, { name: 'New', address: 'B' }, a.cookie)
     expect(res.statusCode).toBe(200)
     expect(res.json()).toMatchObject({ name: 'New', address: 'B', notes: 'n' })
+  })
+})
+
+// The owner is the payee and the PDF's Bill-To — separate from the account
+// holder, who may be a property manager.
+describe('property owner', () => {
+  it('requires owner first name, last name and email on create', async () => {
+    for (const missing of ['ownerFirstName', 'ownerLastName', 'ownerEmail']) {
+      const payload = { address: 'x', ...OWNER, [missing]: undefined }
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/properties',
+        payload,
+        headers: { cookie: a.cookie },
+      })
+      expect(res.statusCode, missing).toBe(400)
+    }
+    expect((await create({ address: 'x', ownerEmail: 'not-an-email' }, a.cookie)).statusCode).toBe(
+      400,
+    )
+  })
+
+  it('stores the owner (email lowercased, phone normalized) and returns it on list + detail', async () => {
+    const res = await create(
+      {
+        address: '1 Owner Way',
+        ownerFirstName: 'Pat',
+        ownerLastName: 'Proprietor',
+        ownerEmail: '  Pat@Example.COM ',
+        ownerPhone: '(555) 123 4567',
+      },
+      a.cookie,
+    )
+    expect(res.statusCode).toBe(201)
+    const owner = {
+      ownerFirstName: 'Pat',
+      ownerLastName: 'Proprietor',
+      ownerEmail: 'pat@example.com',
+      ownerPhone: '555-123-4567',
+    }
+    expect(res.json()).toMatchObject(owner)
+    const id = res.json().id
+    expect((await get(id, a.cookie)).json()).toMatchObject(owner)
+    const listed = (await list(a.cookie)).json().data.find((p: { id: string }) => p.id === id)
+    expect(listed).toMatchObject(owner)
+  })
+
+  it('phone is optional (null when omitted)', async () => {
+    const res = await create({ address: 'x' }, a.cookie)
+    expect(res.statusCode).toBe(201)
+    expect(res.json().ownerPhone).toBeNull()
+  })
+
+  it('updates the owner independently of the account holder, and null clears the phone', async () => {
+    const id = (await create({ address: 'x', ownerPhone: '5551234567' }, a.cookie)).json().id
+    const res = await patch(
+      id,
+      {
+        ownerFirstName: 'New',
+        ownerLastName: 'Owner',
+        ownerEmail: 'new@example.com',
+        ownerPhone: null,
+      },
+      a.cookie,
+    )
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toMatchObject({
+      ownerFirstName: 'New',
+      ownerLastName: 'Owner',
+      ownerEmail: 'new@example.com',
+      ownerPhone: null,
+    })
+    // The account holder is untouched — the owner is not the user.
+    const me = await app.prisma.user.findUniqueOrThrow({ where: { id: a.user.id } })
+    expect(me.email).not.toBe('new@example.com')
+  })
+
+  it('rejects clearing a required owner field on update', async () => {
+    const id = (await create({ address: 'x' }, a.cookie)).json().id
+    expect((await patch(id, { ownerFirstName: '' }, a.cookie)).statusCode).toBe(400)
+    expect((await patch(id, { ownerEmail: null }, a.cookie)).statusCode).toBe(400)
   })
 })
 

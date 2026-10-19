@@ -4,6 +4,8 @@ import { useTranslation } from 'react-i18next'
 import { ApiError } from '@/lib/apiClient'
 import { Button } from '@/components/ui/button'
 import { AddressAutocomplete } from '@/components/AddressAutocomplete'
+import { PropertyOwnerFields } from '@/components/PropertyOwnerFields'
+import { ownerComplete, ownerPayload, type OwnerDraft } from '@/lib/propertyOwner'
 import { useProperty, useUpdateProperty } from '@/hooks/useProperties'
 
 export default function PropertyEdit() {
@@ -35,7 +37,15 @@ function EditForm({
   update,
 }: {
   id: string
-  initial: { name: string; address: string; notes: string | null }
+  initial: {
+    name: string
+    address: string
+    notes: string | null
+    ownerFirstName: string | null
+    ownerLastName: string | null
+    ownerEmail: string | null
+    ownerPhone: string | null
+  }
   onSaved: () => void
   update: ReturnType<typeof useUpdateProperty>
 }) {
@@ -43,13 +53,26 @@ function EditForm({
   const [name, setName] = useState(initial.name)
   const [address, setAddress] = useState(initial.address)
   const [notes, setNotes] = useState(initial.notes ?? '')
+  const [owner, setOwner] = useState<OwnerDraft>({
+    firstName: initial.ownerFirstName ?? '',
+    lastName: initial.ownerLastName ?? '',
+    email: initial.ownerEmail ?? '',
+    phone: initial.ownerPhone ?? '',
+  })
   const serverError = update.error instanceof ApiError ? update.error.message : null
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     update.mutate(
       // Send name even when empty so clearing it removes the label (server stores '').
-      { name: name.trim(), address: address.trim(), notes: notes.trim() || undefined },
+      {
+        name: name.trim(),
+        address: address.trim(),
+        notes: notes.trim() || undefined,
+        ...ownerPayload(owner),
+        // null, not undefined, so clearing the phone removes it.
+        ownerPhone: ownerPayload(owner).ownerPhone ?? null,
+      },
       { onSuccess: onSaved },
     )
   }
@@ -97,12 +120,17 @@ function EditForm({
             className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
           />
         </div>
+        <PropertyOwnerFields value={owner} onChange={setOwner} />
         {serverError && (
           <p className="mt-2 text-sm text-destructive" role="alert">
             {serverError}
           </p>
         )}
-        <Button type="submit" className="mt-3" disabled={update.isPending || !address.trim()}>
+        <Button
+          type="submit"
+          className="mt-3"
+          disabled={update.isPending || !address.trim() || !ownerComplete(owner)}
+        >
           {update.isPending ? t('propertyEdit.saving') : t('propertyEdit.saveChanges')}
         </Button>
       </form>

@@ -145,8 +145,23 @@ export default function InvoiceList() {
         if (!r.data) throw r.error ?? new Error('landlord identity unavailable')
         me = r.data
       }
-      const addressByPropertyId = new Map(properties.map((p) => [p.id, p.address]))
-      await generateInvoicesPdf(snapshot, addressByPropertyId, {
+      // Each invoice is billed to its property's owner (the payee), which may
+      // not be the account holder; the account holder is only the fallback.
+      const propertiesById = new Map(
+        properties.map((p) => [
+          p.id,
+          {
+            address: p.address,
+            owner: {
+              firstName: p.ownerFirstName,
+              lastName: p.ownerLastName,
+              email: p.ownerEmail,
+              phone: p.ownerPhone,
+            },
+          },
+        ]),
+      )
+      await generateInvoicesPdf(snapshot, propertiesById, {
         firstName: me.firstName,
         lastName: me.lastName,
         email: me.email,

@@ -23,6 +23,20 @@ const property = (over = {}) => ({
   ...over,
 })
 
+const OWNER_PAYLOAD = {
+  ownerFirstName: 'Olive',
+  ownerLastName: 'Owner',
+  ownerEmail: 'olive@example.com',
+  ownerPhone: undefined,
+}
+
+/** Fill the required owner block (name + email; phone left blank). */
+function fillOwner() {
+  fireEvent.change(screen.getByLabelText('First name'), { target: { value: 'Olive' } })
+  fireEvent.change(screen.getByLabelText('Last name'), { target: { value: 'Owner' } })
+  fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'olive@example.com' } })
+}
+
 function renderPage() {
   return render(
     <MemoryRouter>
@@ -50,9 +64,10 @@ describe('Properties page', () => {
     fireEvent.change(screen.getByLabelText('Name (optional)'), { target: { value: 'Lake House' } })
     fireEvent.change(screen.getByLabelText('Address'), { target: { value: '9 Lake Rd' } })
     fireEvent.change(screen.getByLabelText(/notes/i), { target: { value: 'cabin' } })
+    fillOwner()
     fireEvent.click(screen.getByRole('button', { name: 'Add property' }))
     expect(createMutate).toHaveBeenCalledWith(
-      { name: 'Lake House', address: '9 Lake Rd', notes: 'cabin' },
+      { name: 'Lake House', address: '9 Lake Rd', notes: 'cabin', ...OWNER_PAYLOAD },
       expect.objectContaining({ onSuccess: expect.any(Function) }),
     )
   })
@@ -61,12 +76,55 @@ describe('Properties page', () => {
     useProperties.mockReturnValue({ data: { data: [] }, isPending: false, isError: false })
     renderPage()
     fireEvent.change(screen.getByLabelText('Address'), { target: { value: '9 Lake Rd' } })
+    fillOwner()
     const submit = screen.getByRole('button', { name: 'Add property' })
     expect(submit.hasAttribute('disabled')).toBe(false)
     fireEvent.click(submit)
     expect(createMutate).toHaveBeenCalledWith(
-      { name: undefined, address: '9 Lake Rd', notes: undefined },
+      { name: undefined, address: '9 Lake Rd', notes: undefined, ...OWNER_PAYLOAD },
       expect.objectContaining({ onSuccess: expect.any(Function) }),
+    )
+  })
+
+  it('requires the owner name and email before a property can be added', () => {
+    useProperties.mockReturnValue({ data: { data: [] }, isPending: false, isError: false })
+    renderPage()
+    fireEvent.change(screen.getByLabelText('Address'), { target: { value: '9 Lake Rd' } })
+    const submit = screen.getByRole('button', { name: 'Add property' })
+    expect(submit.hasAttribute('disabled')).toBe(true)
+    fireEvent.change(screen.getByLabelText('First name'), { target: { value: 'Olive' } })
+    fireEvent.change(screen.getByLabelText('Last name'), { target: { value: 'Owner' } })
+    expect(submit.hasAttribute('disabled')).toBe(true)
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'olive@example.com' } })
+    expect(submit.hasAttribute('disabled')).toBe(false)
+  })
+
+  it('explains the block, and rejects an email the server would (a@b), not just a blank one', () => {
+    useProperties.mockReturnValue({ data: { data: [] }, isPending: false, isError: false })
+    renderPage()
+    fireEvent.change(screen.getByLabelText('Address'), { target: { value: '9 Lake Rd' } })
+    fillOwner()
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'owner@localhost' } })
+    const submit = screen.getByRole('button', { name: 'Add property' })
+    expect(submit.hasAttribute('disabled')).toBe(true)
+    expect(screen.getByText(/a valid email are required/i)).toBeDefined()
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'owner@example.com' } })
+    expect(submit.hasAttribute('disabled')).toBe(false)
+    expect(screen.queryByText(/a valid email are required/i)).toBeNull()
+  })
+
+  it('sends the optional owner phone when given', () => {
+    useProperties.mockReturnValue({ data: { data: [] }, isPending: false, isError: false })
+    renderPage()
+    fireEvent.change(screen.getByLabelText('Address'), { target: { value: '9 Lake Rd' } })
+    fillOwner()
+    fireEvent.change(screen.getByLabelText('Phone (optional)'), {
+      target: { value: '555-123-4567' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Add property' }))
+    expect(createMutate).toHaveBeenCalledWith(
+      expect.objectContaining({ ownerPhone: '555-123-4567' }),
+      expect.anything(),
     )
   })
 

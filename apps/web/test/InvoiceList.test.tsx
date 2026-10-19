@@ -36,7 +36,18 @@ const row = {
 
 function propertiesResponse() {
   return jsonRes(200, {
-    data: [{ id: 'prop-1', name: 'Main', address: '12 Main St', notes: null }],
+    data: [
+      {
+        id: 'prop-1',
+        name: 'Main',
+        address: '12 Main St',
+        notes: null,
+        ownerFirstName: 'Olive',
+        ownerLastName: 'Owner',
+        ownerEmail: 'olive@example.com',
+        ownerPhone: null,
+      },
+    ],
   })
 }
 
@@ -423,7 +434,7 @@ describe('InvoiceList — PDF confirm flow', () => {
     generatePdfMock.mockResolvedValue(undefined)
   })
 
-  it('confirms: passes snapshotted rows + address map, exits mode, shows success', async () => {
+  it('confirms: passes snapshotted rows + property map (address + owner), exits mode, shows success', async () => {
     renderList(vi.fn().mockResolvedValue(listResponse([row, rowB])))
     await enterSelectionMode()
     const boxes = screen.getAllByRole('checkbox')
@@ -433,9 +444,13 @@ describe('InvoiceList — PDF confirm flow', () => {
 
     await waitFor(() => expect(screen.getByText('PDF downloaded — 2 invoices.')).toBeDefined())
     expect(screen.queryAllByRole('checkbox')).toHaveLength(0)
-    const [invoices, addresses] = generatePdfMock.mock.calls[0]
+    const [invoices, properties] = generatePdfMock.mock.calls[0]
     expect(invoices.map((i) => i.id).sort()).toEqual(['a', 'b'])
-    expect(addresses.get('prop-1')).toBe('12 Main St')
+    // The property owner — the payee — is what the PDF bills, not the account holder.
+    expect(properties.get('prop-1')).toEqual({
+      address: '12 Main St',
+      owner: { firstName: 'Olive', lastName: 'Owner', email: 'olive@example.com', phone: null },
+    })
   })
 
   it('offers an email summary of the exported invoices on the clipboard', async () => {

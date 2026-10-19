@@ -6,6 +6,7 @@ import {
   pdfFileName,
   type PdfInvoiceInput,
   type PdfLandlord,
+  type PdfProperty,
 } from '@/lib/invoicePdf'
 
 // Lazy-loading spies: the factories run only when jspdf is actually imported,
@@ -70,7 +71,9 @@ const inv = (over: Partial<PdfInvoiceInput> = {}): PdfInvoiceInput => ({
   ...over,
 })
 
-const addresses = new Map([['prop-1', '12 Main St']])
+const owner = { firstName: 'Olive', lastName: 'Owner', email: 'olive@example.com', phone: null }
+const addresses = new Map<string, PdfProperty>([['prop-1', { address: '12 Main St', owner }]])
+// The account holder — e.g. a property manager. Only the Bill-To fallback.
 const landlord: PdfLandlord = { firstName: 'Jane', lastName: 'Doe', email: 'jane@example.com' }
 
 describe('buildInvoicePdfModel', () => {
@@ -100,19 +103,76 @@ describe('buildInvoicePdfModel', () => {
     expect(pages[1].items).toEqual([{ description: 'Paint', quantity: '1', total: '$80.50' }])
   })
 
-  it('every page carries the same Bill-To (the landlord), regardless of which invoice', () => {
-    const pages = buildInvoicePdfModel([inv({ id: 'a' }), inv({ id: 'b' })], addresses, landlord)
-    expect(pages[0].billTo).toEqual({ name: 'Jane Doe', email: 'jane@example.com' })
-    expect(pages[1].billTo).toEqual({ name: 'Jane Doe', email: 'jane@example.com' })
+  it('bills each invoice to its property owner (the payee), not the account holder', () => {
+    const properties = new Map<string, PdfProperty>([
+      ['prop-1', { address: '12 Main St', owner }],
+      [
+        'prop-2',
+        {
+          address: '9 Elm St',
+          owner: {
+            firstName: 'Bob',
+            lastName: 'Bricks',
+            email: 'bob@example.com',
+            phone: '5551234567',
+          },
+        },
+      ],
+    ])
+    const pages = buildInvoicePdfModel(
+      [
+        inv({ id: 'a', invoiceNumber: '1' }),
+        inv({ id: 'b', invoiceNumber: '2', propertyId: 'prop-2' }),
+      ],
+      properties,
+      landlord,
+    )
+    expect(pages[0].billTo).toEqual({ name: 'Olive Owner', lines: ['olive@example.com'] })
+    // Phone is optional and, when present, normalized under the email.
+    expect(pages[1].billTo).toEqual({
+      name: 'Bob Bricks',
+      lines: ['bob@example.com', '555-123-4567'],
+    })
   })
 
-  it('Bill-To falls back to the email when the landlord has no name set', () => {
-    const pages = buildInvoicePdfModel([inv()], addresses, {
-      firstName: null,
-      lastName: null,
-      email: 'x@example.com',
+  it('Bill-To falls back to the owner email when the owner has no name set', () => {
+    const properties = new Map<string, PdfProperty>([
+      [
+        'prop-1',
+        {
+          address: 'x',
+          owner: { firstName: null, lastName: null, email: 'o@example.com', phone: null },
+        },
+      ],
+    ])
+    expect(buildInvoicePdfModel([inv()], properties, landlord)[0].billTo).toEqual({
+      name: 'o@example.com',
+      lines: ['o@example.com'],
     })
-    expect(pages[0].billTo.name).toBe('x@example.com')
+  })
+
+  it('Bill-To falls back to the account holder for a property-less or owner-less invoice', () => {
+    const properties = new Map<string, PdfProperty>([
+      [
+        'prop-1',
+        { address: 'x', owner: { firstName: 'No', lastName: 'Email', email: null, phone: null } },
+      ],
+    ])
+    const pages = buildInvoicePdfModel(
+      [
+        inv({ id: 'a', invoiceNumber: '1', propertyId: null }),
+        inv({ id: 'b', invoiceNumber: '2' }),
+      ],
+      properties,
+      landlord,
+    )
+    expect(pages[0].billTo).toEqual({ name: 'Jane Doe', lines: ['jane@example.com'] })
+    expect(pages[1].billTo).toEqual({ name: 'Jane Doe', lines: ['jane@example.com'] })
+    // …and that fallback uses the email when the account holder has no name.
+    const unnamed = { firstName: null, lastName: null, email: 'x@example.com' }
+    expect(
+      buildInvoicePdfModel([inv({ propertyId: null })], properties, unnamed)[0].billTo.name,
+    ).toBe('x@example.com')
   })
 
   it('prefers the linked vendor over the invoice free text', () => {
@@ -381,8 +441,8 @@ describe('generateInvoicesPdf', () => {
     expect(fills).toContain('20,90,50') // spine + text
   })
 
-  // The items table's startY is computed from the sender block's actual line
-  // count, so a taller sender can never be overlapped by a table pinned at a
+  // The items table's startY is computed from both party blocks' actual line
+  // counts, so a taller block can never be overlapped by a table pinned at a
   // fixed offset.
   it('starts the table at the Bill-To floor when the sender has zero contact lines', async () => {
     await generateInvoicesPdf(
@@ -390,8 +450,25 @@ describe('generateInvoicesPdf', () => {
       addresses,
       landlord,
     )
-    // Bill-To is one line, so a contact-less sender is level with it.
-    expect(autoTableSpy.mock.calls[0][1]).toMatchObject({ startY: 291 })
+    // Bill-To has one line (the owner email), so it sets the floor.
+    expect(autoTableSpy.mock.calls[0][1]).toMatchObject({ startY: 304 })
+  })
+
+  it('starts the table below a two-line Bill-To (owner email + phone)', async () => {
+    const properties = new Map<string, PdfProperty>([
+      ['prop-1', { address: 'x', owner: { ...owner, phone: '5551234567' } }],
+    ])
+    await generateInvoicesPdf(
+      [inv({ vendorName: 'Legacy Co', vendorEmail: null, vendor: null })],
+      properties,
+      landlord,
+    )
+    expect(autoTableSpy.mock.calls[0][1]).toMatchObject({ startY: 317 })
+    const drawn = textSpy.mock.calls.map((c) => c[0])
+    expect(drawn).toContain('Olive Owner')
+    expect(drawn).toContain('olive@example.com')
+    expect(drawn).toContain('555-123-4567')
+    expect(drawn).not.toContain('Jane Doe')
   })
 
   it('drops the table when the sender has one contact line', async () => {
