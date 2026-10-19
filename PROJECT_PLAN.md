@@ -44,6 +44,11 @@ A web app for a **landlord** to manage **invoices** submitted by a superintenden
 
 **Primary user:** one landlord (single-tenant auth for MVP, designed to extend to many users).
 
+> **As shipped (2026-10-18):** the product is branded **Rent Ops** and is multi-tenant —
+> invite-gated signup, every row scoped to its account. The account holder may be a landlord
+> *or a property manager*; each property records its own **owner**, who is the invoices'
+> payee. Vendors submit invoices through a no-login link. See §10 "Shipped beyond the MVP".
+
 ---
 
 ## 2. Architecture (target state)
@@ -54,6 +59,10 @@ React SPA (Vite + TS)  ──HTTPS/REST──>  Fastify API (TS)  ──>  Postg
                                                │
                                                └──> Google Sheets API (export destination)
 ```
+
+> **As deployed:** one Vercel project — the SPA as static output plus the Fastify app as a
+> single `/api` function (Build Output API, `scripts/build-vercel.mjs`) — on Prisma Postgres,
+> with private Vercel Blob for photos. Railway was never used. See `docs/DEPLOYMENT.md`.
 
 **Source-of-truth principle:** PostgreSQL is authoritative. Google Sheets is a downstream
 export/reporting surface, never the primary store. (See §12 DEC-001.)
@@ -286,6 +295,10 @@ export const sheets = google.sheets({ version: 'v4', auth });
 
 > Each phase: (a) write/extend spec, (b) implement, (c) make all feedback loops green,
 > (d) update Conventions + Decision Log, (e) commit.
+>
+> **Status (reconciled against `main` on 2026-10-18):** Phases 0–6 are all complete, and most
+> of the Phase 7 backlog has shipped. Where the build diverged from the plan, the note on the
+> item says how; the full reasoning is in `docs/DECISIONS.md`.
 
 ### Phase 0 — Foundation & Feedback Loops  ⛳ ✅ *complete (2026-06-20)*
 - [x] Init npm workspaces (`apps/web`, `apps/api`, `packages/shared`).
@@ -296,11 +309,11 @@ export const sheets = google.sheets({ version: 'v4', auth });
 - [x] GitHub Actions `ci.yml`: install → lint → typecheck → test on every PR.
 - **DoD:** ✅ `npm run lint && npm run typecheck && npm run test` all green locally; CI workflow added. Execution plan: `docs/plans/2026-06-20-001-feat-invoice-manager-monorepo-foundation-plan.md`.
 
-### Phase 1 — App Skeletons
-- [ ] Fastify boots, `/api/health` returns 200, CORS + cookie plugins, error handler.
-- [ ] Vite React app boots, router with placeholder pages, Tailwind + shadcn initialized.
-- [ ] `apiClient.ts` (Axios, credentials: include) + TanStack Query provider.
-- **DoD:** Both apps run with `npm run dev`; web can hit `/api/health`.
+### Phase 1 — App Skeletons  ✅ *complete (2026-06-21, #2)*
+- [x] Fastify boots, `/api/health` returns 200, CORS + cookie plugins, error handler.
+- [x] Vite React app boots, router with placeholder pages, Tailwind + shadcn initialized.
+- [x] `apiClient.ts` (credentials: include) + TanStack Query provider. *Uses `fetch`, not Axios.*
+- **DoD:** ✅ Both apps run with `npm run dev`; web can hit `/api/health`.
 
 ### Phase 2 — Data Layer + First Vertical Slice (CREATE invoice)  ✅ *complete (2026-06-21)*
 - [x] Prisma schema (§5), migration, seed (landlord + 158 remapped 2025 invoices). Also added `InvoiceImage` + `CONTRACTOR` (see DEC-016).
@@ -310,12 +323,13 @@ export const sheets = google.sheets({ version: 'v4', auth });
 - **DoD:** ✅ Create works end-to-end; API create test passes; pattern recorded in §11 / `docs/CONVENTIONS.md` (CONV-011/012). Execution plan: `docs/plans/2026-06-21-001-feat-data-layer-create-slice-plan.md`.
 - **New (deferred):** per-invoice image upload pipeline + viewing UI — a future phase (model landed this phase; see DEC-016, §7 backlog).
 
-### Phase 3 — Auth + Remaining CRUD (replicate the pattern)
-- [ ] Lucia + argon2 + `requireAuth`; login/logout/me; seed login works.
-- [ ] `GET /invoices` (filter: status/date/vendor, sort, pagination), `GET/:id`, `PATCH/:id`, `DELETE/:id` — all tested.
-- [ ] Web: Login page + auth guard; `InvoiceList` (table + `FilterBar` + `StatusBadge`),
+### Phase 3 — Auth + Remaining CRUD (replicate the pattern)  ✅ *complete (2026-06-22, #4)*
+- [x] argon2 + `requireAuth`; login/logout/me; seed login works. *Hand-rolled DB sessions on
+  `@oslojs`, not Lucia (sunset) — DEC-018. Login is rate-limited.*
+- [x] `GET /invoices` (filter: status/date/vendor, sort, pagination), `GET/:id`, `PATCH/:id`, `DELETE/:id` — all tested.
+- [x] Web: Login page + auth guard; `InvoiceList` (table + `FilterBar` + `StatusBadge`),
   `InvoiceDetail`, `InvoiceEdit`; optimistic status updates.
-- **DoD:** All CRUD works through the UI behind auth; integration tests cover each route;
+- **DoD:** ✅ All CRUD works through the UI behind auth; integration tests cover each route;
   unauthorized access returns 401.
 
 ### Phase 4 — History, Status & Metadata UX  ✅ *complete (2026-06-22)*
@@ -328,17 +342,54 @@ export const sheets = google.sheets({ version: 'v4', auth });
 - [x] "Export to Sheets" button; retry/backoff on 429. (Operator setup: `docs/SHEETS_EXPORT.md`.)
 - **DoD:** Clicking export writes current invoices to the sheet; test mocks the Sheets client.
 
-### Phase 6 — Harden & Deploy
-- [ ] Security headers, rate limiting on auth, request logging, input size limits.
-- [ ] Deploy API + Postgres to Railway; web to Vercel; env wired; SSL verified.
-- [ ] README: setup, env reference, run/deploy steps.
-- **DoD:** Public URL works end-to-end; CI green; fresh clone runs with documented steps only.
+### Phase 6 — Harden & Deploy  ✅ *complete (2026-06-22 → 2026-06-30)*
+- [x] Security headers (`@fastify/helmet`), rate limiting on auth, request logging (redacted),
+  64 KB body limit — DEC-022. *Logging later moved to a PII-free allow-list — DEC-040.*
+- [x] Deployed — *all on Vercel (SPA + `/api` function) with Prisma Postgres, not Railway*; env
+  wired; SSL via Vercel. Production builds run `prisma migrate deploy`.
+- [x] README: setup, env reference, run/deploy steps (plus `docs/DEPLOYMENT.md`).
+- **DoD:** ✅ Public URL works end-to-end; CI green; fresh clone runs with documented steps only.
 
-### Phase 7 — Post-MVP (backlog, not required)
-File attachments (R2/S3 presigned) — including the **per-invoice image** upload + viewing feature
-whose data model (`InvoiceImage`, `ImageType`) landed in Phase 2 (DEC-016); continuous Sheets sync
-via job queue, email reminders (Resend), analytics charts, multi-property model, contractor
-submission portal, Sentry.
+### Phase 7 — Post-MVP backlog
+- [x] **Per-invoice photos** — multi-photo, typed, on a *private* Vercel Blob store with
+  presigned reads (not R2/S3); orphan-blob sweep script. (#11, #24, #25)
+- [x] **Continuous Sheets sync** — cron-driven full mirror rather than a job queue (DEC-024),
+  per-user spreadsheet target, Sheets-Table aware (DEC-026). Runs from GitHub Actions cron.
+- [x] **Multi-property model** — Properties with invoice assignment, filtering and spend
+  rollup (#17); per-vendor property assignment; a per-property **owner** (#37, DEC-044).
+- [x] **Contractor submission portal** — no-login vendor links (derived, revocable — DEC-034),
+  itemized submissions with optional photos, installable as a PWA. *"Contractor" was renamed
+  "Vendor" throughout (DEC-032).*
+- [~] **Email reminders (Resend)** — a landlord digest of new submissions is built, plus an
+  in-app notification feed, but `RESEND_API_KEY` is **not set in production**, so mail no-ops.
+- [~] **Analytics charts** — dashboard has status counts, a lookback window and a monthly
+  spend chart; nothing richer yet.
+- [ ] **Sentry / error tracking** — not started.
+- [ ] **OCR of invoice photos** — deferred since photo capture v1.
+
+### Shipped beyond the MVP (not in the original plan)
+Grouped by area; dates are when each landed on `main`.
+
+- **Accounts:** invite-gated signup (DEC-029); password confirm + autofill hardening (DEC-031);
+  operator-issued password-reset links with no email dependency (DEC-036); editable profile
+  (Settings). Per-tenant invoice numbering (DEC-030). *(2026-06 → 2026-08)*
+- **Invoices:** append-only event ledger + timeline (#9); auto-assigned numbers and description
+  search (DEC-023); itemized line items (DEC-028); `partsOrdered` field; natural sort by
+  invoice number; relative date-range filters; whole-tax-year lookback. Status set simplified
+  (`APPROVED` removed; accepting a submission no longer marks it paid).
+- **PDF export:** multi-select → one client-side PDF (DEC-027), redesigned with Sender/Bill-To,
+  line items, status-toned chip and balance panel (DEC-028), plus a copyable email summary.
+  Bill-To is the **property owner**, not the account holder (DEC-044).
+- **Vendor flow:** vendor CRUD and rename; vendor-assigned properties; read-only submission
+  detail for vendors (editing removed — withdraw and resubmit instead); review/accept with the
+  vendor's category/property pre-filled.
+- **Sheets:** ledger column layout with dropdowns (DEC-026), invoice link column, one line
+  per item in Description (DEC-039), spreadsheet-id normalization + uniqueness (DEC-033),
+  disconnect from Settings, Exported/Drifted status per invoice.
+- **UX:** dashboard + mobile nav, dark mode (light/dark/system), i18n English / Chinese with a
+  language switcher, address autocomplete, mobile layout fixes.
+- **Ops:** nightly encrypted `pg_dump` backup workflow; operational logging that cannot carry
+  personal data (DEC-040); one shared definition of "spend" (DEC-041).
 
 ---
 
@@ -372,6 +423,8 @@ submission portal, Sentry.
 - **DEC-005..011 (2026-06-20, Phase 0).** Keep installed versions (React 19 / RR7 / Prisma 7) over §3; migrate to the npm-workspaces monorepo as Phase 0 (behavior/schema preserving); adopt the §5 data model in Phase 2 not Phase 0; import shared code as `@mac-invoices/shared`; defer the auth library (Lucia is being sunset) to Phase 3; use Vitest 3 (rolldown-vite@7 needs it); single root `.env` loaded via `loadEnv.ts`; gitignore the generated Prisma client. Full text in `docs/DECISIONS.md`.
 - **DEC-012..016 (2026-06-21, Phase 2).** Seeded-landlord + server-default `userId` until auth; §5 migration by dev reset + reseed (invoiceNumber user-supplied); CREATE-only validation this phase (Update schema defined); Zod-in-handler via `parseBody` (+ `@hookform/resolvers@5` on web); per-invoice images modeled now (`InvoiceImage`/`ImageType`, `CONTRACTOR` role) with the upload/view feature deferred. Full text in `docs/DECISIONS.md`.
 - **DEC-024 (2026-06-30).** Continuous Sheets sync as a `CRON_SECRET`-gated cron **full mirror** (clear+rewrite, per-user `sheetSpreadsheetId` target, change-gated by a new `User.sheetSyncedAt` high-water mark); replaces DEC-021's append-only export with `overwriteRows`, repoints the manual button to "Sync now". Full text in `docs/DECISIONS.md`.
+- **DEC-017..023 (2026-06-22, Phases 3–6).** Hand-rolled sessions; ownership via scoped `updateMany`; URL-held list state; Sheets service account; hardening; auto-assigned invoice numbers. Full text in `docs/DECISIONS.md`.
+- **DEC-025..044 (2026-08-04 → 2026-10-18).** Dark mode, Sheets ledger/Table handling, PDF export and redesign, itemized invoices, invite-gated signup, per-tenant numbering, password hardening, Contractor→Vendor rename, Sheets-target uniqueness, derived vendor links, password reset, sorting, export-stamp semantics, log allow-list, shared spend definition, list layout, photo preview, and property owners as the Bill-To (DEC-044). `docs/DECISIONS.md` is the authoritative log; this section only indexes it.
 - *(append new decisions here with date + reasoning)*
 
 ---
