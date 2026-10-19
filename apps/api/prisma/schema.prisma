@@ -8,20 +8,20 @@ datasource db {
 }
 
 model User {
-  id                   String     @id @default(cuid())
-  email                String     @unique
-  passwordHash         String
+  id           String       @id @default(cuid())
+  email        String       @unique
+  passwordHash String
   // Generic display name, kept in sync with firstName+lastName on every
   // profile write (`[firstName, lastName].filter(Boolean).join(' ')`). Read by
   // consumers that only need a display string (event actor names, the invoice
   // `user` embed) — they don't need the split and are unaffected by it.
-  name                 String?
+  name         String?
   // Split name fields for the PDF Bill-To section and the editable profile
   // form. Nullable: pre-split users are backfilled by
   // `prisma/backfill-invoice-items.ts`; a user with no name has both null.
-  firstName            String?
-  lastName             String?
-  role                 Role       @default(LANDLORD)
+  firstName    String?
+  lastName     String?
+  role         Role         @default(LANDLORD)
   // Per-user Google Sheets export target — the only source for both the manual
   // "Sync now" export and continuous sync (the cron mirror). Null = no sheet
   // connected; there is no server-side fallback (removed — see DEC-029(i)).
@@ -32,27 +32,27 @@ model User {
   // service account holds Editor on every connected sheet by design — so this
   // constraint is the whole defense, not defense in depth (DEC-033). NULLs are
   // distinct in Postgres, so any number of unconnected users is fine.
-  sheetSpreadsheetId   String?    @unique
+  sheetSpreadsheetId String?   @unique
   // High-water mark for continuous Sheets sync: the last successful full mirror.
   // A user is "dirty" when their newest Invoice.updatedAt (or newest DELETED
   // event) is after this, which triggers a clear+rewrite of their sheet.
-  sheetSyncedAt        DateTime?
+  sheetSyncedAt DateTime?
   // In-app notification read-state: vendor activity newer than this is
   // "unread". Cleared (set to now) when the landlord opens the notifications feed.
-  notificationsSeenAt  DateTime?
+  notificationsSeenAt DateTime?
   // UI language preference (server source of truth, mirrored to localStorage).
-  locale               String     @default("en")
+  locale       String       @default("en")
   // Bumped every time a reset link is issued, and signed into the link, so
   // issuing a new link retires any outstanding one (spec R8). Mirrors
   // Vendor.tokenVersion (DEC-034). Consuming a link is separately covered by
   // the password hash also being signed.
-  passwordResetVersion Int        @default(0)
-  createdAt            DateTime   @default(now())
-  updatedAt            DateTime   @updatedAt
-  invoices             Invoice[]
-  sessions             Session[]
-  vendors              Vendor[]
-  properties           Property[]
+  passwordResetVersion Int @default(0)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  invoices     Invoice[]
+  sessions     Session[]
+  vendors      Vendor[]
+  properties   Property[]
 
   @@map("users")
 }
@@ -78,23 +78,23 @@ model User {
 // schema out of sync with the DB (which `migrate dev` would then try to
 // "fix" by dropping the real index).
 model Vendor {
-  id            String           @id @default(cuid())
+  id            String    @id @default(cuid())
   landlordId    String
-  landlord      User             @relation(fields: [landlordId], references: [id], onDelete: Cascade)
+  landlord      User      @relation(fields: [landlordId], references: [id], onDelete: Cascade)
   name          String
   phone         String?
   email         String?
-  tokenLookupId String           @unique
+  tokenLookupId String    @unique
   // The link secret is derived, never stored: HMAC(VENDOR_LINK_KEY,
   // tokenLookupId:tokenVersion). Bumping the version rotates the link; see
   // src/vendors/token.ts and DECISIONS.md DEC-034.
-  tokenVersion  Int              @default(0)
+  tokenVersion  Int       @default(0)
   revokedAt     DateTime?
   lastUsedAt    DateTime?
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
-  submissions   Invoice[]        @relation("InvoiceSubmittedByVendor")
-  invoices      Invoice[]        @relation("InvoiceVendor")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  submissions   Invoice[] @relation("InvoiceSubmittedByVendor")
+  invoices      Invoice[] @relation("InvoiceVendor")
   properties    VendorProperty[]
 
   @@index([landlordId])
@@ -111,7 +111,7 @@ model Session {
 }
 
 model Invoice {
-  id                  String           @id @default(cuid())
+  id                     String           @id @default(cuid())
   // Nullable: vendor submissions are created before a number is assigned.
   // The sequential number is stamped when a submission is accepted (KTD-11)
   // so withdrawn/rejected submissions never leave gaps in the landlord's ledger.
@@ -119,71 +119,71 @@ model Invoice {
   // below. Nullable because a contractor submission carries no number until it
   // is approved (KTD-11); Postgres treats NULLs as never-equal, so a user may
   // hold many unnumbered invoices at once.
-  invoiceNumber       String?
-  vendorName          String
-  vendorEmail         String?
+  invoiceNumber          String?
+  vendorName             String
+  vendorEmail            String?
   // Server-computed sum of `items[].total`, recomputed inside the same
   // transaction that writes the items — never accepted as client input.
-  amount              Decimal          @db.Decimal(10, 2)
-  currency            String           @default("USD")
+  amount                 Decimal          @db.Decimal(10, 2)
+  currency               String           @default("USD")
   // Nullable: a vendor submission carries no category — the landlord sets
   // it on review (approving is blocked until it is set).
-  category            InvoiceCategory?
+  category               InvoiceCategory?
   // The property this invoice is assigned to, if any. Optional at create/submit,
   // required to APPROVE (enforced in writeService, not the DB). Restrict so a
   // property with invoices can't be deleted out from under its spend history —
   // the API pre-checks and returns a friendly count first.
-  propertyId          String?
-  property            Property?        @relation(fields: [propertyId], references: [id], onDelete: Restrict)
-  status              InvoiceStatus    @default(PENDING)
-  invoiceDate         DateTime
-  paidDate            DateTime?
-  rejectionReason     String?
-  notes               String?
+  propertyId             String?
+  property               Property?        @relation(fields: [propertyId], references: [id], onDelete: Restrict)
+  status                 InvoiceStatus    @default(PENDING)
+  invoiceDate            DateTime
+  paidDate               DateTime?
+  rejectionReason        String?
+  notes                  String?
   // Free-text description of parts ordered for the job (optional).
-  partsOrdered        String?
-  sheetsSyncedAt      DateTime?
-  createdAt           DateTime         @default(now())
-  updatedAt           DateTime         @updatedAt
-  userId              String
-  user                User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  partsOrdered           String?
+  sheetsSyncedAt         DateTime?
+  createdAt              DateTime         @default(now())
+  updatedAt              DateTime         @updatedAt
+  userId                 String
+  user                   User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   // The vendor who submitted this invoice, if any. The invoice is still
   // owned by the landlord (`userId`); this only records the submitter, AND it
   // is the authorization scope for that vendor's no-login link (see
   // submissions/handlers.ts). SetNull so deleting a vendor never cascades into
   // the landlord's owned invoice.
-  submittedByVendorId String?
-  submittedByVendor   Vendor?          @relation("InvoiceSubmittedByVendor", fields: [submittedByVendorId], references: [id], onDelete: SetNull)
+  submittedByVendorId    String?
+  submittedByVendor      Vendor?          @relation("InvoiceSubmittedByVendor", fields: [submittedByVendorId], references: [id], onDelete: SetNull)
   // Attribution: which vendor this invoice is FROM. Set by the invoice form's
   // picker or by auto-create. Deliberately separate from submittedByVendorId —
   // sharing one column would let a vendor's public link read landlord-entered
   // invoices merely attributed to them.
-  vendorId            String?
-  vendor              Vendor?          @relation("InvoiceVendor", fields: [vendorId], references: [id], onDelete: SetNull)
-  images              InvoiceImage[]
-  items               InvoiceItem[]
+  vendorId               String?
+  vendor                 Vendor?          @relation("InvoiceVendor", fields: [vendorId], references: [id], onDelete: SetNull)
+  images                 InvoiceImage[]
+  items                  InvoiceItem[]
 
-  // Per-tenant numbering: two landlords may each hold invoice "1". A global
-  // unique here would leak across tenants — a collision with ANOTHER user's
-  // number returned 409, which is a working existence oracle (DEC-029(j)).
-  @@unique([userId, invoiceNumber])
   @@index([userId, status])
   @@index([userId, invoiceDate])
   @@index([submittedByVendorId])
   @@index([vendorId])
   @@index([propertyId])
+  // Per-tenant numbering: two landlords may each hold invoice "1". A global
+  // unique here would leak across tenants — a collision with ANOTHER user's
+  // number returned 409, which is a working existence oracle (DEC-029(j)).
+  @@unique([userId, invoiceNumber])
   @@map("invoices")
 }
 
 // A landlord's rental property. Invoices are assigned to a property to organize
 // spend. Per-landlord (landlordId); mirrors the Vendor entity.
 model Property {
-  id             String           @id @default(cuid())
-  landlordId     String
-  landlord       User             @relation(fields: [landlordId], references: [id], onDelete: Cascade)
-  name           String
-  address        String
-  notes          String?
+  id         String   @id @default(cuid())
+  landlordId String
+  landlord   User     @relation(fields: [landlordId], references: [id], onDelete: Cascade)
+  name       String
+  address    String
+  notes      String?
   // The property's legal owner — the payee and the PDF's Bill-To — which is
   // NOT necessarily the account holder: a property manager runs the account
   // but does not receive the payments. Kept on the property (not derived from
@@ -199,10 +199,10 @@ model Property {
   ownerLastName  String?
   ownerEmail     String?
   ownerPhone     String?
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
-  invoices       Invoice[]
-  vendors        VendorProperty[]
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  invoices   Invoice[]
+  vendors    VendorProperty[]
 
   @@index([landlordId])
   @@map("properties")
