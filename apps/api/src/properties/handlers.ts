@@ -14,12 +14,26 @@ type PropertyRow = {
   name: string
   address: string
   notes: string | null
+  ownerFirstName: string | null
+  ownerLastName: string | null
+  ownerEmail: string | null
+  ownerPhone: string | null
   createdAt: Date
 }
 
 /** Landlord-facing shape for a property. */
 function toProperty(p: PropertyRow) {
-  return { id: p.id, name: p.name, address: p.address, notes: p.notes, createdAt: p.createdAt }
+  return {
+    id: p.id,
+    name: p.name,
+    address: p.address,
+    notes: p.notes,
+    ownerFirstName: p.ownerFirstName,
+    ownerLastName: p.ownerLastName,
+    ownerEmail: p.ownerEmail,
+    ownerPhone: p.ownerPhone,
+    createdAt: p.createdAt,
+  }
 }
 
 type Params = { id: string }
@@ -42,6 +56,10 @@ export async function createProperty(request: FastifyRequest, reply: FastifyRepl
       name: input.name ?? '',
       address: input.address,
       notes: input.notes ?? null,
+      ownerFirstName: input.ownerFirstName,
+      ownerLastName: input.ownerLastName,
+      ownerEmail: input.ownerEmail,
+      ownerPhone: input.ownerPhone ?? null,
     },
   })
   return reply.code(201).send(toProperty(p))
@@ -83,7 +101,7 @@ export async function getProperty(
   return reply.send({ ...toProperty(p), totalSpend: money(agg._sum.amount) })
 }
 
-/** PATCH /api/properties/:id — edit name/address/notes (own only). */
+/** PATCH /api/properties/:id — edit name/address/notes/owner (own only). */
 export async function updateProperty(
   request: FastifyRequest<{ Params: Params }>,
   reply: FastifyReply,
@@ -96,6 +114,10 @@ export async function updateProperty(
       ...(input.name !== undefined && { name: input.name }),
       ...(input.address !== undefined && { address: input.address }),
       ...(input.notes !== undefined && { notes: input.notes }),
+      ...(input.ownerFirstName !== undefined && { ownerFirstName: input.ownerFirstName }),
+      ...(input.ownerLastName !== undefined && { ownerLastName: input.ownerLastName }),
+      ...(input.ownerEmail !== undefined && { ownerEmail: input.ownerEmail }),
+      ...(input.ownerPhone !== undefined && { ownerPhone: input.ownerPhone }),
     },
   })
   return reply.send(toProperty(p))

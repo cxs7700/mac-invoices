@@ -5,6 +5,8 @@ import { propertyLabel } from '@mac-invoices/shared'
 import { ApiError } from '@/lib/apiClient'
 import { Button } from '@/components/ui/button'
 import { AddressAutocomplete } from '@/components/AddressAutocomplete'
+import { PropertyOwnerFields } from '@/components/PropertyOwnerFields'
+import { EMPTY_OWNER, ownerComplete, ownerPayload, type OwnerDraft } from '@/lib/propertyOwner'
 import { useProperties, useCreateProperty, useDeleteProperty } from '@/hooks/useProperties'
 
 export default function Properties() {
@@ -16,6 +18,7 @@ export default function Properties() {
   const [name, setName] = useState('')
   const [address, setAddress] = useState('')
   const [notes, setNotes] = useState('')
+  const [owner, setOwner] = useState<OwnerDraft>(EMPTY_OWNER)
   // propertyId -> delete-guard error (e.g. "3 invoices assigned").
   const [delErrors, setDelErrors] = useState<Record<string, string>>({})
 
@@ -24,12 +27,18 @@ export default function Properties() {
   const onCreate = (e: React.FormEvent) => {
     e.preventDefault()
     create.mutate(
-      { name: name.trim() || undefined, address: address.trim(), notes: notes.trim() || undefined },
+      {
+        name: name.trim() || undefined,
+        address: address.trim(),
+        notes: notes.trim() || undefined,
+        ...ownerPayload(owner),
+      },
       {
         onSuccess: () => {
           setName('')
           setAddress('')
           setNotes('')
+          setOwner(EMPTY_OWNER)
         },
       },
     )
@@ -88,12 +97,17 @@ export default function Properties() {
             className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
           />
         </div>
+        <PropertyOwnerFields value={owner} onChange={setOwner} />
         {createError && (
           <p className="mt-2 text-sm text-destructive" role="alert">
             {createError}
           </p>
         )}
-        <Button type="submit" className="mt-3" disabled={create.isPending || !address.trim()}>
+        <Button
+          type="submit"
+          className="mt-3"
+          disabled={create.isPending || !address.trim() || !ownerComplete(owner)}
+        >
           {create.isPending ? t('properties.adding') : t('properties.addProperty')}
         </Button>
       </form>

@@ -434,7 +434,8 @@
     "edit": "Edit",
     "invoices": "Invoices",
     "invoicesLoadError": "Couldn't load invoices.",
-    "noInvoices": "No invoices assigned to this property yet."
+    "noInvoices": "No invoices assigned to this property yet.",
+    "owner": "Owner"
   },
   "propertyEdit": {
     "loading": "Loading…",
@@ -446,6 +447,15 @@
     "notesOptional": "Notes (optional)",
     "saving": "Saving…",
     "saveChanges": "Save changes"
+  },
+  "propertyOwner": {
+    "heading": "Property owner",
+    "help": "Who owns this property and receives payment. Invoices are billed to them — this can be someone other than you.",
+    "firstName": "First name",
+    "lastName": "Last name",
+    "email": "Email",
+    "phoneOptional": "Phone (optional)",
+    "required": "Owner first name, last name and a valid email are required."
   },
   "vendors": {
     "title": "Vendors",

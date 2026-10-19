@@ -35,9 +35,21 @@ export type PdfInvoiceInput = {
   vendor: { name: string; phone: string | null; email: string | null } | null
 }
 
-/** The landlord's identity for the Bill-To section — the same block on every
- * page (the recipient is always the landlord, regardless of which invoice). */
+/** The account holder's identity — the Bill-To fallback for an invoice whose
+ * property has no owner on file (or that has no property at all). */
 export type PdfLandlord = { firstName: string | null; lastName: string | null; email: string }
+
+/** A property's owner — the payee, and the invoice's Bill-To. Not necessarily
+ * the account holder: a property manager runs the account but is not paid. */
+export type PdfOwner = {
+  firstName: string | null
+  lastName: string | null
+  email: string | null
+  phone: string | null
+}
+
+/** What a page needs from the invoice's property. */
+export type PdfProperty = { address: string; owner: PdfOwner }
 
 /** One rendered page per invoice; long table cells may spill to a
  * continuation page (autotable paginates; no data is truncated). */
@@ -54,7 +66,8 @@ export type InvoicePdfPage = {
   // Variable-height: email and phone are each omitted when blank, so a vendor
   // with no contact details renders a name only rather than empty gaps.
   sender: { name: string; lines: string[] }
-  billTo: { name: string; email: string }
+  // Same variable-height shape as sender: email then (optional) phone.
+  billTo: { name: string; lines: string[] }
   items: { description: string; quantity: string; total: string }[]
   balanceDue: string
   /** Drives the panel's colour. Derived from the number, not from parsing the
@@ -132,9 +145,27 @@ export function balanceToneOf(inv: Pick<PdfInvoiceInput, 'status' | 'amount'>): 
 
 /** "Jane Doe" from parts, falling back to the email when both names are unset
  * (a landlord who hasn't filled in their profile yet). */
-function landlordName(landlord: PdfLandlord): string {
-  const joined = [landlord.firstName, landlord.lastName].filter(Boolean).join(' ')
-  return joined || landlord.email
+function fullName(p: { firstName: string | null; lastName: string | null; email: string }): string {
+  const joined = [p.firstName, p.lastName].filter(Boolean).join(' ')
+  return joined || p.email
+}
+
+/** Bill-To block: the invoice's property owner — the payee. Falls back to the
+ * account holder only when there is no owner email on file (a property-less
+ * invoice, or a pre-owner row whose backfill had nothing to copy), so the
+ * block is never blank. */
+function billToBlock(
+  property: PdfProperty | undefined,
+  landlord: PdfLandlord,
+): { name: string; lines: string[] } {
+  const owner = property?.owner
+  if (owner?.email) {
+    return {
+      name: fullName({ ...owner, email: owner.email }),
+      lines: [owner.email, formatPhone(owner.phone)].filter((s): s is string => !!s),
+    }
+  }
+  return { name: fullName(landlord), lines: [landlord.email] }
 }
 
 /** Filename uses the local calendar date — an export at 23:50 shouldn't be
@@ -163,38 +194,41 @@ function senderBlock(inv: PdfInvoiceInput): { name: string; lines: string[] } {
 }
 
 /**
- * Pure page-model builder: selected rows + property-address lookup + the
- * landlord's identity → ordered page descriptions. Pages sort by the shared
- * natural-order rule so the PDF and the Sheets mirror can never disagree on
- * ordering. The Bill-To block is the same landlord on every page (the
- * recipient is always the landlord); Sender is per-invoice (the attribution
- * vendor, or the invoice's own vendorName/vendorEmail when there isn't one).
+ * Pure page-model builder: selected rows + property lookup (address and owner)
+ * + the account holder's identity → ordered page descriptions. Pages sort by
+ * the shared natural-order rule so the PDF and the Sheets mirror can never
+ * disagree on ordering. Both parties are per-invoice: Bill-To is the owner of
+ * the invoice's property (the payee — falling back to the account holder when
+ * there is none), and Sender is the attribution vendor (or the invoice's own
+ * vendorName/vendorEmail when there isn't one).
  */
 export function buildInvoicePdfModel(
   invoices: PdfInvoiceInput[],
-  addressByPropertyId: ReadonlyMap<string, string>,
+  propertiesById: ReadonlyMap<string, PdfProperty>,
   landlord: PdfLandlord,
 ): InvoicePdfPage[] {
-  const billTo = { name: landlordName(landlord), email: landlord.email }
-  return [...invoices].sort(compareInvoiceOrder).map((inv) => ({
-    heading: `${PDF_LABELS.invoice} ${inv.invoiceNumber ?? EMPTY}`,
-    number: inv.invoiceNumber ?? EMPTY,
-    date: formatPdfDate(inv.invoiceDate),
-    status: statusLabel(inv.status),
-    tone: statusTone(inv.status),
-    location: (inv.propertyId && addressByPropertyId.get(inv.propertyId)) || EMPTY,
-    sender: senderBlock(inv),
-    billTo,
-    items: [...inv.items]
-      .sort((a, b) => a.sortOrder - b.sortOrder)
-      .map((item) => ({
-        description: item.description,
-        quantity: String(item.quantity),
-        total: formatPdfMoney(item.total),
-      })),
-    balanceDue: balanceDue(inv),
-    balanceTone: balanceToneOf(inv),
-  }))
+  return [...invoices].sort(compareInvoiceOrder).map((inv) => {
+    const property = inv.propertyId ? propertiesById.get(inv.propertyId) : undefined
+    return {
+      heading: `${PDF_LABELS.invoice} ${inv.invoiceNumber ?? EMPTY}`,
+      number: inv.invoiceNumber ?? EMPTY,
+      date: formatPdfDate(inv.invoiceDate),
+      status: statusLabel(inv.status),
+      tone: statusTone(inv.status),
+      location: property?.address || EMPTY,
+      sender: senderBlock(inv),
+      billTo: billToBlock(property, landlord),
+      items: [...inv.items]
+        .sort((a, b) => a.sortOrder - b.sortOrder)
+        .map((item) => ({
+          description: item.description,
+          quantity: String(item.quantity),
+          total: formatPdfMoney(item.total),
+        })),
+      balanceDue: balanceDue(inv),
+      balanceTone: balanceToneOf(inv),
+    }
+  })
 }
 
 const MARGIN = 44
@@ -267,11 +301,11 @@ const CHIP_HEIGHT = 18
  */
 export async function generateInvoicesPdf(
   invoices: PdfInvoiceInput[],
-  addressByPropertyId: ReadonlyMap<string, string>,
+  propertiesById: ReadonlyMap<string, PdfProperty>,
   landlord: PdfLandlord,
   now: Date = new Date(),
 ): Promise<void> {
-  const pages = buildInvoicePdfModel(invoices, addressByPropertyId, landlord)
+  const pages = buildInvoicePdfModel(invoices, propertiesById, landlord)
   const [{ jsPDF }, { default: autoTable }] = await Promise.all([
     import('jspdf'),
     import('jspdf-autotable'),
@@ -370,13 +404,14 @@ export async function generateInvoicesPdf(
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(9.5)
     doc.setTextColor(...MUTED)
-    doc.text(page.billTo.email, billToX, partiesY + LABEL_TO_VALUE + 14)
+    page.billTo.lines.forEach((line, li) => {
+      doc.text(line, billToX, partiesY + LABEL_TO_VALUE + 14 + li * 13)
+    })
 
-    // The sender block grows with its contact lines while Bill-To is always
-    // one; start the table below whichever ran longer, or a three-line sender
-    // would collide with it.
+    // Both party blocks grow with their contact lines; start the table below
+    // whichever ran longer, or a multi-line block would collide with it.
     const senderBottom = partiesY + LABEL_TO_VALUE + 14 + page.sender.lines.length * 13
-    const billToBottom = partiesY + LABEL_TO_VALUE + 14
+    const billToBottom = partiesY + LABEL_TO_VALUE + 14 + page.billTo.lines.length * 13
     const tableStartY = Math.max(senderBottom, billToBottom) + 28
 
     autoTable(doc, {

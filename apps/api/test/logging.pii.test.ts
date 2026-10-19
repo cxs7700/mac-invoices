@@ -97,6 +97,43 @@ describe('no personal data reaches the logs', () => {
     expect(out).not.toContain(VENDOR_PHONE)
   })
 
+  it("keeps a property owner's name, email and phone out of a create/read round trip", async () => {
+    const OWNER_FIRST = 'Quixotica'
+    const OWNER_LAST = 'Zzyzxowner'
+    const OWNER_EMAIL = 'zzyzx-owner@example.invalid'
+    const OWNER_PHONE = '555-0199-4321'
+    const created = await app.inject({
+      method: 'POST',
+      url: '/api/properties',
+      headers: { cookie },
+      payload: {
+        address: '1 Zzyzx Rd',
+        ownerFirstName: OWNER_FIRST,
+        ownerLastName: OWNER_LAST,
+        ownerEmail: OWNER_EMAIL,
+        ownerPhone: OWNER_PHONE,
+      },
+    })
+    expect(created.statusCode).toBe(201)
+    const id = created.json().id
+    try {
+      const read = await app.inject({
+        method: 'GET',
+        url: `/api/properties/${id}`,
+        headers: { cookie },
+      })
+      expect(read.payload).toContain(OWNER_EMAIL)
+
+      const out = logged()
+      expect(out).not.toContain(OWNER_FIRST)
+      expect(out).not.toContain(OWNER_LAST)
+      expect(out).not.toContain(OWNER_EMAIL)
+      expect(out).not.toContain(OWNER_PHONE)
+    } finally {
+      await app.prisma.property.delete({ where: { id } })
+    }
+  })
+
   it('keeps credentials out of a failed and a successful login', async () => {
     await app.inject({
       method: 'POST',

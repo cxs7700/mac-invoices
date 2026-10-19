@@ -184,6 +184,21 @@ model Property {
   name       String
   address    String
   notes      String?
+  // The property's legal owner — the payee and the PDF's Bill-To — which is
+  // NOT necessarily the account holder: a property manager runs the account
+  // but does not receive the payments. Kept on the property (not derived from
+  // the User) because the owner stays fixed while the account's name/email may
+  // change or belong to someone else entirely.
+  //
+  // Nullable in the DB only so a raw insert (tests, scripts) needn't supply
+  // them; the API requires first/last/email on create (Zod, as with Vendor's
+  // phone-or-email rule) and the migration backfilled existing rows from the
+  // account holder. A row with no owner email falls back to the account holder
+  // on the PDF.
+  ownerFirstName String?
+  ownerLastName  String?
+  ownerEmail     String?
+  ownerPhone     String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
   invoices   Invoice[]

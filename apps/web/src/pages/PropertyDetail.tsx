@@ -1,6 +1,6 @@
 import { Link, useParams } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { propertyLabel } from '@mac-invoices/shared'
+import { ownerFullName, propertyLabel } from '@mac-invoices/shared'
 import { useProperty } from '@/hooks/useProperties'
 import { useInvoices } from '@/hooks/useInvoices'
 import { InvoiceTable } from '@/components/InvoiceTable'
@@ -41,6 +41,14 @@ export default function PropertyDetail() {
             <p className="text-sm text-muted-foreground">{property.address}</p>
           )}
           {property.notes && <p className="mt-1 text-sm text-muted-foreground">{property.notes}</p>}
+          {property.ownerEmail && (
+            <p className="mt-1 text-sm text-muted-foreground">
+              {t('propertyDetail.owner')}:{' '}
+              {[ownerFullName(property), property.ownerEmail, property.ownerPhone]
+                .filter(Boolean)
+                .join(' · ')}
+            </p>
+          )}
         </div>
         <div className="shrink-0 text-right">
           <div className="text-xs uppercase tracking-wide text-muted-foreground">

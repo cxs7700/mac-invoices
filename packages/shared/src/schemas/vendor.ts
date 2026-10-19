@@ -8,7 +8,7 @@ import {
   MAX_INVOICE_IMAGES,
   MAX_INVOICE_ITEMS,
 } from './invoice'
-import { formatPhone } from '../lib/formatPhone'
+import { PhoneSchema } from './phone'
 
 const DAY_MS = 86_400_000
 
@@ -90,11 +90,7 @@ export type SubmissionStatus = z.infer<typeof SubmissionStatusSchema>
 // Phone and email are both optional columns, but at least one must be present
 // on a landlord-entered vendor. The DB keeps both nullable because the invoice
 // auto-create path deliberately writes a name-only vendor (see the plan's Task 5).
-// Phone is normalized at the schema boundary rather than only on display, so
-// one stored shape reaches every consumer — the list, the PDF, the Sheets
-// mirror — instead of each formatting it for itself. Numbers that aren't
-// 10-digit North-American are stored as typed (see formatPhone).
-const PhoneSchema = z.string().trim().min(1).max(50).transform(formatPhone)
+// Phone is normalized at the schema boundary (see PhoneSchema).
 
 export const CreateVendorSchema = z
   .object({
