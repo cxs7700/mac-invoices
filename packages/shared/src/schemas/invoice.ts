@@ -6,13 +6,7 @@ import { z } from 'zod'
 // APPROVED was removed 2026-08-26 (existing APPROVED rows were migrated to
 // PAID). Accepting a submission lands it on PENDING — unpaid; paying is a
 // separate landlord action.
-export const InvoiceStatus = z.enum([
-  'PENDING',
-  'PAID',
-  'REJECTED',
-  'CANCELLED',
-  'SUBMITTED',
-])
+export const InvoiceStatus = z.enum(['PENDING', 'PAID', 'REJECTED', 'CANCELLED', 'SUBMITTED'])
 export const InvoiceCategory = z.enum([
   'MAINTENANCE',
   'REPAIRS',

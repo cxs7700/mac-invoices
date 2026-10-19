@@ -548,10 +548,7 @@ describe('sheets.applyColumnFormatting', () => {
               rule: {
                 condition: {
                   type: 'ONE_OF_LIST',
-                  values: [
-                    { userEnteredValue: 'PENDING' },
-                    { userEnteredValue: 'PAID' },
-                  ],
+                  values: [{ userEnteredValue: 'PENDING' }, { userEnteredValue: 'PAID' }],
                 },
                 showCustomUi: true,
                 strict: true,

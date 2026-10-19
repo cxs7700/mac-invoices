@@ -92,7 +92,9 @@ export default function InvoiceDetail() {
             />
             <Field
               label={t('invoiceDetail.property')}
-              value={invoice.property ? propertyLabel(invoice.property) : t('invoiceDetail.noProperty')}
+              value={
+                invoice.property ? propertyLabel(invoice.property) : t('invoiceDetail.noProperty')
+              }
             />
             {invoice.submitterName && (
               <Field label={t('invoiceDetail.submittedBy')} value={invoice.submitterName} />
